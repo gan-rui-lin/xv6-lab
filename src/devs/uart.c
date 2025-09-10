@@ -1,9 +1,10 @@
 #include "defs.h"
 #include "types.h"
+#include "memlayout.h"
 
 void uart_putc(uint8 c){
-    while((*(volatile uint8 *)(UART_BASE + LSR) & TX_IDLE) == 0);
-    *(volatile uint8*)(UART_BASE + THR) = c;
+    while((*(volatile uint8 *)(UART0 + LSR) & TX_IDLE) == 0);
+    *(volatile uint8*)(UART0 + THR) = c;
 }
 
 void uart_puts(char * s){

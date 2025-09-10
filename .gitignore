@@ -17,3 +17,4 @@ user/usys.S
 mkfs/mkfs
 .vscode/
 user/initcode.bin
+temp*

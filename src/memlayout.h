@@ -47,15 +47,15 @@
 // the kernel expects there to be RAM
 // for use by the kernel and user pages
 // from physical address 0x80000000 to PHYSTOP.
+// 内核空间的起始地址
 #define KERNBASE 0x80000000L
+
 #define PHYSTOP (KERNBASE + 128*1024*1024)
 
-// map the trampoline page to the highest address,
-// in both user and kernel space.
+// 用户空间和内核空间均可访问；占用最高地址的一页大小
 #define TRAMPOLINE (MAXVA - PGSIZE)
 
-// map kernel stacks beneath the trampoline,
-// each surrounded by invalid guard pages.
+// 每个内核栈占用 2 页空间，其中一页用于实际的栈，另一页作为无效的“guard page”（保护页）
 #define KSTACK(p) (TRAMPOLINE - ((p)+1)* 2*PGSIZE)
 
 // User memory layout.

@@ -7,10 +7,10 @@ void main(){
     uart_puts("\nhere!\n");
     
     // 设置中断向量表
-    trapinithart();
+    // trapinithart();
     
     // 启用 S 模式下的中断
-    intr_on();
+    // intr_on();
     
     while (1) {
         // 在此循环中可以处理中断

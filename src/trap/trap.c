@@ -129,42 +129,42 @@ trapinithart(void)
 //   ((void (*)(uint64))trampoline_userret)(satp);
 // }
 
-// // interrupts and exceptions from kernel code go here via kernelvec,
-// // on whatever the current kernel stack is.
-// void 
-// kerneltrap()
-// {
-//   int which_dev = 0;
-//   uint64 sepc = r_sepc();
-//   uint64 sstatus = r_sstatus();
-//   uint64 scause = r_scause();
+// interrupts and exceptions from kernel code go here via kernelvec,
+// on whatever the current kernel stack is.
+void 
+kerneltrap()
+{
+  int which_dev = 0;
+  uint64 sepc = r_sepc();
+  uint64 sstatus = r_sstatus();
+  uint64 scause = r_scause();
   
-//   if((sstatus & SSTATUS_SPP) == 0)
-//     panic("kerneltrap: not from supervisor mode");
-//   if(intr_get() != 0)
-//     panic("kerneltrap: interrupts enabled");
+  if((sstatus & SSTATUS_SPP) == 0)
+    panic("kerneltrap: not from supervisor mode");
+  if(intr_get() != 0)
+    panic("kerneltrap: interrupts enabled");
 
-//   if((which_dev = devintr()) == 0){
-//     printf("scause %p\n", scause);
-//     printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
-//     panic("kerneltrap");
-//   }
+  if((which_dev = devintr()) == 0){
+    printf("scause %p\n", scause);
+    printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
+    panic("kerneltrap");
+  }
 
-//   // give up the CPU if this is a timer interrupt.
-//   if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
-//     yield();
+  // 目前的内核 trap 只有时钟中断
+  // give up the CPU if this is a timer interrupt.
+  // if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING)
+  //   yield();
 
-//   // the yield() may have caused some traps to occur,
-//   // so restore trap registers for use by kernelvec.S's sepc instruction.
-//   w_sepc(sepc);
-//   w_sstatus(sstatus);
-// }
+  // the yield() may have caused some traps to occur,
+  // so restore trap registers for use by kernelvec.S's sepc instruction.
+  w_sepc(sepc);
+  w_sstatus(sstatus);
+}
 
 void
 clockintr()
 {
 //   acquire(&tickslock);
-  uart_puts("a tick...\n");
   ticks++;
 //   wakeup(&ticks);
 //   release(&tickslock);
@@ -205,6 +205,7 @@ devintr()
   } else if(scause == 0x8000000000000001L){
     // software interrupt from a machine-mode timer interrupt,
     // forwarded by timervec in kernelvec.S.
+    // 通过机器级的时钟中断(timervec)触发的 S 级的软件中断(sip[1] = 0)
 
     if(cpuid() == 0){
       clockintr();

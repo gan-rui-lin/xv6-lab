@@ -1,6 +1,5 @@
-
-
 #include "types.h"
+#include "spinlock.h"
 
 #define RHR 0                 // receive holding register (for input bytes)
 #define THR 0  
@@ -9,6 +8,7 @@
 
 void            uart_putc(uint8 c);
 void            uart_puts(char *s);
+void            uartinit(void);
 
 // plic.c
 void            plicinit(void);
@@ -18,3 +18,15 @@ void            plic_complete(int);
 
 // 设置异常向量表
 void trapinithart(void);
+
+// proc.c
+int cpuid();
+struct cpu* mycpu(void);
+
+// spinlock.c
+// void            acquire(struct spinlock*);
+// int             holding(struct spinlock*);
+void            initlock(struct spinlock*, char*);
+// void            release(struct spinlock*);
+void            push_off(void);
+void            pop_off(void);

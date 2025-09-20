@@ -18,6 +18,7 @@ void uartputc_sync(uint8 c){
 
     acquire(&uart_tx_lock);
 
+    // 如果 panicked, 所有核都不在输出任何信息，并死循环
     if(panicked){
        for(;;) ;
     }

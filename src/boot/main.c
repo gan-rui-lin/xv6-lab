@@ -8,14 +8,20 @@ void main(){
     if(cpuid() == 0){
         // 只有 hart0 执行系统初始化
         // 而其它 CPU 等待
+        consoleinit(); // 初始化控制台, 目前只初始化 uart
+
+        printfinit();        // 初始化printf功能
+
         uart_puts("\nxv6 is booting!\n");
         plicinit(); // 设置中断控制器（仅一次）
         plicinithart(); // 每个核都要去向 PLIC 请求设备
-        __sync_synchronize(); // 确保多个核?
+        __sync_synchronize(); // 确保代码不乱序执行
         started = 1;
 
     }else{
         while (started == 0);
+
+        printf("\nhart %d starting!\n", cpuid());
 
         __sync_synchronize();
 

@@ -9,6 +9,7 @@
 void            uart_putc(uint8 c);
 void            uart_puts(char *s);
 void            uartinit(void);
+void            uartputc_sync(uint8 c);
 
 // plic.c
 void            plicinit(void);
@@ -24,9 +25,18 @@ int cpuid();
 struct cpu* mycpu(void);
 
 // spinlock.c
-// void            acquire(struct spinlock*);
-// int             holding(struct spinlock*);
+void            acquire(struct spinlock*);
+int             holding(struct spinlock*);
 void            initlock(struct spinlock*, char*);
-// void            release(struct spinlock*);
+void            release(struct spinlock*);
 void            push_off(void);
 void            pop_off(void);
+
+// printf.c
+void            printf(char*, ...);
+void            panic(char*) __attribute__((noreturn));
+void            printfinit(void);
+
+// console.c
+void consputc(int c);
+void consoleinit(void);

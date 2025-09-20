@@ -4,7 +4,6 @@
 volatile static int started = 0;
 
 void main(){
-    // uart_puts("\nhere!\n");
     if(cpuid() == 0){
         // 只有 hart0 执行系统初始化
         // 而其它 CPU 等待
@@ -21,7 +20,7 @@ void main(){
     }else{
         while (started == 0);
 
-        printf("\nhart %d starting!\n", cpuid());
+        uart_puts("hello world!\n");
 
         __sync_synchronize();
 

@@ -24,7 +24,7 @@ void
 start()
 {
 
-  uart_puts("\nhello world!\n");
+  // uart_puts("\nhello world!\n");
    // 设置M模式下的前一特权级为管理者模式(Supervisor)，供mret指令使用
   // 当mret执行时，会切换到管理者模式继续执行
   // RV64 的 mstatus 是 40 位，RV32 32 位

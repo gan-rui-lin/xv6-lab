@@ -24,8 +24,7 @@ void
 start()
 {
 
-  uart_puts("hello world!");
-
+  // uart_puts("\nhello world!\n");
    // 设置M模式下的前一特权级为管理者模式(Supervisor)，供mret指令使用
   // 当mret执行时，会切换到管理者模式继续执行
   // RV64 的 mstatus 是 40 位，RV32 32 位
@@ -44,6 +43,7 @@ start()
   w_mepc((uint64)main);
 
   // 暂时禁用分页机制
+  // 因为此时虚拟内存未启用，页表基地址也没有设置
   w_satp(0);
 
   // RISC-V 提供了一种异常委托机制。通过该机制可以选择性地将中

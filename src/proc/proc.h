@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 #include "param.h"
 #include "types.h"
 // Saved registers for kernel context switches.
@@ -31,3 +32,11 @@ extern struct cpu cpus[NCPU];
 
 
 int cpuid();
+=======
+struct cpu
+{
+    int cpu_id;
+    int noff;                   // Depth of push_off() nesting.
+    int intena;                 // Were interrupts enabled before push_off()?
+};
+>>>>>>> spinlock

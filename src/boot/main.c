@@ -3,6 +3,10 @@
 
 volatile static int started = 0;
 
+// --- 使用锁机制的并行加法
+volatile static int sum = 0;
+static struct spinlock add_lock;
+
 void main(){
     // uart_puts("\nhere!\n");
     if(cpuid() == 0){
@@ -18,10 +22,28 @@ void main(){
         __sync_synchronize(); // 确保代码不乱序执行
         started = 1;
 
+        // 确保 CPU0 核 其它核一起竞争
+        initlock(&add_lock, "add");
+        for(int i = 0; i < 1000000; i++){
+
+            acquire(&add_lock);
+            sum++;
+            release(&add_lock);
+        }
+        printf("\nsum = %d in hart %d\n", sum, cpuid());
+
     }else{
         while (started == 0);
 
         printf("\nhart %d starting!\n", cpuid());
+
+        for(int i = 0; i < 1000000; i++){
+
+            acquire(&add_lock);
+            sum++;
+            release(&add_lock);
+        }
+        printf("\nsum = %d in hart %d\n", sum, cpuid());
 
         __sync_synchronize();
 

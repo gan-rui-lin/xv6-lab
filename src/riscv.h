@@ -343,17 +343,23 @@ typedef uint64 *pagetable_t; // 512 PTEs
 // 页表管理 -----------
 
 
+// 每页 4KB, 每个页表项 8B, 每页 512 个页表项, 所以每级使用 9 位索引
+// 每个页表项 10 位是相关辅助信息，如 X | R | W | V | U 等等
+// 其余 44 位存放物理页框号 (PPN)
 #define PGSIZE 4096 // bytes per page
 #define PGSHIFT 12  // bits of offset within a page
 
 #define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
 #define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
-
-#define PTE_V (1L << 0) // valid
-#define PTE_R (1L << 1)
-#define PTE_W (1L << 2)
-#define PTE_X (1L << 3)
-#define PTE_U (1L << 4) // user can access
+// 页面权限控制 
+#define PTE_V (1 << 0) // valid
+#define PTE_R (1 << 1) // read
+#define PTE_W (1 << 2) // write
+#define PTE_X (1 << 3) // execute
+#define PTE_U (1 << 4) // user
+#define PTE_G (1 << 5) // global
+#define PTE_A (1 << 6) // accessed
+#define PTE_D (1 << 7) // dirty
 
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)

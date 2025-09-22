@@ -304,403 +304,403 @@ validate_page_mapping(pte_t pte)
         panic("uvmunmap: not a leaf page");
 }
 
-// 从va开始移除npages个映射。va必须是
-// 页面对齐的。映射必须存在。
-// 可选择释放物理内存
-void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
-{
-    uint64 current_va;
-    pte_t *pte;
+// // 从va开始移除npages个映射。va必须是
+// // 页面对齐的。映射必须存在。
+// // 可选择释放物理内存
+// void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
+// {
+//     uint64 current_va;
+//     pte_t *pte;
 
-    if (!is_page_aligned(va))
-        panic("uvmunmap: address not page aligned");
+//     if (!is_page_aligned(va))
+//         panic("uvmunmap: address not page aligned");
 
 
-    // 找到物理地址并 kfree
-    for (current_va = va; current_va < va + npages * PGSIZE; current_va += PGSIZE)
-    {
-        pte = walk(pagetable, current_va, 0);
-        if (pte == 0)
-            panic("uvmunmap: walk failed");
+//     // 找到物理地址并 kfree
+//     for (current_va = va; current_va < va + npages * PGSIZE; current_va += PGSIZE)
+//     {
+//         pte = walk(pagetable, current_va, 0);
+//         if (pte == 0)
+//             panic("uvmunmap: walk failed");
 
-        validate_page_mapping(*pte);
+//         validate_page_mapping(*pte);
 
-        if (do_free)
-        {
-            free_physical_page_from_pte(*pte);
-        }
+//         if (do_free)
+//         {
+//             free_physical_page_from_pte(*pte);
+//         }
 
-        clear_pte(pte);
-    }
-}
+//         clear_pte(pte);
+//     }
+// }
 
-// 创建一个空的用户页表
-// 如果内存不足则返回0
-pagetable_t
-uvmcreate()
-{
-    pagetable_t pagetable;
-    pagetable = (pagetable_t)kalloc();
-    if (pagetable == 0)
-        return 0;
-    memset(pagetable, 0, PGSIZE);
-    return pagetable;
-}
+// // 创建一个空的用户页表
+// // 如果内存不足则返回0
+// pagetable_t
+// uvmcreate()
+// {
+//     pagetable_t pagetable;
+//     pagetable = (pagetable_t)kalloc();
+//     if (pagetable == 0)
+//         return 0;
+//     memset(pagetable, 0, PGSIZE);
+//     return pagetable;
+// }
 
-// 将用户初始代码加载到页表的地址0，
-// 用于第一个进程。
-// 动态分配程序段页数的两倍，低地址存程序段，高地址作栈内存
-uint64 uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
-{
-    char *mem;
-    printf("sz: %d\n", sz);
+// // 将用户初始代码加载到页表的地址0，
+// // 用于第一个进程。
+// // 动态分配程序段页数的两倍，低地址存程序段，高地址作栈内存
+// uint64 uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
+// {
+//     char *mem;
+//     printf("sz: %d\n", sz);
 
-    // 计算程序段需要的页面数量（向上取整）
-    uint64 prog_pages = PGROUNDUP(sz) / PGSIZE;
-    if (prog_pages == 0)
-        prog_pages = 1; // 至少分配一页
+//     // 计算程序段需要的页面数量（向上取整）
+//     uint64 prog_pages = PGROUNDUP(sz) / PGSIZE;
+//     if (prog_pages == 0)
+//         prog_pages = 1; // 至少分配一页
 
-    // 总共分配两倍的页面数，低地址存程序段，高地址作栈内存
-    uint64 total_pages = prog_pages * 2;
-    uint64 total_size = total_pages * PGSIZE;
+//     // 总共分配两倍的页面数，低地址存程序段，高地址作栈内存
+//     uint64 total_pages = prog_pages * 2;
+//     uint64 total_size = total_pages * PGSIZE;
 
-    printf("prog_pages: %d, total_pages: %d, total_size: %d\n", prog_pages, total_pages, total_size);
+//     printf("prog_pages: %d, total_pages: %d, total_size: %d\n", prog_pages, total_pages, total_size);
 
-    // 分配程序段页面
-    for (uint64 i = 0; i < prog_pages; i++)
-    {
-        mem = kalloc();
-        if (mem == 0)
-            panic("uvmfirst: kalloc failed for program pages");
+//     // 分配程序段页面
+//     for (uint64 i = 0; i < prog_pages; i++)
+//     {
+//         mem = kalloc();
+//         if (mem == 0)
+//             panic("uvmfirst: kalloc failed for program pages");
 
-        memset(mem, 0, PGSIZE);
+//         memset(mem, 0, PGSIZE);
 
-        if (mappages(pagetable, i * PGSIZE, PGSIZE, (uint64)mem, PTE_W | PTE_R | PTE_X | PTE_U) != 0)
-        {
-            kfree(mem);
-            panic("uvmfirst: mappages failed for program pages");
-        }
+//         if (mappages(pagetable, i * PGSIZE, PGSIZE, (uint64)mem, PTE_W | PTE_R | PTE_X | PTE_U) != 0)
+//         {
+//             kfree(mem);
+//             panic("uvmfirst: mappages failed for program pages");
+//         }
 
-        // 复制程序内容
-        uint64 src_offset = i * PGSIZE;
-        uint64 copy_size = (sz - src_offset > PGSIZE) ? PGSIZE : (sz - src_offset);
-        if (copy_size > 0 && src_offset < sz)
-        {
-            memmove(mem, (void *)((uint64)src + src_offset), copy_size);
-        }
-    }
+//         // 复制程序内容
+//         uint64 src_offset = i * PGSIZE;
+//         uint64 copy_size = (sz - src_offset > PGSIZE) ? PGSIZE : (sz - src_offset);
+//         if (copy_size > 0 && src_offset < sz)
+//         {
+//             memmove(mem, (void *)((uint64)src + src_offset), copy_size);
+//         }
+//     }
 
-    // 分配栈内存页面
-    for (uint64 i = prog_pages; i < total_pages; i++)
-    {
-        mem = kalloc();
-        if (mem == 0)
-            panic("uvmfirst: kalloc failed for stack pages");
+//     // 分配栈内存页面
+//     for (uint64 i = prog_pages; i < total_pages; i++)
+//     {
+//         mem = kalloc();
+//         if (mem == 0)
+//             panic("uvmfirst: kalloc failed for stack pages");
 
-        memset(mem, 0, PGSIZE);
+//         memset(mem, 0, PGSIZE);
 
-        // 栈内存只需要读写权限，不需要执行权限
-        if (mappages(pagetable, i * PGSIZE, PGSIZE, (uint64)mem, PTE_W | PTE_R | PTE_U) != 0)
-        {
-            kfree(mem);
-            panic("uvmfirst: mappages failed for stack pages");
-        }
-    }
+//         // 栈内存只需要读写权限，不需要执行权限
+//         if (mappages(pagetable, i * PGSIZE, PGSIZE, (uint64)mem, PTE_W | PTE_R | PTE_U) != 0)
+//         {
+//             kfree(mem);
+//             panic("uvmfirst: mappages failed for stack pages");
+//         }
+//     }
 
-    return total_size;
-}
+//     return total_size;
+// }
 
-// 分配PTE和物理内存以将进程从oldsz增长到
-// newsz，不需要页面对齐。返回新大小或错误时返回0
-uint64
-uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
-{
-    char *mem;
-    uint64 a;
+// // 分配PTE和物理内存以将进程从oldsz增长到
+// // newsz，不需要页面对齐。返回新大小或错误时返回0
+// uint64
+// uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
+// {
+//     char *mem;
+//     uint64 a;
 
-    if (newsz < oldsz)
-        return oldsz;
+//     if (newsz < oldsz)
+//         return oldsz;
 
-    oldsz = PGROUNDUP(oldsz);
-    for (a = oldsz; a < newsz; a += PGSIZE)
-    {
-        mem = kalloc();
-        if (mem == 0)
-        {
-            uvmdealloc(pagetable, a, oldsz);
-            return 0;
-        }
-        memset(mem, 0, PGSIZE);
-        if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R | PTE_U | xperm) != 0)
-        {
-            kfree(mem);
-            uvmdealloc(pagetable, a, oldsz);
-            return 0;
-        }
-    }
-    return newsz;
-}
+//     oldsz = PGROUNDUP(oldsz);
+//     for (a = oldsz; a < newsz; a += PGSIZE)
+//     {
+//         mem = kalloc();
+//         if (mem == 0)
+//         {
+//             uvmdealloc(pagetable, a, oldsz);
+//             return 0;
+//         }
+//         memset(mem, 0, PGSIZE);
+//         if (mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R | PTE_U | xperm) != 0)
+//         {
+//             kfree(mem);
+//             uvmdealloc(pagetable, a, oldsz);
+//             return 0;
+//         }
+//     }
+//     return newsz;
+// }
 
-// 释放用户页面以将进程大小从oldsz减少到
-// newsz。oldsz和newsz不需要页面对齐，newsz也
-// 不需要小于oldsz。oldsz可以大于实际
-// 进程大小。返回新的进程大小
-uint64
-uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
-{
-    if (newsz >= oldsz)
-        return oldsz;
+// // 释放用户页面以将进程大小从oldsz减少到
+// // newsz。oldsz和newsz不需要页面对齐，newsz也
+// // 不需要小于oldsz。oldsz可以大于实际
+// // 进程大小。返回新的进程大小
+// uint64
+// uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+// {
+//     if (newsz >= oldsz)
+//         return oldsz;
 
-    if (PGROUNDUP(newsz) < PGROUNDUP(oldsz))
-    {
-        int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
-        uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
-    }
+//     if (PGROUNDUP(newsz) < PGROUNDUP(oldsz))
+//     {
+//         int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
+//         uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
+//     }
 
-    return newsz;
-}
+//     return newsz;
+// }
 
-// 检查PTE是否指向下一级页表（而非叶子页面）
-static inline int
-is_page_table_pointer(pte_t pte)
-{
-    return is_pte_valid(pte) && !is_pte_leaf(pte);
-}
+// // 检查PTE是否指向下一级页表（而非叶子页面）
+// static inline int
+// is_page_table_pointer(pte_t pte)
+// {
+//     return is_pte_valid(pte) && !is_pte_leaf(pte);
+// }
 
-// 页表中PTE的数量（2^9 = 512）
-#define PAGE_TABLE_ENTRIES 512
+// // 页表中PTE的数量（2^9 = 512）
+// #define PAGE_TABLE_ENTRIES 512
 
-// 递归释放页表页面
-// 所有叶子映射必须已经被移除
-void freewalk(pagetable_t pagetable)
-{
-    // 遍历页表中的所有PTE
-    for (int i = 0; i < PAGE_TABLE_ENTRIES; i++)
-    {
-        pte_t pte = pagetable[i];
+// // 递归释放页表页面
+// // 所有叶子映射必须已经被移除
+// void freewalk(pagetable_t pagetable)
+// {
+//     // 遍历页表中的所有PTE
+//     for (int i = 0; i < PAGE_TABLE_ENTRIES; i++)
+//     {
+//         pte_t pte = pagetable[i];
 
-        if (is_page_table_pointer(pte))
-        {
-            // 这个PTE指向一个下级页表，递归释放
-            uint64 child_pa = get_next_page_table_pa(pte);
-            freewalk((pagetable_t)child_pa);
-            pagetable[i] = 0;
-        }
-        else if (is_pte_valid(pte))
-        {
-            // 发现叶子页面，应该已经被清理
-            panic("freewalk: found unexpected leaf page");
-        }
-    }
+//         if (is_page_table_pointer(pte))
+//         {
+//             // 这个PTE指向一个下级页表，递归释放
+//             uint64 child_pa = get_next_page_table_pa(pte);
+//             freewalk((pagetable_t)child_pa);
+//             pagetable[i] = 0;
+//         }
+//         else if (is_pte_valid(pte))
+//         {
+//             // 发现叶子页面，应该已经被清理
+//             panic("freewalk: found unexpected leaf page");
+//         }
+//     }
 
-    // 释放当前页表页面
-    kfree((void *)pagetable);
-}
+//     // 释放当前页表页面
+//     kfree((void *)pagetable);
+// }
 
-// 计算给定大小需要的页面数量
-static inline uint64
-calculate_pages_needed(uint64 size)
-{
-    return PGROUNDUP(size) / PGSIZE;
-}
+// // 计算给定大小需要的页面数量
+// static inline uint64
+// calculate_pages_needed(uint64 size)
+// {
+//     return PGROUNDUP(size) / PGSIZE;
+// }
 
-// 释放用户内存页面，然后释放页表页面
-void uvmfree(pagetable_t pagetable, uint64 sz)
-{
-    if (sz > 0)
-    {
-        uint64 npages = calculate_pages_needed(sz);
-        uvmunmap(pagetable, 0, npages, 1);
-    }
-    freewalk(pagetable);
-}
+// // 释放用户内存页面，然后释放页表页面
+// void uvmfree(pagetable_t pagetable, uint64 sz)
+// {
+//     if (sz > 0)
+//     {
+//         uint64 npages = calculate_pages_needed(sz);
+//         uvmunmap(pagetable, 0, npages, 1);
+//     }
+//     freewalk(pagetable);
+// }
 
-// 复制物理页面内容
-static inline int
-copy_physical_page(uint64 src_pa, char **dest_mem)
-{
-    *dest_mem = kalloc();
-    if (*dest_mem == 0)
-        return -1; // 内存分配失败
+// // 复制物理页面内容
+// static inline int
+// copy_physical_page(uint64 src_pa, char **dest_mem)
+// {
+//     *dest_mem = kalloc();
+//     if (*dest_mem == 0)
+//         return -1; // 内存分配失败
 
-    memmove(*dest_mem, (char *)src_pa, PGSIZE);
-    return 0;
-}
+//     memmove(*dest_mem, (char *)src_pa, PGSIZE);
+//     return 0;
+// }
 
-// 清理部分复制的页面（错误处理）
-static inline void
-cleanup_partial_copy(pagetable_t new_table, uint64 copied_size)
-{
-    uint64 npages = copied_size / PGSIZE;
-    uvmunmap(new_table, 0, npages, 1);
-}
+// // 清理部分复制的页面（错误处理）
+// static inline void
+// cleanup_partial_copy(pagetable_t new_table, uint64 copied_size)
+// {
+//     uint64 npages = copied_size / PGSIZE;
+//     uvmunmap(new_table, 0, npages, 1);
+// }
 
-// 给定父进程的页表，复制其内存到子进程的页表
-// 复制页表和物理内存
-// 成功返回0，失败返回-1
-// 失败时释放任何已分配的页面
-int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
-{
-    pte_t *pte;
-    uint64 pa, current_va;
-    uint flags;
-    char *mem;
+// // 给定父进程的页表，复制其内存到子进程的页表
+// // 复制页表和物理内存
+// // 成功返回0，失败返回-1
+// // 失败时释放任何已分配的页面
+// int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+// {
+//     pte_t *pte;
+//     uint64 pa, current_va;
+//     uint flags;
+//     char *mem;
 
-    for (current_va = 0; current_va < sz; current_va += PGSIZE)
-    {
-        pte = walk(old, current_va, 0);
-        if (pte == 0)
-            panic("uvmcopy: pte should exist");
+//     for (current_va = 0; current_va < sz; current_va += PGSIZE)
+//     {
+//         pte = walk(old, current_va, 0);
+//         if (pte == 0)
+//             panic("uvmcopy: pte should exist");
 
-        if (!is_pte_valid(*pte))
-            panic("uvmcopy: page not present");
+//         if (!is_pte_valid(*pte))
+//             panic("uvmcopy: page not present");
 
-        pa = PTE2PA(*pte);
-        flags = PTE_FLAGS(*pte);
+//         pa = PTE2PA(*pte);
+//         flags = PTE_FLAGS(*pte);
 
-        if (copy_physical_page(pa, &mem) != 0)
-            goto err;
+//         if (copy_physical_page(pa, &mem) != 0)
+//             goto err;
 
-        if (mappages(new, current_va, PGSIZE, (uint64)mem, flags) != 0)
-        {
-            kfree(mem);
-            goto err;
-        }
-    }
-    return 0;
+//         if (mappages(new, current_va, PGSIZE, (uint64)mem, flags) != 0)
+//         {
+//             kfree(mem);
+//             goto err;
+//         }
+//     }
+//     return 0;
 
-err:
-    cleanup_partial_copy(new, current_va);
-    return -1;
-}
+// err:
+//     cleanup_partial_copy(new, current_va);
+//     return -1;
+// }
 
-// 清除PTE的用户访问位
-static inline void
-clear_user_access_bit(pte_t *pte)
-{
-    *pte &= ~PTE_U;
-}
+// // 清除PTE的用户访问位
+// static inline void
+// clear_user_access_bit(pte_t *pte)
+// {
+//     *pte &= ~PTE_U;
+// }
 
-// 标记PTE对用户访问无效
-// exec用于用户栈保护页面
-void uvmclear(pagetable_t pagetable, uint64 va)
-{
-    pte_t *pte;
+// // 标记PTE对用户访问无效
+// // exec用于用户栈保护页面
+// void uvmclear(pagetable_t pagetable, uint64 va)
+// {
+//     pte_t *pte;
 
-    pte = walk(pagetable, va, 0);
-    if (pte == 0)
-        panic("uvmclear: page table walk failed");
+//     pte = walk(pagetable, va, 0);
+//     if (pte == 0)
+//         panic("uvmclear: page table walk failed");
 
-    clear_user_access_bit(pte);
-}
+//     clear_user_access_bit(pte);
+// }
 
-// 计算在当前页面中可以复制的字节数
-static inline uint64
-bytes_to_copy_in_page(uint64 va, uint64 remaining_len)
-{
-    uint64 page_offset = va - PGROUNDDOWN(va);
-    uint64 bytes_in_page = PGSIZE - page_offset;
-    return (bytes_in_page > remaining_len) ? remaining_len : bytes_in_page;
-}
+// // 计算在当前页面中可以复制的字节数
+// static inline uint64
+// bytes_to_copy_in_page(uint64 va, uint64 remaining_len)
+// {
+//     uint64 page_offset = va - PGROUNDDOWN(va);
+//     uint64 bytes_in_page = PGSIZE - page_offset;
+//     return (bytes_in_page > remaining_len) ? remaining_len : bytes_in_page;
+// }
 
-// 从内核复制到用户
-// 将len字节从src复制到给定页表中的虚拟地址dstva
-// 成功返回0，错误返回-1
-int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
-{
-    uint64 bytes_to_copy, page_va, page_pa;
+// // 从内核复制到用户
+// // 将len字节从src复制到给定页表中的虚拟地址dstva
+// // 成功返回0，错误返回-1
+// int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
+// {
+//     uint64 bytes_to_copy, page_va, page_pa;
 
-    while (len > 0)
-    {
-        page_va = PGROUNDDOWN(dstva);
-        page_pa = walkaddr(pagetable, page_va);
-        if (page_pa == 0)
-            return -1; // 页面映射不存在或不可访问
+//     while (len > 0)
+//     {
+//         page_va = PGROUNDDOWN(dstva);
+//         page_pa = walkaddr(pagetable, page_va);
+//         if (page_pa == 0)
+//             return -1; // 页面映射不存在或不可访问
 
-        bytes_to_copy = bytes_to_copy_in_page(dstva, len);
+//         bytes_to_copy = bytes_to_copy_in_page(dstva, len);
 
-        uint64 dest_offset = dstva - page_va;
-        memmove((void *)(page_pa + dest_offset), src, bytes_to_copy);
+//         uint64 dest_offset = dstva - page_va;
+//         memmove((void *)(page_pa + dest_offset), src, bytes_to_copy);
 
-        len -= bytes_to_copy;
-        src += bytes_to_copy;
-        dstva = page_va + PGSIZE; // 移到下一页
-    }
-    return 0;
-}
+//         len -= bytes_to_copy;
+//         src += bytes_to_copy;
+//         dstva = page_va + PGSIZE; // 移到下一页
+//     }
+//     return 0;
+// }
 
-// 从用户复制到内核
-// 将len字节从给定页表中的虚拟地址srcva复制到dst
-// 成功返回0，错误返回-1
-int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
-{
-    uint64 bytes_to_copy, page_va, page_pa;
+// // 从用户复制到内核
+// // 将len字节从给定页表中的虚拟地址srcva复制到dst
+// // 成功返回0，错误返回-1
+// int copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
+// {
+//     uint64 bytes_to_copy, page_va, page_pa;
 
-    while (len > 0)
-    {
-        page_va = PGROUNDDOWN(srcva);
-        page_pa = walkaddr(pagetable, page_va);
-        if (page_pa == 0)
-            return -1; // 页面映射不存在或不可访问
+//     while (len > 0)
+//     {
+//         page_va = PGROUNDDOWN(srcva);
+//         page_pa = walkaddr(pagetable, page_va);
+//         if (page_pa == 0)
+//             return -1; // 页面映射不存在或不可访问
 
-        bytes_to_copy = bytes_to_copy_in_page(srcva, len);
+//         bytes_to_copy = bytes_to_copy_in_page(srcva, len);
 
-        uint64 src_offset = srcva - page_va;
-        memmove(dst, (void *)(page_pa + src_offset), bytes_to_copy);
+//         uint64 src_offset = srcva - page_va;
+//         memmove(dst, (void *)(page_pa + src_offset), bytes_to_copy);
 
-        len -= bytes_to_copy;
-        dst += bytes_to_copy;
-        srcva = page_va + PGSIZE; // 移到下一页
-    }
-    return 0;
-}
+//         len -= bytes_to_copy;
+//         dst += bytes_to_copy;
+//         srcva = page_va + PGSIZE; // 移到下一页
+//     }
+//     return 0;
+// }
 
-// 从用户复制一个以null结尾的字符串到内核
-// 将字节从给定页表中的虚拟地址srcva复制到dst，
-// 直到遇到'\0'或达到max
-// 成功返回0，错误返回-1
-int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
-{
-    uint64 n, va0, pa0;
-    int got_null = 0;
+// // 从用户复制一个以null结尾的字符串到内核
+// // 将字节从给定页表中的虚拟地址srcva复制到dst，
+// // 直到遇到'\0'或达到max
+// // 成功返回0，错误返回-1
+// int copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
+// {
+//     uint64 n, va0, pa0;
+//     int got_null = 0;
 
-    while (got_null == 0 && max > 0)
-    {
-        va0 = PGROUNDDOWN(srcva);
-        pa0 = walkaddr(pagetable, va0);
-        if (pa0 == 0)
-            return -1;
-        n = PGSIZE - (srcva - va0);
-        if (n > max)
-            n = max;
+//     while (got_null == 0 && max > 0)
+//     {
+//         va0 = PGROUNDDOWN(srcva);
+//         pa0 = walkaddr(pagetable, va0);
+//         if (pa0 == 0)
+//             return -1;
+//         n = PGSIZE - (srcva - va0);
+//         if (n > max)
+//             n = max;
 
-        char *p = (char *)(pa0 + (srcva - va0));
-        while (n > 0)
-        {
-            if (*p == '\0')
-            {
-                *dst = '\0';
-                got_null = 1;
-                break;
-            }
-            else
-            {
-                *dst = *p;
-            }
-            --n;
-            --max;
-            p++;
-            dst++;
-        }
+//         char *p = (char *)(pa0 + (srcva - va0));
+//         while (n > 0)
+//         {
+//             if (*p == '\0')
+//             {
+//                 *dst = '\0';
+//                 got_null = 1;
+//                 break;
+//             }
+//             else
+//             {
+//                 *dst = *p;
+//             }
+//             --n;
+//             --max;
+//             p++;
+//             dst++;
+//         }
 
-        srcva = va0 + PGSIZE;
-    }
-    if (got_null)
-    {
-        return 0;
-    }
-    else
-    {
-        return -1;
-    }
-}
+//         srcva = va0 + PGSIZE;
+//     }
+//     if (got_null)
+//     {
+//         return 0;
+//     }
+//     else
+//     {
+//         return -1;
+//     }
+// }

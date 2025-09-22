@@ -8,7 +8,14 @@ SECTIONS
     .text : {
         *(.text .text.*)
         . = ALIGN(0x1000); 
+
+        _trampoline = .;
+        *(trampsec)
+        . = ALIGN(0x1000);
+        /* ASSERT(. - _trampoline == 0x0, "error: trampoline larger than one page"); */
+        PROVIDE(etext = .);
     }
+
 
     .rodata : {
         . = ALIGN(0x1000);           /* 增加对齐要求确保段边界对齐 */

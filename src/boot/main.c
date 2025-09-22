@@ -10,7 +10,12 @@ void main(){
         // 而其它 CPU 等待
         consoleinit(); // 初始化控制台, 目前只初始化 uart
 
-        printfinit();        // 初始化printf功能
+        printfinit();       // 初始化printf功能
+
+        kinit();            // 物理页面分配器初始化
+        kvminit();          // 创建内核页表
+        kvminithart();      // 开启分页机制
+
 
         uart_puts("\nxv6 is booting!\n");
         plicinit(); // 设置中断控制器（仅一次）
@@ -21,9 +26,11 @@ void main(){
     }else{
         while (started == 0);
 
-        printf("\nhart %d starting!\n", cpuid());
-
         __sync_synchronize();
+
+        kvminithart();
+
+        printf("\nhart %d starting!\n", cpuid());
 
         plicinithart();
     }

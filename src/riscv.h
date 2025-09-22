@@ -1,3 +1,6 @@
+#ifndef XV6_RISCV_H
+#define XV6_RISCV_H
+
 #ifndef __ASSEMBLER__
 
 #include "types.h"
@@ -335,6 +338,7 @@ typedef uint64 pte_t;
 typedef uint64 *pagetable_t; // 512 PTEs
 
 #endif // __ASSEMBLER__
+#endif // XV6_RISCV_H
 
 // 页表管理 -----------
 

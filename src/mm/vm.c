@@ -42,9 +42,10 @@ kvmmake(void)
     // 映射内核数据段和我们将使用的物理RAM
     kvmmap(kpgtbl, (uint64)etext, (uint64)etext, PHYSTOP - (uint64)etext, PTE_R | PTE_W);
 
-    // 将trampoline页面映射到trap入口/出口，
-    // 位于内核的最高虚拟地址
-    //   kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+    // 将 trampoline 映射到最高虚拟地址 TRAMPOLINE。
+    // TODO: 等待引入真正的 trampoline.S 后，PA 应改为 (uint64)trampoline
+    // 暂时做占位的同址映射用于测试页表构建逻辑
+    kvmmap(kpgtbl, TRAMPOLINE, TRAMPOLINE, PGSIZE, PTE_R | PTE_X);
 
     // 为每个进程分配并映射一个内核栈
     //   proc_mapstacks(kpgtbl);
@@ -69,6 +70,8 @@ void kvminithart()
 
     // 刷新TLB中的陈旧条目
     sfence_vma();
+    // 测试 walk TRAMPOLINE
+    walk(kernel_pagetable, TRAMPOLINE, 1);
 }
 
 /*
@@ -141,8 +144,15 @@ allocate_page_table_page(void)
 pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
+    static int print_once = 0;
     if (va >= MAXVA)
         panic("walk: virtual address too large");
+
+    if (va == TRAMPOLINE)
+    {
+        printf("[debug]: walk: va %p\n", va, cpuid());
+    }
+
 
     // 遍历页表层级，从顶级(level 2)到中间级(level 1)
     // 最后返回叶子级(level 0)的PTE地址
@@ -151,9 +161,13 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
         uint64 index = extract_page_table_index(va, level);
         // 获取对应 PTE 表项
         pte_t *pte = &pagetable[index];
+        if (va == TRAMPOLINE)
+            printf("[debug]: walk: level %d, index %d, pte %p ", level, index, *pte);
 
         if (is_pte_valid(*pte))
         {
+            if (va == TRAMPOLINE)
+                printf("(valid)\n");
             // PTE有效，获取下一级页表的物理地址
             uint64 next_pa = get_next_page_table_pa(*pte);
             pagetable = (pagetable_t)next_pa;
@@ -175,12 +189,25 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
             // 在当前PTE中设置新页表的地址
             // 权限位全 0
             *pte = create_page_table_pte((uint64)new_table);
+            if(va == TRAMPOLINE)
+                printf("(new page table allocated at %p)\n", new_table);
             pagetable = new_table;
         }
     }
 
     // 返回叶子级(level 0)的PTE地址
     uint64 leaf_index = extract_page_table_index(va, 0);
+    if (va == TRAMPOLINE){
+        print_once += 1;
+        pte_t leaf = pagetable[leaf_index];
+        printf("[debug]: walk: level 0, index %d, pte %p\n", leaf_index, leaf);
+        if (is_pte_valid(leaf) && is_pte_leaf(leaf)) {
+            printf("[debug]: the %p va is mapped to pa %p\n", va, PTE2PA(leaf));
+        } else {
+            printf("[debug]: the %p va is currently not mapped to a leaf (no PA)\n", va);
+        }
+    }
+
     return &pagetable[leaf_index];
 }
 

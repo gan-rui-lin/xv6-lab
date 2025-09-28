@@ -45,8 +45,12 @@ kvmmake(void)
     // 将 trampoline 映射到最高虚拟地址 TRAMPOLINE。
     // TODO: 等待引入真正的 trampoline.S 后，PA 应改为 (uint64)trampoline
     // 暂时做占位的同址映射用于测试页表构建逻辑
+    #ifdef PAGE_TABLE_DEBUG
     kvmmap(kpgtbl, TRAMPOLINE, TRAMPOLINE, PGSIZE, PTE_R | PTE_X);
-
+    #endif
+    #ifndef PAGE_TABLE_DEBUG
+    // kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+    #endif
     // 为每个进程分配并映射一个内核栈
     //   proc_mapstacks(kpgtbl);
 
@@ -70,8 +74,10 @@ void kvminithart()
 
     // 刷新TLB中的陈旧条目
     sfence_vma();
+    #ifdef PAGE_TABLE_DEBUG
     // 测试 walk TRAMPOLINE
     walk(kernel_pagetable, TRAMPOLINE, 1);
+    #endif  
 }
 
 /*
@@ -148,10 +154,12 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
     if (va >= MAXVA)
         panic("walk: virtual address too large");
 
+    #ifdef PAGE_TABLE_DEBUG
     if (va == TRAMPOLINE)
     {
         printf("[debug]: walk: va %p\n", va, cpuid());
     }
+    #endif
 
 
     // 遍历页表层级，从顶级(level 2)到中间级(level 1)
@@ -161,13 +169,16 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
         uint64 index = extract_page_table_index(va, level);
         // 获取对应 PTE 表项
         pte_t *pte = &pagetable[index];
+        #ifdef PAGE_TABLE_DEBUG
         if (va == TRAMPOLINE)
             printf("[debug]: walk: level %d, index %d, pte %p ", level, index, *pte);
-
+        #endif
         if (is_pte_valid(*pte))
         {
+            #ifdef PAGE_TABLE_DEBUG
             if (va == TRAMPOLINE)
                 printf("(valid)\n");
+            #endif
             // PTE有效，获取下一级页表的物理地址
             uint64 next_pa = get_next_page_table_pa(*pte);
             pagetable = (pagetable_t)next_pa;
@@ -189,8 +200,10 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
             // 在当前PTE中设置新页表的地址
             // 权限位全 0
             *pte = create_page_table_pte((uint64)new_table);
+            #ifdef PAGE_TABLE_DEBUG
             if(va == TRAMPOLINE)
                 printf("(new page table allocated at %p)\n", new_table);
+            #endif
             pagetable = new_table;
         }
     }

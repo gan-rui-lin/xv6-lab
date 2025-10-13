@@ -49,7 +49,7 @@ kvmmake(void)
     kvmmap(kpgtbl, TRAMPOLINE, TRAMPOLINE, PGSIZE, PTE_R | PTE_X);
     #endif
     #ifndef PAGE_TABLE_DEBUG
-    // kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+    kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
     #endif
     // 为每个进程分配并映射一个内核栈
     //   proc_mapstacks(kpgtbl);
@@ -150,7 +150,9 @@ allocate_page_table_page(void)
 pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
+    #ifdef PAGE_TABLE_DEBUG
     static int print_once = 0;
+    #endif
     if (va >= MAXVA)
         panic("walk: virtual address too large");
 
@@ -210,6 +212,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
 
     // 返回叶子级(level 0)的PTE地址
     uint64 leaf_index = extract_page_table_index(va, 0);
+    #ifdef PAGE_TABLE_DEBUG
     if (va == TRAMPOLINE){
         print_once += 1;
         pte_t leaf = pagetable[leaf_index];
@@ -220,6 +223,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
             printf("[debug]: the %p va is currently not mapped to a leaf (no PA)\n", va);
         }
     }
+    #endif
 
     return &pagetable[leaf_index];
 }

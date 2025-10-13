@@ -45,11 +45,13 @@ void main()
         __sync_synchronize();
     }
 
-    // 设置中断向量表
-    // trapinithart();
+    // 为每一个 hart 设置中断向量表
+    trapinithart();
 
+    #ifdef TICKER_DEBUG
     // 启用 S 模式下的中断
-    // intr_on();
+    intr_on(); 
+    #endif
 
     while (1)
     {

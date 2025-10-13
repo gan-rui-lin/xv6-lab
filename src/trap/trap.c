@@ -2,10 +2,14 @@
 #include "param.h"
 #include "memlayout.h"
 #include "riscv.h"
-// #include "spinlock.h"
+#include "spinlock.h"
 #include "defs.h"
 
-// struct spinlock tickslock;
+#ifdef TICKER_DEBUG
+volatile static int ticker = 1; // 用于调试的 ticker 变量
+#endif
+
+struct spinlock tickslock;
 uint ticks;
 
 // extern char trampoline[], uservec[], userret[];
@@ -15,11 +19,11 @@ void kernelvec();
 
 extern int devintr();
 
-// void
-// trapinit(void)
-// {
-//   initlock(&tickslock, "time");
-// }
+void
+trapinit(void)
+{
+  initlock(&tickslock, "time");
+}
 
 // // set up to take exceptions and traps while in the kernel.
 void
@@ -163,10 +167,13 @@ kerneltrap()
 void
 clockintr()
 {
-//   acquire(&tickslock);
+  acquire(&tickslock);
+  #ifdef TICKER_DEBUG
+  printf("%d tick from cpu %d\n", ++ticker, cpuid());
+  #endif
   ticks++;
-//   wakeup(&ticks);
-//   release(&tickslock);
+  // wakeup(&ticks);
+  release(&tickslock);
 }
 
 // check if it's an external interrupt or software interrupt,
@@ -206,6 +213,7 @@ devintr()
     // forwarded by timervec in kernelvec.S.
     // 通过机器级的时钟中断(timervec)触发的 S 级的软件中断(sip[1] = 0)
 
+    // 只在 CPU0 下处理时钟中断
     if(cpuid() == 0){
       clockintr();
     }

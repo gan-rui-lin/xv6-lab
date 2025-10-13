@@ -20,23 +20,15 @@ void main()
         uart_puts("\nxv6 is booting!\n");
         plicinit();           // 设置中断控制器（仅一次）
         plicinithart();       // 每个核都要去向 PLIC 请求设备
-        kvminit();          // 创建内核页表
-        kvminithart();      // 开启分页机制
+        kvminit();            // 创建内核页表
+        kvminithart();        // 开启分页机制
         __sync_synchronize(); // 确保代码不乱序执行
         started = 1;
-
-
-
-
     }
     else
     {
         while (started == 0)
             ;
-
-
-
-
 
         printf("\nhart %d starting!\n", cpuid());
         kvminithart();
@@ -48,11 +40,13 @@ void main()
     // 为每一个 hart 设置中断向量表
     trapinithart();
 
-    #ifdef TICKER_DEBUG
+#ifdef TICKER_DEBUG
     // 启用 S 模式下的中断
-    intr_on(); 
-    #endif
+    intr_on();
+#endif
+    
 
+    asm volatile(".word 0x00000000"); // 很可能被解码为 illegal instruction
     while (1)
     {
         // 在此循环中可以处理中断

@@ -11,6 +11,7 @@ void            uart_putc(uint8 c);
 void            uart_puts(char *s);
 void            uartinit(void);
 void            uartputc_sync(uint8 c);
+void            uart_write(const char *s, int n);
 
 // plic.c
 void            plicinit(void);
@@ -41,6 +42,15 @@ void            printfinit(void);
 // console.c
 void consputc(int c);
 void consoleinit(void);
+// console input interrupt handler (from uart)
+void consoleintr(int c);
+
+// sleep/wakeup primitives used across the kernel
+void sleep(void*, struct spinlock*);
+void wakeup(void*);
+
+// uart interrupt handler (called from trap.c when UART IRQ arrives)
+void uartintr(void);
 
 // vm.c
 void            kvminit(void);

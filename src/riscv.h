@@ -379,3 +379,9 @@ typedef uint64 *pagetable_t; // 512 PTEs
 // Sv39, to avoid having to sign-extend virtual addresses
 // that have the high bit set.
 #define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
+
+#define ECODE_INSTRUCTION_PAGE_FAULT 12
+#define ECODE_LOAD_PAGE_FAULT 13
+#define ECODE_STORE_PAGE_FAULT 15
+#define ECODE_ILLEGAL_INSTRUCTION 2
+#define ECODE_SYSCALL 8

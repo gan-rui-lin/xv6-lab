@@ -18,6 +18,10 @@ uint ticks;
 void kernelvec();
 
 extern int devintr();
+// forward declare trapframe and exception handler prototype so
+// kerneltrap can call handle_exception without implicit-declaration warnings.
+struct trapframe;
+void handle_exception(struct trapframe *tf);
 
 void
 trapinit(void)
@@ -140,7 +144,6 @@ kerneltrap()
   int which_dev = 0;
   uint64 sepc = r_sepc();
   uint64 sstatus = r_sstatus();
-  uint64 scause = r_scause();
   
   if((sstatus & SSTATUS_SPP) == 0)
     panic("kerneltrap: not from supervisor mode");
@@ -148,9 +151,11 @@ kerneltrap()
     panic("kerneltrap: interrupts enabled");
 
   if((which_dev = devintr()) == 0){
-    printf("scause %p\n", scause);
-    printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
-    panic("kerneltrap");
+    // printf("scause %p\n", scause);
+    // printf("sepc=%p stval=%p\n", r_sepc(), r_stval());
+    // 如果不是外设中断，交由通用异常处理器处理
+    // 这里没有用户 trapframe，因此传入 NULL
+    handle_exception((struct trapframe *)0);
   }
 
   // 目前的内核 trap 只有时钟中断
@@ -162,6 +167,73 @@ kerneltrap()
   // so restore trap registers for use by kernelvec.S's sepc instruction.
   w_sepc(sepc);
   w_sstatus(sstatus);
+}
+
+// 简单异常处理器：根据 scause 分发并在当前实现中打印信息后 panic。
+// 你可以扩展这些处理函数来做更精细的恢复/错误码处理。
+struct trapframe; // 前向声明（trapframe 在 proc.h 中有定义）
+
+static void
+print_trap_info(const char *tag)
+{
+  printf("%s: scause=%p sepc=%p stval=%p\n", tag, r_scause(), r_sepc(), r_stval());
+}
+
+void
+handle_syscall(struct trapframe *tf)
+{
+  print_trap_info("syscall");
+  // 现在简单处理：打印并 panic
+  panic("syscall handler not implemented");
+}
+
+void
+handle_instruction_page_fault(struct trapframe *tf)
+{
+  print_trap_info("instruction page fault");
+  panic("instruction page fault");
+}
+
+void
+handle_load_page_fault(struct trapframe *tf)
+{
+  print_trap_info("load page fault");
+  panic("load page fault");
+}
+
+void
+handle_store_page_fault(struct trapframe *tf)
+{
+  print_trap_info("store page fault");
+  panic("store page fault");
+}
+
+void
+handle_exception(struct trapframe *tf)
+{
+  uint64 cause = r_scause();
+
+  switch(cause){
+  case ECODE_SYSCALL: // 用户模式 ecall
+    handle_syscall(tf);
+    break;
+  case ECODE_INSTRUCTION_PAGE_FAULT: // instruction page fault
+    handle_instruction_page_fault(tf);
+    break;
+  case ECODE_LOAD_PAGE_FAULT: // load page fault
+    handle_load_page_fault(tf);
+    break;
+  case ECODE_STORE_PAGE_FAULT: // store page fault
+    handle_store_page_fault(tf);
+    break;
+  case ECODE_ILLEGAL_INSTRUCTION:
+    printf("handle_exception: illegal instruction\n");
+    panic("illegal instruction");
+    break;
+  default:
+    printf("handle_exception: unknown cause %p\n, sepc=%p, stval=%p\n", cause, r_sepc(), r_stval());
+    panic("Unknown exception");
+  }
 }
 
 void
@@ -194,11 +266,12 @@ devintr()
     int irq = plic_claim();
 
     if(irq == UART0_IRQ){
-    //   uartintr();
+      // 处理来自 SHELL 的键盘输入
+      uartintr();
     } else if(irq == VIRTIO0_IRQ){
     //   virtio_disk_intr();
     } else if(irq){
-    //   printf("unexpected interrupt irq=%d\n", irq);
+      printf("unexpected interrupt irq=%d\n", irq);
     }
 
     // the PLIC allows each device to raise at most one

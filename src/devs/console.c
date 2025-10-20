@@ -61,7 +61,7 @@ consoleintr(int c)
     // backspace
     if(cons.e != cons.w){
       cons.e--;
-      consputc('\b');
+      consputc(0x100);
     }
   } else {
     if((cons.e - cons.r) < INPUT_BUF_SIZE){

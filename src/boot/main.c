@@ -44,9 +44,10 @@ void main()
     // 启用 S 模式下的中断
     intr_on();
 #endif
-    
+#ifdef CONSOLE_DEBUG
+    intr_on();
+#endif
 
-    asm volatile(".word 0x00000000"); // 很可能被解码为 illegal instruction
     while (1)
     {
         // 在此循环中可以处理中断

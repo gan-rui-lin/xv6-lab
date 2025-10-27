@@ -2,6 +2,6 @@
 
 int main(){
     printf("Hello, World!\n");
-    shutdown();
+    // shutdown();
     return 0;
 }

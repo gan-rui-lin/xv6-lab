@@ -7,6 +7,8 @@
 struct proc* initproc;
 struct cpu cpus[NCPU];
 
+extern void forkret(void);
+
 extern char trampoline[]; // trampoline.S
 
 // initcode.S 的开始和结尾
@@ -26,6 +28,13 @@ struct cpu* mycpu(){
   int my_id = cpuid();
 
   return &cpus[my_id];
+}
+
+struct proc *myproc()
+{
+  struct cpu *c;
+  c = mycpu();
+  return c->proc;
 }
 
 void userinit(void){
@@ -78,6 +87,7 @@ struct proc* allocproc(void)
     panic("allocproc: proc_pagetable failed");
 
   // 分配内核栈
+  // @todo 可以考虑放在 procinit 函数中，暂时放在这里
   p->kernel_stack = (uint64)kalloc();
   if (p->kernel_stack == 0)
     panic("allocproc: out of memory for kernel stack");
@@ -86,6 +96,11 @@ struct proc* allocproc(void)
   // pid
   static int nextpid = 1;
   p->pid = nextpid++;
+
+  // context
+  memset(&p->context, 0, sizeof(p->context));
+  p->context.ra = (uint64)forkret;
+  p->context.sp = p->kernel_stack + PGSIZE;
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
 
@@ -122,4 +137,15 @@ proc_pagetable(struct proc *p)
   }
 
   return pagetable;
+}
+
+// @todo 暂时忽略锁机制；到进程调度阶段再考虑
+// 直接在 trap 中准备返回到 USER 态的环境
+void
+forkret(void)
+{
+  // // Still holding p->lock from scheduler.
+  // release(&myproc()->lock);
+
+  usertrapret();
 }

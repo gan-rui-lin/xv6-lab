@@ -111,3 +111,6 @@ void            procdump(void);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
+
+// trap.c
+void            usertrapret(void);

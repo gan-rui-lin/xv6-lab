@@ -22,6 +22,7 @@ void main()
         plicinithart();       // 每个核都要去向 PLIC 请求设备
         kvminit();            // 创建内核页表
         kvminithart();        // 开启分页机制
+        userinit();          // 创建第一个用户进程
         __sync_synchronize(); // 确保代码不乱序执行
         started = 1;
     }

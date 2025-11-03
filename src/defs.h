@@ -45,6 +45,8 @@ void consputc(int c);
 void consoleinit(void);
 // console input interrupt handler (from uart)
 void consoleintr(int c);
+int consoleread(int user_dst, uint64 dst, int n);
+int consolewrite(int user_src, uint64 src, int n);
 
 // sleep/wakeup primitives used across the kernel
 void sleep(void*, struct spinlock*);
@@ -114,3 +116,14 @@ void            swtch(struct context*, struct context*);
 
 // trap.c
 void            usertrapret(void);
+
+// syscall.c
+void            argint(int, int*);
+int             argstr(int, char*, int);
+void            argaddr(int, uint64 *);
+int             fetchstr(uint64, char*, int);
+int             fetchaddr(uint64, uint64*);
+void            syscall();
+
+// number of elements in fixed-size array
+#define NELEM(x) (sizeof(x)/sizeof((x)[0]))

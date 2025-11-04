@@ -2,6 +2,7 @@
 
 int main(){
     printf("Hello, World!\n");
-    // shutdown();
+    shutdown();
+    while(1);
     return 0;
 }

@@ -11,7 +11,7 @@ sys_exit(void)
 {
   int n;
   argint(0, &n);
-  exit(n);
+//   exit(n);
   return 0;  // not reached
 }
 
@@ -24,28 +24,73 @@ sys_getpid(void)
 uint64
 sys_fork(void)
 {
-  return fork();
+    return -1;
+//   return fork();
 }
 
 uint64
 sys_wait(void)
 {
-  uint64 p;
-  argaddr(0, &p);
-  return wait(p);
+//   uint64 p;
+//   argaddr(0, &p);
+//   return wait(p);
+    return -1;
 }
 
 uint64
 sys_sbrk(void)
 {
-  uint64 addr;
-  int n;
-
-  argint(0, &n);
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
+//   uint64 addr;
+//   int n;
     return -1;
-  return addr;
+//   argint(0, &n);
+//   addr = myproc()->sz;
+//   if(growproc(n) < 0)
+//     return -1;
+//   return addr;
+}
+
+// Minimal syscall wrappers to satisfy linker during early development.
+// These are intentionally lightweight: they defer to kernel helpers where
+// available, or return simple defaults.
+
+uint64
+sys_sleep(void)
+{
+  // Placeholder: do not actually block yet.
+  // A real implementation would use ticks/tickslock and sleep(&ticks,...).
+  return 0;
+}
+
+uint64
+sys_kill(void)
+{
+//   int pid;
+//   argint(0, &pid);
+  return -1;  // Placeholder: do not actually kill yet.
+//   return kill(pid);
+}
+
+uint64
+sys_uptime(void)
+{
+  // uptime() kernel stub returns 0 for now.
+  return -1;
+//   return uptime();
+}
+
+uint64
+sys_shutdown(void)
+{
+    return -1;
+//   return shutdown();
+}
+
+uint64
+sys_gettimeofday(void)
+{
+  // Not implemented: return success but don't fill user buffer.
+  return 0;
 }
 
 // uint64

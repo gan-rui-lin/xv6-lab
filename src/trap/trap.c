@@ -15,6 +15,8 @@ uint ticks;
 
 extern char trampoline[], uservec[], userret[];
 
+extern struct proc *initproc;
+
 // in kernelvec.S, calls kerneltrap().
 void kernelvec();
 
@@ -70,9 +72,9 @@ usertrap(void)
     // so enable only now that we're done with those registers.
     intr_on();
 
-    printf("INFO: syscall\n");
+    // printf("INFO: syscall\n");
 
-    // syscall();
+    syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
@@ -97,7 +99,11 @@ usertrap(void)
 void
 usertrapret(void)
 {
-  struct proc *p = myproc();
+  // 方式1：直接调度到第一个进程上
+  // struct proc *p = initproc;
+  struct proc * p = myproc();
+  // 不会触发 panic
+  // if(p != initproc) panic("weired!");
 
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
@@ -128,7 +134,7 @@ usertrapret(void)
 
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
-
+  // printf("pagetable:%p satp:%p paddr:%p\n", p->pagetable, satp, walkaddr(p->pagetable,TRAMPOLINE));
   // jump to userret in trampoline.S at the top of memory, which 
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.

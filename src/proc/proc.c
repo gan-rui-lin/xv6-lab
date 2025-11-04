@@ -62,8 +62,11 @@ void userinit(void){
   // p->state = RUNNABLE;
   // struct proc *p;
   struct cpu *c = mycpu();
+  c->proc = initproc;
   swtch(&c->context, &p->context);  // 上下文切换到进程
 }
+
+__attribute__ ((aligned (16))) char proc0stack[8192];
 
 struct proc* allocproc(void)
 {
@@ -83,15 +86,22 @@ struct proc* allocproc(void)
 
   // 创建并设置用户页表
   p->pagetable = proc_pagetable(p);
+  printf("proc pagetable: %p\n", p->pagetable);
   if (p->pagetable == 0)
     panic("allocproc: proc_pagetable failed");
 
   // 分配内核栈
+  // 注意这里的 kernel_stack 要足够大，不然会导致误写页表 PTE
+  // 现在是单进程实现，直接分配固定大小 kernel_stack
   // @todo 可以考虑放在 procinit 函数中，暂时放在这里
-  p->kernel_stack = (uint64)kalloc();
+  //  p->kernel_stack = (uint64)kalloc();
+  // if (p->kernel_stack == 0)
+  //   panic("allocproc: out of memory for kernel stack");
+  // p->kernel_stack += PGSIZE; 
+
+  p->kernel_stack = (uint64)proc0stack;
   if (p->kernel_stack == 0)
     panic("allocproc: out of memory for kernel stack");
-  p->kernel_stack += PGSIZE;
 
   // pid
   static int nextpid = 1;
@@ -100,7 +110,7 @@ struct proc* allocproc(void)
   // context
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
-  p->context.sp = p->kernel_stack + PGSIZE;
+  p->context.sp = p->kernel_stack+2*PGSIZE;
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
 
@@ -122,11 +132,11 @@ proc_pagetable(struct proc *p)
   // only the supervisor uses it, on the way
   // to/from user space, so not PTE_U.
   if(mappages(pagetable, TRAMPOLINE, PGSIZE,
-              (uint64)trampoline, PTE_R | PTE_X) < 0){
+              (uint64)trampoline, PTE_R | PTE_X | PTE_V) < 0){
     uvmfree(pagetable, 0);
     return 0;
   }
-
+  // printf("mapped trampoline at %p\n", TRAMPOLINE);
   // map the trapframe page just below the trampoline page, for
   // trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,

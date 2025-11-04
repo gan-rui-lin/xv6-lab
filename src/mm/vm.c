@@ -21,6 +21,7 @@ kvmmake(void)
     pagetable_t kpgtbl;
 
     kpgtbl = (pagetable_t)kalloc();
+    // printf("kernel pagetable: %p\n", kpgtbl);
     // 原来可能是垃圾值, 先清理
     memset(kpgtbl, 0, PGSIZE);
 
@@ -147,6 +148,8 @@ allocate_page_table_page(void)
 //   21..29 -- 9位一级索引 (level 1)
 //   12..20 -- 9位零级索引 (level 0)
 //    0..11 -- 12位页内字节偏移
+// #define PAGE_TABLE_DEBUG
+
 pte_t *
 walk(pagetable_t pagetable, uint64 va, int alloc)
 {
@@ -173,7 +176,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
         pte_t *pte = &pagetable[index];
         #ifdef PAGE_TABLE_DEBUG
         if (va == TRAMPOLINE)
-            printf("[debug]: walk: level %d, index %d, pte %p ", level, index, *pte);
+            printf("[debug]: walk: level %d, index %d, *pte %p pte:%p\n", level, index, *pte, pte);
         #endif
         if (is_pte_valid(*pte))
         {
@@ -251,8 +254,9 @@ walkaddr(pagetable_t pagetable, uint64 va)
     if (pte == 0)
         return 0;
 
-    if (!is_user_accessible_page(*pte))
+    if (!is_user_accessible_page(*pte)){
         return 0;
+    }
 
     pa = PTE2PA(*pte);
     return pa;
@@ -306,7 +310,11 @@ int mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
             panic("mappages: attempting to remap existing page");
 
         *pte = create_mapping_pte(pa, perm);
-
+        #ifdef PAGE_FAULT_DEBUG
+        if(va == TRAMPOLINE){
+            // printf("mappages: mapped TRAMPOLINE va %p to pa %p with pte %p perm:%p createdpte:%p pte:%p\n", current_va, pa, *pte, perm,create_mapping_pte(pa, perm),pte);
+        }
+        #endif
         if (current_va == last_va)
             break;
 

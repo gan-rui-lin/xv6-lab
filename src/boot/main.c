@@ -22,6 +22,9 @@ void main()
         plicinithart();       // 每个核都要去向 PLIC 请求设备
         kvminit();            // 创建内核页表
         kvminithart();        // 开启分页机制
+
+        // 为每一个 hart 设置中断向量表
+        trapinithart();
         userinit();          // 创建第一个用户进程
         __sync_synchronize(); // 确保代码不乱序执行
         started = 1;
@@ -32,14 +35,15 @@ void main()
             ;
 
         printf("\nhart %d starting!\n", cpuid());
+            // 为每一个 hart 设置中断向量表
+        trapinithart();
         kvminithart();
         plicinithart();
 
         __sync_synchronize();
     }
 
-    // 为每一个 hart 设置中断向量表
-    trapinithart();
+
 
 #ifdef TICKER_DEBUG
     // 启用 S 模式下的中断
@@ -48,6 +52,7 @@ void main()
 #ifdef CONSOLE_DEBUG
     intr_on();
 #endif
+    printf("never back here!\n");
 
     while (1)
     {

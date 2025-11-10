@@ -62,7 +62,7 @@ void userinit(void){
   // p->state = RUNNABLE;
   // struct proc *p;
   struct cpu *c = mycpu();
-  c->proc = initproc;
+  c->proc = initproc;  // 防止访问空指针
   swtch(&c->context, &p->context);  // 上下文切换到进程
 }
 
@@ -80,6 +80,7 @@ struct proc* allocproc(void)
 
   // 分配 trapframe
   p->trapframe = (struct trapframe*)kalloc();
+  printf("proc trapframe: %p\n", p->trapframe);
   if (p->trapframe == 0)
     panic("allocproc: out of memory for trapframe");
   memset(p->trapframe, 0, sizeof(*p->trapframe));
@@ -90,18 +91,24 @@ struct proc* allocproc(void)
   if (p->pagetable == 0)
     panic("allocproc: proc_pagetable failed");
 
+
   // 分配内核栈
   // 注意这里的 kernel_stack 要足够大，不然会导致误写页表 PTE
   // 现在是单进程实现，直接分配固定大小 kernel_stack
   // @todo 可以考虑放在 procinit 函数中，暂时放在这里
-  //  p->kernel_stack = (uint64)kalloc();
-  // if (p->kernel_stack == 0)
-  //   panic("allocproc: out of memory for kernel stack");
-  // p->kernel_stack += PGSIZE; 
-
-  p->kernel_stack = (uint64)proc0stack;
+  
+  p->kernel_stack = (uint64)kalloc();
+  // void* dummy = kalloc();  // 保护页，占位不用 如 87fb0000-87fb1000
+  printf("proc kernel_stack before: %p\n", p->kernel_stack);
+  // printf("dummy page: %p\n", dummy);
   if (p->kernel_stack == 0)
     panic("allocproc: out of memory for kernel stack");
+
+  
+  printf("proc kernel_stack: %p\n", p->kernel_stack);
+  // p->kernel_stack = (uint64)proc0stack;
+  // if (p->kernel_stack == 0)
+  //   panic("allocproc: out of memory for kernel stack");
 
   // pid
   static int nextpid = 1;
@@ -110,8 +117,9 @@ struct proc* allocproc(void)
   // context
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
-  p->context.sp = p->kernel_stack+2*PGSIZE;
+  p->context.sp = p->kernel_stack + PGSIZE;
 
+  printf("context sp set to %p\n", p->context.sp);
   safestrcpy(p->name, "initcode", sizeof(p->name));
 
   return p;

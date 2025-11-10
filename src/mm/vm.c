@@ -26,7 +26,7 @@ kvmmake(void)
     memset(kpgtbl, 0, PGSIZE);
 
     // Test device for shutdown control
-    //   kvmmap(kpgtbl, TEST_DEVICE, TEST_DEVICE, PGSIZE, PTE_R | PTE_W);
+    kvmmap(kpgtbl, TEST_DEVICE, TEST_DEVICE, PGSIZE, PTE_R | PTE_W);
 
     // uart寄存器
     kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);

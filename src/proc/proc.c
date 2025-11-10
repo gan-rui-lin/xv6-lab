@@ -59,7 +59,7 @@ void userinit(void){
 
   // 暂时不调度，直接只跑这第一个程序
   // 设置进程状态为可运行
-  // p->state = RUNNABLE;
+  p->state = RUNNABLE;
   // struct proc *p;
   struct cpu *c = mycpu();
   c->proc = initproc;  // 防止访问空指针

@@ -38,15 +38,22 @@ struct cpu {
   int intena;                 // Were interrupts enabled before push_off()?
 };
 
+enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 struct proc
 {
   int pid;                    // 进程ID
+  int killed;                  // If non-zero, have been killed
+
+  // 单核也不要锁
+  struct proc *parent;         // Parent process
+
+  // 进程私有，通常不需要锁
   uint64 sz;                  // 进程内存大小（字节数）
   pagetable_t pagetable;      // 用户页表
   struct trapframe *trapframe; // 用于用户态陷阱处理的trap
   struct context context;     // swtch()到此进程时保存的上下文
-  // enum procstate state;       // 进程状态
+  enum procstate state;       // 进程状态
   uint64 kernel_stack;      // 进程内核栈地址
   char name[16];              // 进程名字（仅用于调试）
 };

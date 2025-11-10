@@ -69,3 +69,6 @@
 //   TRAPFRAME (p->trapframe, used by the trampoline)
 //   TRAMPOLINE (the same page as in the kernel)
 #define TRAPFRAME (TRAMPOLINE - PGSIZE)
+
+// QEMU Test Device for shutdown control
+#define TEST_DEVICE 0x100000L

@@ -1,5 +1,6 @@
 #include "param.h"
 #include "types.h"
+#include "spinlock.h"
 
 #if !defined(PROC_T)
 #define PROC_T
@@ -42,20 +43,26 @@ enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 struct proc
 {
-  int pid;                    // 进程ID
+  // 调度器或者其他进程会并发访问这些字段
+  struct spinlock lock;       // 保护进程状态的锁
+  int pid;                     // 进程ID
   int killed;                  // If non-zero, have been killed
+  enum procstate state;        // Process state
+  void *chan;                  // If non-zero, sleeping on chan
+  int xstate;                  // Exit status to be returned to parent's wait
 
-  // 单核也不要锁
+  // 持有 wait_lock
   struct proc *parent;         // Parent process
 
-  // 进程私有，通常不需要锁
-  uint64 sz;                  // 进程内存大小（字节数）
-  pagetable_t pagetable;      // 用户页表
+  // 只有该进程本身（当前 CPU 上）会读写它们
+  // 调度器不会并发访问这些字段
+  // 其他进程也不会访问这些字段
+  uint64 sz;                   // 进程内存大小（字节数）
+  pagetable_t pagetable;       // 用户页表
   struct trapframe *trapframe; // 用于用户态陷阱处理的trap
-  struct context context;     // swtch()到此进程时保存的上下文
-  enum procstate state;       // 进程状态
-  uint64 kernel_stack;      // 进程内核栈地址
-  char name[16];              // 进程名字（仅用于调试）
+  struct context context;      // swtch()到此进程时保存的上下文
+  uint64 kernel_stack;         // 进程内核栈地址
+  char name[16];               // 进程名字（仅用于调试）
 };
 
 

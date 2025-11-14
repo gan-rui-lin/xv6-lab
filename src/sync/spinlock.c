@@ -18,7 +18,7 @@ initlock(struct spinlock *lk, char *name)
 void
 acquire(struct spinlock *lk)
 {
-  push_off(); // disable interrupts to avoid deadlock.
+  push_off(); // 获取锁的过程中关中断。进程 A 拿锁等 中断处理程序 B 也要拿锁 会死锁
   // 不是再 acquire 一次，否则会死锁，先 panic
   if(holding(lk))
     panic("acquire");

@@ -42,18 +42,16 @@ kvmmake(void)
 
     // 映射内核数据段和我们将使用的物理RAM
     kvmmap(kpgtbl, (uint64)etext, (uint64)etext, PHYSTOP - (uint64)etext, PTE_R | PTE_W);
-
-    // 将 trampoline 映射到最高虚拟地址 TRAMPOLINE。
-    // TODO: 等待引入真正的 trampoline.S 后，PA 应改为 (uint64)trampoline
-    // 暂时做占位的同址映射用于测试页表构建逻辑
+  
     #ifdef PAGE_TABLE_DEBUG
+    // 暂时做占位的同址映射用于测试页表构建逻辑
     kvmmap(kpgtbl, TRAMPOLINE, TRAMPOLINE, PGSIZE, PTE_R | PTE_X);
     #endif
     #ifndef PAGE_TABLE_DEBUG
     kvmmap(kpgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
     #endif
     // 为每个进程分配并映射一个内核栈
-    //   proc_mapstacks(kpgtbl);
+    proc_mapstacks(kpgtbl);
 
     return kpgtbl;
 }

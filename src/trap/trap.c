@@ -99,18 +99,18 @@ usertrap(void)
 void
 usertrapret(void)
 {
-  // 方式1：直接调度到第一个进程上
+  // 单进程方式：直接调度到第一个进程上
   // struct proc *p = initproc;
+  // 多进程方式
   struct proc * p = myproc();
-  // 不会触发 panic
-  // if(p != initproc) panic("weired!");
 
   // we're about to switch the destination of traps from
   // kerneltrap() to usertrap(), so turn off interrupts until
   // we're back in user space, where usertrap() is correct.
   intr_off();
 
-  // send syscalls, interrupts, and exceptions to uservec in trampoline.S
+  // 提前在 S 态设置好 stvec，指向 trampoline 中的 uservec
+  // 但是先保证关中断
   uint64 trampoline_uservec = TRAMPOLINE + (uservec - trampoline);
   w_stvec(trampoline_uservec);
 
@@ -120,25 +120,24 @@ usertrapret(void)
   p->trapframe->kernel_trap = (uint64)usertrap;
   p->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
 
-  // set up the registers that trampoline.S's sret will use
-  // to get to user space.
-  
-  // set S Previous Privilege mode to User.
   unsigned long x = r_sstatus();
-  x &= ~SSTATUS_SPP; // clear SPP to 0 for user mode
-  x |= SSTATUS_SPIE; // enable interrupts in user mode
+  x &= ~SSTATUS_SPP; // 设置 SPP = 0，表示返回用户态
+  x |= SSTATUS_SPIE; // SPIE 在 sret指令执行时恢复​ SIE 的值。
   w_sstatus(x);
 
-  // set S Exception Program Counter to the saved user pc.
+  // 返回用户态对应代码 pc，继续执行
   w_sepc(p->trapframe->epc);
 
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
+
   // printf("pagetable:%p satp:%p paddr:%p\n", p->pagetable, satp, walkaddr(p->pagetable,TRAMPOLINE));
-  // jump to userret in trampoline.S at the top of memory, which 
-  // switches to the user page table, restores user registers,
-  // and switches to user mode with sret.
+
+  // userret 也是 trampoline 里的一段代码
   uint64 trampoline_userret = TRAMPOLINE + (userret - trampoline);
+
+  // 跳转至 userret，传入用户页表的 satp(a0 寄存器)
+  // userret 会切换到用户页表并执行 sret 返回用户态
   ((void (*)(uint64))trampoline_userret)(satp);
 }
 

@@ -22,7 +22,8 @@ void main()
         plicinithart();       // 每个核都要去向 PLIC 请求设备
         kvminit();            // 创建内核页表
         kvminithart();        // 开启分页机制
-
+        
+        procinit();          // 进程表初始化
         // 为每一个 hart 设置中断向量表
         trapinithart();
         userinit();          // 创建第一个用户进程
@@ -52,11 +53,8 @@ void main()
 #ifdef CONSOLE_DEBUG
     intr_on();
 #endif
-    printf("never back here!\n");
 
-    while (1)
-    {
-        // 在此循环中可以处理中断
-        asm volatile("wfi"); // 等待中断（Wait For Interrupt）
-    }
+    // 所有CPU都进入调度器，开始调度用户进程
+    scheduler();  
+
 }

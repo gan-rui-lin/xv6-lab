@@ -24,7 +24,7 @@ sys_getpid(void)
 uint64
 sys_fork(void)
 {
-    return -1;
+  return fork();
 //   return fork();
 }
 
@@ -37,17 +37,18 @@ sys_wait(void)
     return -1;
 }
 
+// 使进程内存增加 n 字节，返回新内存的起始地址
 uint64
 sys_sbrk(void)
 {
-//   uint64 addr;
-//   int n;
+  uint64 addr;
+  int n;
+
+  argint(0, &n);
+  addr = myproc()->sz;
+  if(growproc(n) < 0)
     return -1;
-//   argint(0, &n);
-//   addr = myproc()->sz;
-//   if(growproc(n) < 0)
-//     return -1;
-//   return addr;
+  return addr;
 }
 
 // Minimal syscall wrappers to satisfy linker during early development.

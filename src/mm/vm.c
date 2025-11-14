@@ -589,6 +589,7 @@ cleanup_partial_copy(pagetable_t new_table, uint64 copied_size)
 // 复制页表和物理内存
 // 成功返回0，失败返回-1
 // 失败时释放任何已分配的页面
+//TODO 未实现写时拷贝
 int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
     pte_t *pte;

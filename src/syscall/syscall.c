@@ -30,6 +30,7 @@ fetchstr(uint64 addr, char *buf, int max)
   return strlen(buf);
 }
 
+// 获取第n个系统调用参数的原始值
 static uint64
 argraw(int n)
 {
@@ -115,12 +116,12 @@ syscall(void)
 {
   int num;
   struct proc *p = myproc();
-
+  
+  // 获取系统调用号
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    // Use num to lookup the system call function for num, call it,
-    // and store its return value in p->trapframe->a0
-    p->trapframe->a0 = syscalls[num]();
+    // 系统函数返回值放在 p->trapframe->a0
+    p->trapframe->a0 = syscalls[num]();  
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);

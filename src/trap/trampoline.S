@@ -21,6 +21,8 @@
 trampoline:
 .align 4
 .globl uservec
+# 用户空间的陷阱向量; 负责将重要寄存器存放至 trapframe; 
+# 跳转至 usertrap 处理程序; usertrap 根据不同的系统调用号进行系统调用
 uservec:    
 	#
         # 用户陷阱向量 - 所有从用户空间来的陷阱都会跳转到这里

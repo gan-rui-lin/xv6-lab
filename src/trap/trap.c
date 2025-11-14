@@ -80,12 +80,13 @@ usertrap(void)
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    // setkilled(p);
+    setkilled(p);
   }
 
-  // if(killed(p))
-  //   exit(-1);
+  if(killed(p))
+    exit(-1);
 
+  //TODO 时间片轮转调度
   // // give up the CPU if this is a timer interrupt.
   // if(which_dev == 2)
   //   yield();

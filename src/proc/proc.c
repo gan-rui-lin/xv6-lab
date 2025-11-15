@@ -306,6 +306,17 @@ scheduler(void)
   }
 }
 
+// Give up the CPU for one scheduling round.
+void
+yield(void)
+{
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->state = RUNNABLE;
+  sched();
+  release(&p->lock);
+}
+
 void
 proc_mapstacks(pagetable_t kpgtbl)
 {

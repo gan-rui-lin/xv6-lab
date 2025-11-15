@@ -118,11 +118,14 @@ $U/initcode.o: $U/initcode.c $U/user.h
 $U/printf.o: $U/printf.c $U/user.h
 	$(CC) $(CFLAGS) -march=rv64g -I. -I$(SRC) -c $U/printf.c -o $U/printf.o
 
-# 链接生成 initcode ELF 文件
-$U/initcode: $U/initcode.o $U/usys.o $U/printf.o $U/user-riscv.ld
-	$(LD) $(LDFLAGS) -T $U/user-riscv.ld -o $U/initcode $U/initcode.o $U/usys.o $U/printf.o
-	$(OBJDUMP) -S $U/initcode > $U/initcode.asm
-	$(OBJDUMP) -t $U/initcode | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $U/initcode.sym
+# 创建入口点对象文件（确保在开头）
+$U/entry.o: $U/entry.S
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# 修改链接顺序
+$U/initcode: $U/entry.o $U/initcode.o $U/usys.o $U/printf.o $U/user-riscv.ld
+	$(LD) $(LDFLAGS) -T $U/user-riscv.ld -o $@ \
+	    $U/entry.o $U/initcode.o $U/usys.o $U/printf.o
 
 # 从 ELF 文件生成二进制文件
 $U/initcode.bin: $U/initcode

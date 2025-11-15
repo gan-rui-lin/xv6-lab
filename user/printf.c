@@ -1,5 +1,5 @@
 #include "types.h"
-#include "user/user.h"
+#include "user.h"
 
 #include <stdarg.h>
 

@@ -113,6 +113,7 @@ void            procdump(void);
 void            scheduler(void);
 void            sched(void);
 void            reparent(struct proc *);
+void            yield(void);
 
 // swtch.S
 void            swtch(struct context*, struct context*);

@@ -1,11 +1,12 @@
 OUTPUT_ARCH( "riscv" )
-ENTRY( main )
+ENTRY( _start )
 
 SECTIONS
 {
  . = 0x0;
  
   .text : {
+    *(.text.entry)
     *(.text.startup .text.startup.*)
     *(.text .text.*)
   }

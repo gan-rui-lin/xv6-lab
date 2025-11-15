@@ -3,8 +3,39 @@
 
 void test_fork();
 
+void test_sbrk();
+
 int main(){
     printf("Hello, World!\n");
+
+    test_sbrk();
+
+    test_fork();
+
+    shutdown();
+    while(1);
+    return 0;
+}
+ 
+void test_fork(){
+        int pid = fork();
+    int status;
+    if (pid < 0) {
+        printf("Fork failed!\n");
+    } else if (pid == 0) {
+        // Child process
+        printf("Hello from child process! PID: %d\n", getpid());
+        exit(0);
+    } else {
+        // Parent process
+        wait(&status);
+        printf("Hello from parent process! PID: %d, Child PID: %d\n", getpid(), pid);
+        printf("Child exited with status: %d\n", status);
+    }
+
+}
+
+void test_sbrk(){
 
     long long addr = sbrk(0);
 
@@ -22,28 +53,4 @@ int main(){
     }
     *((char*)addr + n) = '\0';
     printf("%s\n", (char*)addr);
-
-    int pid = fork();
-    int status;
-    if (pid < 0) {
-        printf("Fork failed!\n");
-    } else if (pid == 0) {
-        // Child process
-        printf("Hello from child process! PID: %d\n", getpid());
-        exit(0);
-    } else {
-        // Parent process
-        wait(&status);
-        printf("Hello from parent process! PID: %d, Child PID: %d\n", getpid(), pid);
-        printf("Child exited with status: %d\n", status);
-    }
-
-    shutdown();
-    while(1);
-    return 0;
-}
-
-//TODO 为什么封装为函数就会有访存错误？ 
-void test_fork(){
-
 }

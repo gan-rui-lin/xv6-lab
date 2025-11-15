@@ -7,6 +7,7 @@ volatile static int started = 0;
 void main()
 {
     // uart_puts("\nhere!\n");
+    print_ruos();
     if (cpuid() == 0)
     {
         // 只有 hart0 执行系统初始化

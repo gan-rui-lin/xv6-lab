@@ -17,7 +17,7 @@ void main()
 
         kinit(); // 物理页面分配器初始化
 
-        uart_puts("\nxv6 is booting!\n");
+        log_info("xv6 is booting!\n");
         plicinit();           // 设置中断控制器（仅一次）
         plicinithart();       // 每个核都要去向 PLIC 请求设备
         kvminit();            // 创建内核页表
@@ -35,7 +35,9 @@ void main()
         while (started == 0)
             ;
 
-        printf("\nhart %d starting!\n", cpuid());
+        // printf("\nhart %d starting!\n", cpuid());
+        log_info("hart %d starting!\n", cpuid());
+        
             // 为每一个 hart 设置中断向量表
         trapinithart();
         kvminithart();

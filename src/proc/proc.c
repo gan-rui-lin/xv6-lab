@@ -149,11 +149,11 @@ found:
 
   }
     
-  printf("proc %d: pagetable at %p\n", p->pid, p->pagetable);
+  log_debug("proc %d: created pagetable at %p\n", p->pid, p->pagetable);
 
-  printf("proc %d: trapframe at %p\n", p->pid, p->trapframe);
+  log_debug("proc %d: trapframe at %p\n", p->pid, p->trapframe);
 
-  printf("proc %d: kernel stack at %p\n", p->pid, p->kernel_stack);
+  log_debug("proc %d: kernel stack at %p\n", p->pid, p->kernel_stack);
 
   // context
   memset(&p->context, 0, sizeof(p->context));
@@ -162,7 +162,7 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kernel_stack + PGSIZE;
 
-  printf("proc %d: context at %p\n", p->pid, p->context.sp);
+  log_debug("proc %d: context at %p\n", p->pid, p->context.sp);
   return p;
 }
 

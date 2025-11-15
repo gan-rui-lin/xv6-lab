@@ -403,7 +403,7 @@ uvmcreate()
 uint64 uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
 {
     char *mem;
-    printf("sz: %d\n", sz);
+    log_debug("sz: %d\n", sz);
 
     // 计算程序段需要的页面数量（向上取整）
     uint64 prog_pages = PGROUNDUP(sz) / PGSIZE;
@@ -414,7 +414,7 @@ uint64 uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
     uint64 total_pages = prog_pages * 2;
     uint64 total_size = total_pages * PGSIZE;
 
-    printf("prog_pages: %d, total_pages: %d, total_size: %d\n", prog_pages, total_pages, total_size);
+    log_debug("prog_pages: %d, total_pages: %d, total_size: %d\n", prog_pages, total_pages, total_size);
 
     // 分配程序段页面
     for (uint64 i = 0; i < prog_pages; i++)

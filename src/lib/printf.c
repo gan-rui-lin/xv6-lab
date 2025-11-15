@@ -78,81 +78,6 @@ printptr(uint64 x)
     consputc(digits[x >> (sizeof(uint64) * 8 - 4)]);
 }
 
-// 格式化输出到控制台
-// 支持的格式说明符：%d(十进制), %x(十六进制), %p(指针), %s(字符串), %%(百分号)
-// 参数：
-//   fmt: 格式字符串
-//   ...: 可变参数列表
-void
-printf(char *fmt, ...)
-{
-  va_list ap;           // 可变参数列表指针
-  int i, c, locking;
-  char *s;
-
-  // 获取当前锁定状态
-  locking = pr.locking;
-  if(locking)
-    acquire(&pr.lock);  // 获取 printf 锁，防止输出交错
-
-  // 检查格式字符串有效性
-  if (fmt == 0)
-    panic("null fmt");
-
-  // 初始化可变参数处理
-  va_start(ap, fmt);
-  
-  // 逐字符处理格式字符串
-  for(i = 0; (c = fmt[i] & 0xff) != 0; i++){
-    if(c != '%'){
-      // 普通字符，直接输出
-      consputc(c);
-      continue;
-    }
-    
-    // 处理格式说明符
-    c = fmt[++i] & 0xff;
-    if(c == 0)
-      break;  // 格式字符串结束
-      
-    switch(c){
-    case 'd':
-      // %d: 十进制有符号整数
-      printint(va_arg(ap, int), 10, 1);
-      break;
-    case 'x':
-      // %x: 十六进制整数
-      printint(va_arg(ap, int), 16, 1);
-      break;
-    case 'p':
-      // %p: 指针地址
-      printptr(va_arg(ap, uint64));
-      break;
-    case 's':
-      // %s: 字符串
-      if((s = va_arg(ap, char*)) == 0)
-        s = "(null)";  // 空指针处理
-      for(; *s; s++)
-        consputc(*s);
-      break;
-    case '%':
-      // %%: 输出百分号字面量
-      consputc('%');
-      break;
-    default:
-      // 未知格式说明符，输出 %c 以引起注意
-      consputc('%');
-      consputc(c);
-      break;
-    }
-  }
-  
-  va_end(ap);  // 清理可变参数
-
-  // 释放锁
-  if(locking)
-    release(&pr.lock);
-}
 
 // 系统 panic 处理函数
 // 输出 panic 信息并使系统进入无限循环状态
@@ -179,4 +104,170 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");  // 初始化 printf 锁
   pr.locking = 1;            // 启用锁定机制
+}
+
+
+// ===== 颜色定义 =====
+#define COLOR_RESET   "\033[0m"
+#define COLOR_BLACK   "\033[30m"
+#define COLOR_RED     "\033[31m"
+#define COLOR_GREEN   "\033[32m"
+#define COLOR_YELLOW  "\033[33m"
+#define COLOR_BLUE    "\033[34m"
+#define COLOR_MAGENTA "\033[35m"
+#define COLOR_CYAN    "\033[36m"
+#define COLOR_WHITE   "\033[37m"
+
+#define COLOR_BOLD_RED    "\033[1;31m"
+#define COLOR_BOLD_GREEN  "\033[1;32m"
+#define COLOR_BOLD_YELLOW "\033[1;33m"
+#define COLOR_BOLD_BLUE   "\033[1;34m"
+
+
+// ===== 提取原有的格式化逻辑到内部函数 =====
+static void
+vprintf_internal(char *fmt, va_list ap)
+{
+  int i, c;
+  char *s;
+
+  if (fmt == 0)
+    panic("null fmt");
+
+  for(i = 0; (c = fmt[i] & 0xff) != 0; i++){
+    if(c != '%'){
+      consputc(c);
+      continue;
+    }
+    
+    c = fmt[++i] & 0xff;
+    if(c == 0)
+      break;
+      
+    switch(c){
+    case 'd':
+      printint(va_arg(ap, int), 10, 1);
+      break;
+    case 'x':
+      printint(va_arg(ap, int), 16, 1);
+      break;
+    case 'p':
+      printptr(va_arg(ap, uint64));
+      break;
+    case 's':
+      if((s = va_arg(ap, char*)) == 0)
+        s = "(null)";
+      for(; *s; s++)
+        consputc(*s);
+      break;
+    case '%':
+      consputc('%');
+      break;
+    default:
+      consputc('%');
+      consputc(c);
+      break;
+    }
+  }
+}
+
+// ===== 颜色输出函数 =====
+static void
+print_color_seq(char *color_seq)
+{
+  char *s;
+  for(s = color_seq; *s; s++)
+    consputc(*s);
+}
+
+// ===== 彩色 printf =====
+void
+printf_color(char *color, char *fmt, ...)
+{
+  va_list ap;
+  int locking;
+  
+  locking = pr.locking;
+  if(locking)
+    acquire(&pr.lock);
+
+  // 设置颜色
+  print_color_seq(color);
+  
+  // 格式化输出
+  va_start(ap, fmt);
+  vprintf_internal(fmt, ap);
+  va_end(ap);
+  
+  // 重置颜色
+  print_color_seq(COLOR_RESET);
+
+  if(locking)
+    release(&pr.lock);
+}
+
+
+
+// ===== 修改原有的 printf 函数 =====
+void
+printf(char *fmt, ...)
+{
+  va_list ap;
+  int locking;
+
+  locking = pr.locking;
+  if(locking)
+    acquire(&pr.lock);
+
+  va_start(ap, fmt);
+  vprintf_internal(fmt, ap);
+  va_end(ap);
+
+  if(locking)
+    release(&pr.lock);
+}
+
+// ===== 便捷的日志函数 =====
+void
+log_info(char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    printf_color(COLOR_GREEN, "[INFO] ");
+    vprintf_internal(fmt, ap);
+    printf_color(COLOR_RESET, "");
+    va_end(ap);
+}
+
+void
+log_warn(char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    printf_color(COLOR_YELLOW, "[WARN] ");
+    vprintf_internal(fmt, ap);
+    printf_color(COLOR_RESET, "");
+    va_end(ap);
+}
+
+void
+log_error(char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    printf_color(COLOR_RED, "[ERROR] ");
+    vprintf_internal(fmt, ap);
+    printf_color(COLOR_RESET, "");
+    va_end(ap);
+}
+
+void
+log_debug(char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    printf_color(COLOR_CYAN, "[DEBUG] ");
+    vprintf_internal(fmt, ap);
+    printf_color(COLOR_RESET, "");
+    va_end(ap);
 }

@@ -39,6 +39,11 @@ void            pop_off(void);
 void            printf(char*, ...);
 void            panic(char*) __attribute__((noreturn));
 void            printfinit(void);
+void            printf_color(char *color, char *fmt, ...);
+void            log_info(char *fmt, ...);
+void            log_warn(char *fmt, ...);
+void            log_error(char *fmt, ...);
+void            log_debug(char *fmt, ...);
 
 // console.c
 void consputc(int c);

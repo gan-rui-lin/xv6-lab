@@ -18,7 +18,7 @@ int main(){
 }
  
 void test_fork(){
-        int pid = fork();
+    int pid = fork();
     int status;
     if (pid < 0) {
         printf("Fork failed!\n");

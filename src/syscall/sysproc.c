@@ -11,7 +11,7 @@ sys_exit(void)
 {
   int n;
   argint(0, &n);
-//   exit(n);
+  exit(n);
   return 0;  // not reached
 }
 
@@ -31,10 +31,9 @@ sys_fork(void)
 uint64
 sys_wait(void)
 {
-//   uint64 p;
-//   argaddr(0, &p);
-//   return wait(p);
-    return -1;
+  uint64 p;
+  argaddr(0, &p);
+  return wait(p);
 }
 
 // 使进程内存增加 n 字节，返回新内存的起始地址

@@ -86,10 +86,12 @@ usertrap(void)
   if(killed(p))
     exit(-1);
 
-  //TODO 时间片轮转调度
-  // // give up the CPU if this is a timer interrupt.
-  // if(which_dev == 2)
-  //   yield();
+  // give up the CPU if this is a timer interrupt.
+  if(which_dev == 2){
+    log_info("usertrap: yield\n");
+    yield();
+  }
+    
 
   usertrapret();
 }
@@ -167,7 +169,7 @@ kerneltrap()
   // 目前的内核 trap 只有时钟中断
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2 && myproc() != 0 && myproc()->state == RUNNING){
-    printf("yield from kerneltrap\n");
+    // printf("yield from kerneltrap\n");
     yield();
   }
 

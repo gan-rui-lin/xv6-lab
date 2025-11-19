@@ -248,6 +248,11 @@ r_stval()
   return x;
 }
 
+// 计数器使能位定义
+#define MCOUNTEREN_CY (1 << 0)   // cycle 计数器
+#define MCOUNTEREN_TM (1 << 1)   // time 计数器  
+#define MCOUNTEREN_IR (1 << 2)   // instret 计数器
+
 // Machine-mode Counter-Enable
 static inline void 
 w_mcounteren(uint64 x)

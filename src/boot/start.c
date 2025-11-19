@@ -79,6 +79,9 @@ setup_interrupt_delegation(void)
   
   // 将所有中断委托给管理者模式处理
   w_mideleg(0xffff);
+
+  // 启用计数器委托给 S 模式
+  w_mcounteren(r_mcounteren() | MCOUNTEREN_CY | MCOUNTEREN_TM | MCOUNTEREN_IR);
   
   // 启用管理者模式的中断：外部中断、定时器中断和软件中断
   w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);

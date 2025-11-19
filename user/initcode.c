@@ -5,6 +5,10 @@ void test_fork();
 
 void test_sbrk();
 
+void test_uptime();
+
+void test_gettimeofday();
+
 int main(){
     printf("Hello, World!\n");
 
@@ -12,12 +16,18 @@ int main(){
 
     test_fork();
 
+    test_uptime();
+
+    test_gettimeofday();
+
     shutdown();
     while(1);
     return 0;
 }
  
 void test_fork(){
+
+    printf("===========  Test Fork ===========\n");
     int pid = fork();
     int status;
     if (pid < 0) {
@@ -37,6 +47,8 @@ void test_fork(){
 
 void test_sbrk(){
 
+    printf("===========  Test sbrk ===========\n");
+
     long long addr = sbrk(0);
 
     printf("Current break address: %p\n", addr);
@@ -53,4 +65,39 @@ void test_sbrk(){
     }
     *((char*)addr + n) = '\0';
     printf("%s\n", (char*)addr);
+}
+
+void test_uptime(){
+    printf("===========  Test Uptime ===========\n");
+
+    uint64 start = uptime();
+    printf("System has been up for %d ticks\n", start);
+    
+    // 睡眠 1 秒（10个滴答）
+    sleep(10);
+    
+    uint64 end = uptime();
+    printf("After sleep: %d ticks elapsed\n", end - start);
+    
+
+}
+
+void test_gettimeofday(){
+    printf("===========  Test GetTimeOfDay ===========\n");
+
+    struct timeval start, end;
+    
+    gettimeofday(&start);
+    printf("Start: %d seconds, %d microseconds\n", start.tv_sec, start.tv_usec);
+    
+    // 做一些工作
+    sleep(20); // 睡眠 2 秒
+    
+    gettimeofday(&end);
+    printf("End: %d seconds, %d microseconds\n", end.tv_sec, end.tv_usec);
+    
+    uint64 elapsed = (end.tv_sec - start.tv_sec) * 1000000 + 
+                    (end.tv_usec - start.tv_usec);
+    printf("Elapsed: %d microseconds\n", elapsed);
+
 }

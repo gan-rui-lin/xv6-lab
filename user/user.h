@@ -22,7 +22,7 @@ long long sbrk(int);
 int sleep(int);
 int uptime(void);
 int shutdown(void);
-// int gettimeofday(struct timeval *tv);
+int gettimeofday(struct timeval *tv);
 
 // ulib.c
 char* strcpy(char*, const char*);

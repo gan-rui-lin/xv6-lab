@@ -31,6 +31,7 @@ char* strchr(const char*, char c);
 int strcmp(const char*, const char*);
 void fprintf(int, const char*, ...);
 void printf(const char*, ...);
+void printfYellow(const char *fmt, ...);
 char* gets(char*, int max);
 uint strlen(const char*);
 void* memset(void*, int, uint);

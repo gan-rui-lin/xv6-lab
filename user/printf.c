@@ -110,3 +110,65 @@ printf(const char *fmt, ...)
   va_start(ap, fmt);
   vprintf(1, fmt, ap);
 }
+
+#define YELLOW "\033[33m"
+#define RESET  "\033[0m"
+
+void
+printfYellow(const char *fmt, ...)
+{
+  va_list ap;
+  char *s;
+  int c, i, state;
+
+  va_start(ap, fmt);
+
+  // 输出黄色开始序列
+  for (i = 0; YELLOW[i] != '\0'; i++) {
+    putc(1, YELLOW[i]);
+  }
+
+  // 解析格式字符串并输出内容
+  state = 0;
+  for(i = 0; fmt[i]; i++){
+    c = fmt[i] & 0xff;
+    if(state == 0){
+      if(c == '%'){
+        state = '%';
+      } else {
+        putc(1, c);
+      }
+    } else if(state == '%'){
+      if(c == 'd'){
+        printint(1, va_arg(ap, int), 10, 1);
+      } else if(c == 'l') {
+        printint(1, va_arg(ap, uint64), 10, 0);
+      } else if(c == 'x') {
+        printint(1, va_arg(ap, int), 16, 0);
+      } else if(c == 'p') {
+        printptr(1, va_arg(ap, uint64));
+      } else if(c == 's'){
+        s = va_arg(ap, char*);
+        if(s == 0)
+          s = "(null)";
+        while(*s != 0){
+          putc(1, *s);
+          s++;
+        }
+      } else if(c == 'c'){
+        putc(1, va_arg(ap, uint));
+      } else if(c == '%'){
+        putc(1, c);
+      } else {
+        putc(1, '%');
+        putc(1, c);
+      }
+      state = 0;
+    }
+  }
+
+  // 输出重置序列
+  for (i = 0; RESET[i] != '\0'; i++) {
+    putc(1, RESET[i]);
+  }
+}

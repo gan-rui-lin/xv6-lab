@@ -27,7 +27,7 @@ int main(){
  
 void test_fork(){
 
-    printf("===========  Test Fork ===========\n");
+    printfYellow("===========  Test Fork ===========\n");
     int pid = fork();
     int status;
     if (pid < 0) {
@@ -47,7 +47,7 @@ void test_fork(){
 
 void test_sbrk(){
 
-    printf("===========  Test sbrk ===========\n");
+    printfYellow("===========  Test sbrk ===========\n");
 
     long long addr = sbrk(0);
 
@@ -68,7 +68,7 @@ void test_sbrk(){
 }
 
 void test_uptime(){
-    printf("===========  Test Uptime ===========\n");
+    printfYellow("===========  Test Uptime ===========\n");
 
     uint64 start = uptime();
     printf("System has been up for %d ticks\n", start);
@@ -83,7 +83,7 @@ void test_uptime(){
 }
 
 void test_gettimeofday(){
-    printf("===========  Test GetTimeOfDay ===========\n");
+    printfYellow("===========  Test GetTimeOfDay ===========\n");
 
     struct timeval start, end;
     

@@ -104,7 +104,7 @@ static void
 timer_init(void)
 {
   int cpu_id = r_mhartid();
-  int timer_interval = 1000000;  // 定时器间隔(CPU周期数)
+  int timer_interval = 1000000;  // qemu 里面大概是 0.1s
   
   // 设置下一次定时器中断的时间
   // 每个CPU核有独立的mtimecmp寄存器

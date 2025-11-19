@@ -120,12 +120,16 @@ void            scheduler(void);
 void            sched(void);
 void            reparent(struct proc *);
 void            yield(void);
+int             getpid(void);
+
 
 // swtch.S
 void            swtch(struct context*, struct context*);
 
 // trap.c
 void            usertrapret(void);
+extern struct spinlock tickslock;
+extern uint ticks;
 
 // syscall.c
 void            argint(int, int*);
@@ -134,6 +138,10 @@ void            argaddr(int, uint64 *);
 int             fetchstr(uint64, char*, int);
 int             fetchaddr(uint64, uint64*);
 void            syscall();
+
+// // systime.c
+// uint64          sys_uptime(void);
+// uint64          sys_gettimeofday(void);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

@@ -254,7 +254,7 @@ clockintr()
   printf("%d tick from cpu %d\n", ++ticker, cpuid());
   #endif
   ticks++;
-  // wakeup(&ticks);
+  wakeup(&ticks);
   release(&tickslock);
 }
 

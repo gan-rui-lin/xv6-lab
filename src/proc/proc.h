@@ -63,6 +63,10 @@ struct proc
   struct context context;      // swtch()到此进程时保存的上下文
   uint64 kernel_stack;         // 进程内核栈地址
   char name[16];               // 进程名字（仅用于调试）
+
+  // 文件系统相关
+  struct file *ofile[NOFILE];  // Open files
+  struct inode *cwd;           // Current directory
 };
 
 

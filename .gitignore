@@ -18,3 +18,4 @@ mkfs/mkfs
 .vscode/
 user/initcode.bin
 temp*
+*.typ

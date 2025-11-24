@@ -20,8 +20,6 @@ int main(){
 
     test_gettimeofday();
 
-    shutdown();
-    while(1);
     return 0;
 }
  

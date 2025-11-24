@@ -61,6 +61,8 @@ procinit(void)
       p->state = UNUSED;
       p->kernel_stack = KSTACK((int) (p - proc));
   }
+
+  // ?多余的 vminithart
 }
 
 void userinit(void){

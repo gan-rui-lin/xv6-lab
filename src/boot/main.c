@@ -2,6 +2,10 @@
 #include "riscv.h"
 #include "types.h"
 
+#include "sleeplock.h" // TODO 和 fs/file.h 捆绑着引入
+#include "fs/fs.h"     // TODO 和 fs/file.h 捆绑着引入
+#include "fs/file.h"
+
 volatile static int started = 0;
 
 void main()
@@ -19,14 +23,19 @@ void main()
         kinit(); // 物理页面分配器初始化
 
         log_info("xv6 is booting!\n");
+        
         plicinit();           // 设置中断控制器（仅一次）
         plicinithart();       // 每个核都要去向 PLIC 请求设备
         kvminit();            // 创建内核页表
         kvminithart();        // 开启分页机制
-        
         procinit();          // 进程表初始化
         // 为每一个 hart 设置中断向量表
         trapinithart();
+        binit();               // 初始化内存块管理器
+        iinit();               // 初始化 inode 管理器
+        fileinit();      // 初始化文件表的锁
+        virtio_disk_init(minor(ROOTDEV)); // 初始化磁盘驱动
+
         userinit();          // 创建第一个用户进程
         __sync_synchronize(); // 确保代码不乱序执行
         started = 1;
@@ -39,7 +48,7 @@ void main()
         // printf("\nhart %d starting!\n", cpuid());
         log_info("hart %d starting!\n", cpuid());
         
-            // 为每一个 hart 设置中断向量表
+        // 为每一个 hart 设置中断向量表
         trapinithart();
         kvminithart();
         plicinithart();

@@ -11,11 +11,13 @@ typedef unsigned long uint64;
 
 typedef uint64 pde_t;
 
+// 检查系统是否已经定义了 timeval
+#ifndef HOST_TIMEVAL_DEFINED
 struct timeval {
-  uint64 tv_sec;   // 秒数
-  uint64 tv_usec;  // 微秒数
+  int tv_sec;
+  int tv_usec;
 };
-
+#endif
 
 #endif // TYPES_H
 

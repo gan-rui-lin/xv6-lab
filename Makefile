@@ -24,7 +24,9 @@ OBJS += $(patsubst $(SRC)/%.S, $(BUILD_DIR)/%.o, $(filter %.S, $(SRCS)))
 
 # 设置 entry.o 作为特殊的入口目标文件
 ENTRY_OBJ := $(BUILD_DIR)/boot/entry.o
-OBJS_NO_ENTRY := $(filter-out $(ENTRY_OBJ), $(OBJS))
+OBJS_NO_ENTRY:= $(filter-out $(ENTRY_OBJ), $(OBJS))
+# 保证 mkfs.c 不被编译进内核
+OBJS_NO_ENTRY:= $(filter-out $(BUILD_DIR)/mkfs/mkfs.o, $(OBJS_NO_ENTRY))
 DEPS := $(OBJS:.o=.d)
 
 # riscv64-unknown-elf- or riscv64-linux-gnu-
@@ -134,9 +136,10 @@ $U/initcode.bin: $U/initcode
 tags: $(OBJS) _init
 	etags *.S *.c
 
-# ===== 磁盘文件系统构建工具 (已注释) =====
-# mkfs/mkfs: mkfs/mkfs.c $(SRC)/fs/fs.h $(SRC)/param.h
-# 	gcc -Werror -Wall -I. -I$(SRC) -o mkfs/mkfs mkfs/mkfs.c
+# ===== 磁盘文件系统构建工具 =====
+$(SRC)/mkfs/mkfs: $(SRC)/mkfs/mkfs.c $(SRC)/fs/fs.h $(SRC)/param.h
+	gcc -Werror -Wall -I. -o $(SRC)/mkfs/mkfs $(SRC)/mkfs/mkfs.c -DHOST_TIMEVAL_DEFINED
+# 	gcc -Werror -Wall -I. -I$(SRC) -o $(SRC)/mkfs/mkfs $(SRC)/mkfs/mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
 # that disk image changes after first build are persistent until clean.  More
@@ -144,16 +147,16 @@ tags: $(OBJS) _init
 # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
 .PRECIOUS: %.o
 
-# ===== 磁盘镜像构建 (已注释) =====
-# fs.img: mkfs/mkfs README $(UPROGS)
-# 	mkfs/mkfs fs.img README $(UPROGS)
+# ===== 磁盘镜像构建 =====
+fs.img: $(SRC)/mkfs/mkfs README $(UPROGS)
+	$(SRC)/mkfs/mkfs fs.img README $(UPROGS)
 
 -include $(DEPS)
 
 clean: 
 	rm -f *.tex *.dvi *.idx *.aux *.log *.ind *.ilg \
 	$K/kernel fs.img \
-	mkfs/mkfs .gdbinit
+	$(SRC)/mkfs/mkfs .gdbinit
 	rm -f $U/initcode $U/initcode.o $U/initcode.asm $U/initcode.sym $U/initcode.d $U/initcode.bin
 	rm -f $U/usys.S $U/usys.o $U/usys.d
 	rm -f $U/printf.o $U/printf.d
@@ -171,20 +174,19 @@ CPUS := 1
 endif
 
 QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nographic
-QEMUOPTS += -global virtio-mmio.force-legacy=false
-# 注释：磁盘相关的 QEMU 选项 (已注释)
-# QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
-# QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+# QEMUOPTS += -global virtio-mmio.force-legacy=false
+# 磁盘相关的 QEMU 选项
+QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
+QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
 
-# 注释：移除了对 fs.img 的依赖
-qemu: $K/kernel
+qemu: $K/kernel fs.img
 	$(QEMU) $(QEMUOPTS)
 
 .gdbinit: .gdbinit.tmpl-riscv
 	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
 
 # 注释：移除了对 fs.img 的依赖
-qemu-gdb: $K/kernel .gdbinit
+qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 

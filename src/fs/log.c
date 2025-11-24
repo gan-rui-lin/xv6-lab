@@ -61,6 +61,7 @@ initlog(int dev, struct superblock *sb)
   log[dev].start = sb->logstart;
   log[dev].size = sb->nlog;
   log[dev].dev = dev;
+
   recover_from_log(dev);
 }
 

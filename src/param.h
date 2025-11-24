@@ -15,3 +15,5 @@
 #define NDEV         10  // maximum major device number
 #define ROOTDEV       0  // device number of file system root disk
 #define NDISK        2  // maximum number of disks
+
+#define MAXARG       32  // max exec arguments

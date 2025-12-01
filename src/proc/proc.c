@@ -88,6 +88,7 @@ void userinit(void){
   // static int nextpid = 0;
   // p->pid = nextpid++;
 
+
   // 暂时不调度，直接只跑这第一个程序
   // 设置进程状态为可运行
   p->state = RUNNABLE;

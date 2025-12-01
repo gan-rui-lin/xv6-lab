@@ -60,7 +60,7 @@ virtio_disk_init(int n)
   if(disk[n].init)
     return;
 
-  printf("virtio disk init %d\n", n);
+  log_info("virtio disk init %d\n", n);
   
   initlock(&disk[n].vdisk_lock, "virtio_disk");
 

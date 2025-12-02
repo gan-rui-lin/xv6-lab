@@ -95,6 +95,10 @@ extern uint64 sys_shutdown(void);
 extern uint64 sys_gettimeofday(void);
 extern uint64 sys_read(void);
 extern uint64 sys_write(void);
+extern uint64 sys_open(void);
+extern uint64 sys_mknod(void);
+extern uint64 sys_close(void);
+extern uint64 sys_dup(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -111,6 +115,11 @@ static uint64 (*syscalls[])(void) = {
 [SYS_uptime]  sys_uptime,
 [SYS_shutdown] sys_shutdown,
 [SYS_gettimeofday] sys_gettimeofday,
+[SYS_open]    sys_open,
+[SYS_mknod]   sys_mknod,
+[SYS_close]   sys_close,
+[SYS_dup]     sys_dup,
+
 };
 
 void
@@ -122,6 +131,7 @@ syscall(void)
   // 获取系统调用号
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
+    // printf("syscall %d called from pid %d\n", num, p->pid);
     // 系统函数返回值放在 p->trapframe->a0
     p->trapframe->a0 = syscalls[num]();  
   } else {

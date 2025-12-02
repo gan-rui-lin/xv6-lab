@@ -279,7 +279,8 @@ devintr()
       // 处理来自 SHELL 的键盘输入
       uartintr();
     } else if(irq == VIRTIO0_IRQ){
-    //   virtio_disk_intr();
+      // TODO: 处理磁盘中断
+      virtio_disk_intr(irq - VIRTIO0_IRQ);
     } else if(irq){
       printf("unexpected interrupt irq=%d\n", irq);
     }

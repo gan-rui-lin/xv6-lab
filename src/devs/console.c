@@ -1,4 +1,7 @@
 #include "defs.h"
+#include "sleeplock.h" // TODO 和 fs/file.h 捆绑着引入
+#include "fs/fs.h"     // TODO 和 fs/file.h 捆绑着引入
+#include "fs/file.h"
 
 #define BACKSPACE 0x100
 #define C(x)  ((x)-'@')  // Control-x
@@ -38,8 +41,8 @@ consoleinit(void)
 
   uartinit();
 
-  // devsw[CONSOLE].read = consoleread;
-  // devsw[CONSOLE].write = consolewrite;
+  devsw[CONSOLE].read = consoleread;
+  devsw[CONSOLE].write = consolewrite;
 }
 
 // handle a input character received from UART
@@ -78,22 +81,98 @@ consoleintr(int c)
   release(&cons.lock);
 }
 
+// //
+// // user write()s to the console go here.
+// //
+// int
+// consolewrite(int user_src, uint64 src, int n)
+// {
+//   int i;
+
+//   for(i = 0; i < n; i++){
+//     char c;
+//     if(either_copyin(&c, user_src, src+i, 1) == -1)
+//       break;
+//     uart_putc(c);
+//   }
+
+//   return i;
+// }
+
+// //
+// // user read()s from the console go here.
+// // copy (up to) a whole input line to dst.
+// // user_dist indicates whether dst is a user
+// // or kernel address.
+// //
+// int
+// consoleread(int user_dst, uint64 dst, int n)
+// {
+//   uint target;
+//   int c;
+//   char cbuf;
+
+//   target = n;
+//   acquire(&cons.lock);
+//   while(n > 0){
+//     // wait until interrupt handler has put some
+//     // input into cons.buffer.
+//     while(cons.r == cons.w){
+//       // if(killed(myproc())){
+//       //   release(&cons.lock);
+//       //   return -1;
+//       // }
+//       sleep(&cons.r, &cons.lock);
+//     }
+
+//     c = cons.buf[cons.r++ % INPUT_BUF_SIZE];
+
+//     if(c == C('D')){  // end-of-file
+//       if(n < target){
+//         // Save ^D for next time, to make sure
+//         // caller gets a 0-byte result.
+//         cons.r--;
+//       }
+//       break;
+//     }
+
+//     // copy the input byte to the user-space buffer.
+//     cbuf = c;
+//     if(either_copyout(user_dst, dst, &cbuf, 1) == -1)
+//       break;
+
+//     dst++;
+//     --n;
+
+//     if(c == '\n'){
+//       // a whole line has arrived, return to
+//       // the user-level read().
+//       break;
+//     }
+//   }
+//   release(&cons.lock);
+
+//   return target - n;
+// }
+
 //
 // user write()s to the console go here.
 //
 int
-consolewrite(int user_src, uint64 src, int n)
+consolewrite(struct file *f, int user_src, uint64 src, int n)
 {
   int i;
 
+  acquire(&cons.lock);
   for(i = 0; i < n; i++){
     char c;
     if(either_copyin(&c, user_src, src+i, 1) == -1)
       break;
-    uart_putc(c);
+    consputc(c);
   }
+  release(&cons.lock);
 
-  return i;
+  return n;
 }
 
 //
@@ -103,7 +182,7 @@ consolewrite(int user_src, uint64 src, int n)
 // or kernel address.
 //
 int
-consoleread(int user_dst, uint64 dst, int n)
+consoleread(struct file *f, int user_dst, uint64 dst, int n)
 {
   uint target;
   int c;
@@ -115,10 +194,10 @@ consoleread(int user_dst, uint64 dst, int n)
     // wait until interrupt handler has put some
     // input into cons.buffer.
     while(cons.r == cons.w){
-      // if(killed(myproc())){
-      //   release(&cons.lock);
-      //   return -1;
-      // }
+      if(myproc()->killed){
+        release(&cons.lock);
+        return -1;
+      }
       sleep(&cons.r, &cons.lock);
     }
 

@@ -62,8 +62,10 @@ void consputc(int c);
 void consoleinit(void);
 // console input interrupt handler (from uart)
 void consoleintr(int c);
-int consoleread(int user_dst, uint64 dst, int n);
-int consolewrite(int user_src, uint64 src, int n);
+// int consoleread(int user_dst, uint64 dst, int n);
+// int consolewrite(int user_src, uint64 src, int n);
+int consolewrite(struct file *f, int user_src, uint64 src, int n);
+int consoleread(struct file *f, int user_dst, uint64 dst, int n);
 
 // sleep/wakeup primitives used across the kernel
 void sleep(void*, struct spinlock*);

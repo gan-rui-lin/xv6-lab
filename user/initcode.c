@@ -10,6 +10,8 @@ void test_uptime();
 
 void test_gettimeofday();
 
+void test_read();
+
 int main()
 {
     if (open("console", O_RDWR) < 0)
@@ -27,6 +29,8 @@ int main()
     test_uptime();
 
     test_gettimeofday();
+
+    test_read();
 
     shutdown();
     return 0;
@@ -113,4 +117,40 @@ void test_gettimeofday()
     uint64 elapsed = (end.tv_sec - start.tv_sec) * 1000000 +
                      (end.tv_usec - start.tv_usec);
     printf("Elapsed: %d microseconds\n", elapsed);
+}
+
+void test_read()
+{
+    printfYellow("===========  Test Read README ===========\n");
+    
+    int fd;
+    char buffer[512];
+    int n;
+    
+    // 打开 README 文件
+    fd = open("README", O_RDONLY);
+    if (fd < 0) {
+        printfYellow("Failed to open README file\n");
+        return;
+    }
+    
+    printf("Successfully opened README file, fd: %d\n", fd);
+    
+    // 读取文件内容
+    printf("File content:\n");
+    printfYellow("----------------------------------------\n");
+    
+    while ((n = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
+        buffer[n] = '\0';  // 添加字符串结束符
+        printf("%s", buffer);
+    }
+    
+    printfYellow("----------------------------------------\n");
+    
+    if (n < 0) {
+        printfYellow("Error reading file\n");
+    }
+    
+    close(fd);
+    printf("File closed successfully\n");
 }

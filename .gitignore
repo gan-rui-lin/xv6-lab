@@ -15,6 +15,7 @@ kernel/kernel
 user/usys.S
 .gdbinit
 mkfs/mkfs
+mkfs
 .vscode/
 user/initcode.bin
 temp*

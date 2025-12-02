@@ -275,6 +275,12 @@ iget(uint dev, uint inum)
   ip->ref = 1;
   ip->valid = 0;
   release(&icache.lock);
+  
+  // 看看根目录的 inode 是不是被 iget 了
+  if(dev == ROOTDEV && inum == ROOTINO){
+    log_debug("iget: got root inode\n");
+    log_debug("iget: ip->ref=%d, ip->valid=%d, ip->type=%d\n", ip->ref, ip->valid, ip->type);
+  }
 
   return ip;
 }
@@ -295,6 +301,10 @@ idup(struct inode *ip)
 void
 ilock(struct inode *ip)
 {
+  if(sb.magic != FSMAGIC) {
+    log_error("ilock: superblock not initialized! magic=0x%x\n", sb.magic);
+  }
+
   struct buf *bp;
   struct dinode *dip;
 
@@ -314,8 +324,18 @@ ilock(struct inode *ip)
     memmove(ip->addrs, dip->addrs, sizeof(ip->addrs));
     brelse(bp);
     ip->valid = 1;
-    if(ip->type == 0)
-      panic("ilock: no type");
+    if(ip->type == 0){
+        printf("ilock: no type, inum=%d, dev=%d, ref=%d\n", 
+        ip->inum, ip->dev, ip->ref);
+
+        printf("Disk inode content:\n");
+        printf("  dip->type: %d\n", dip->type);
+        printf("  dip->major: %d\n", dip->major);
+        printf("  dip->minor: %d\n", dip->minor);
+        printf("  dip->nlink: %d\n", dip->nlink);
+        printf("  dip->size: %d\n", dip->size);
+        panic("ilock: no type");
+    }
   }
 }
 
@@ -636,12 +656,19 @@ static struct inode*
 namex(char *path, int nameiparent, char *name)
 {
   struct inode *ip, *next;
+  // log_debug("namex: looking up path %s, name is %s\n", path, name);
 
-  if(*path == '/')
+  if(*path == '/'){
+    // printf("namex: starting at root 111 /\n");
     ip = iget(ROOTDEV, ROOTINO);
+    // log_debug("namex: starting at root /\n");
+  }
   else
     ip = idup(myproc()->cwd);
-
+  if(ip == 0){
+    log_error("namex: no cwd\n");
+    return 0;
+  }
   while((path = skipelem(path, name)) != 0){
     ilock(ip);
     if(ip->type != T_DIR){
@@ -664,6 +691,8 @@ namex(char *path, int nameiparent, char *name)
     iput(ip);
     return 0;
   }
+  // log_debug("namex: found inode %d\n", ip->inum);
+
   return ip;
 }
 

@@ -3,6 +3,9 @@
 #include "param.h"
 #include "defs.h"
 #include "memlayout.h"
+#include "sleeplock.h"
+#include "../fs/fs.h"
+#include "../fs/file.h"
 
 static int nextpid = 1;  // 下一个分配的 PID
 struct proc* initproc;  // 用于 reparent 子进程等操作
@@ -83,6 +86,8 @@ void userinit(void){
   // 其它程序的值在用户空间内提前设置好了
   p->trapframe->epc = 0;      // 用户程序从地址
   p->trapframe->sp = alloc_size; // 用户栈指针初始化为一页大小
+
+  p->cwd = namei("/");
 
   safestrcpy(p->name, "zeroproc", sizeof(p->name));
   // static int nextpid = 0;
@@ -206,8 +211,19 @@ proc_pagetable(struct proc *p)
 void
 forkret(void)
 {
+  static int first = 1;
+
   // Still holding p->lock from scheduler.
   release(&myproc()->lock);
+
+  if (first) {
+    //? 进程的第一次返回到用户态时，初始化文件系统 为什么是这样呢？ 
+    // File system initialization must be run in the context of a
+    // regular process (e.g., because it calls sleep), and thus cannot
+    // be run from main().
+    first = 0;
+    fsinit(minor(ROOTDEV));
+  }
 
   usertrapret();
 }
@@ -364,12 +380,12 @@ fork(void)
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
-  // // increment reference counts on open file descriptors.
-  //TODO 文件系统未实现
-  // for(i = 0; i < NOFILE; i++)
-  //   if(p->ofile[i])
-  //     np->ofile[i] = filedup(p->ofile[i]);
-  // np->cwd = idup(p->cwd);
+  // increment reference counts on open file descriptors.
+  int i;
+  for(i = 0; i < NOFILE; i++)
+    if(p->ofile[i])
+      np->ofile[i] = filedup(p->ofile[i]);
+  np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 

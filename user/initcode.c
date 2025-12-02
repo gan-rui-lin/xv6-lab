@@ -1,5 +1,6 @@
 #include "user.h"
 #include "memlayout.h"
+#include "../src/fcntl.h"
 
 void test_fork();
 
@@ -9,8 +10,15 @@ void test_uptime();
 
 void test_gettimeofday();
 
-int main(){
-    printf("Hello, World!\n");
+int main()
+{
+    if (open("console", O_RDWR) < 0)
+    {
+        mknod("console", 1, 1);
+        open("console", O_RDWR);
+    }
+    dup(0); // stdout
+    dup(0); // stderr
 
     test_sbrk();
 
@@ -20,30 +28,37 @@ int main(){
 
     test_gettimeofday();
 
+    shutdown();
     return 0;
 }
- 
-void test_fork(){
+
+void test_fork()
+{
 
     printfYellow("===========  Test Fork ===========\n");
     int pid = fork();
     int status;
-    if (pid < 0) {
+    if (pid < 0)
+    {
         printf("Fork failed!\n");
-    } else if (pid == 0) {
+    }
+    else if (pid == 0)
+    {
         // Child process
         printf("Hello from child process! PID: %d\n", getpid());
         exit(0);
-    } else {
+    }
+    else
+    {
         // Parent process
         wait(&status);
         printf("Hello from parent process! PID: %d, Child PID: %d\n", getpid(), pid);
         printf("Child exited with status: %d\n", status);
     }
-
 }
 
-void test_sbrk(){
+void test_sbrk()
+{
 
     printfYellow("===========  Test sbrk ===========\n");
 
@@ -58,44 +73,44 @@ void test_sbrk(){
 
     char *test_str = "test sbrk";
     int n = 9;
-    for(int i = 0; i < n; i++) {
-        *((char*)addr + i) = test_str[i];
+    for (int i = 0; i < n; i++)
+    {
+        *((char *)addr + i) = test_str[i];
     }
-    *((char*)addr + n) = '\0';
-    printf("%s\n", (char*)addr);
+    *((char *)addr + n) = '\0';
+    printf("%s\n", (char *)addr);
 }
 
-void test_uptime(){
+void test_uptime()
+{
     printfYellow("===========  Test Uptime ===========\n");
 
     uint64 start = uptime();
     printf("System has been up for %d ticks\n", start);
-    
+
     // 睡眠 1 秒（10个滴答）
     sleep(10);
-    
+
     uint64 end = uptime();
     printf("After sleep: %d ticks elapsed\n", end - start);
-    
-
 }
 
-void test_gettimeofday(){
+void test_gettimeofday()
+{
     printfYellow("===========  Test GetTimeOfDay ===========\n");
 
     struct timeval start, end;
-    
+
     gettimeofday(&start);
     printf("Start: %d seconds, %d microseconds\n", start.tv_sec, start.tv_usec);
-    
+
     // 做一些工作
     sleep(20); // 睡眠 2 秒
-    
+
     gettimeofday(&end);
     printf("End: %d seconds, %d microseconds\n", end.tv_sec, end.tv_usec);
-    
-    uint64 elapsed = (end.tv_sec - start.tv_sec) * 1000000 + 
-                    (end.tv_usec - start.tv_usec);
-    printf("Elapsed: %d microseconds\n", elapsed);
 
+    uint64 elapsed = (end.tv_sec - start.tv_sec) * 1000000 +
+                     (end.tv_usec - start.tv_usec);
+    printf("Elapsed: %d microseconds\n", elapsed);
 }

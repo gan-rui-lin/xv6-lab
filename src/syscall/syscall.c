@@ -99,6 +99,9 @@ extern uint64 sys_open(void);
 extern uint64 sys_mknod(void);
 extern uint64 sys_close(void);
 extern uint64 sys_dup(void);
+extern uint64 sys_exec(void);
+extern uint64 sys_fstat(void);
+extern uint64 sys_mkdir(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -119,8 +122,38 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mknod]   sys_mknod,
 [SYS_close]   sys_close,
 [SYS_dup]     sys_dup,
-
+[SYS_exec]    sys_exec,
+[SYS_fstat]   sys_fstat,
+[SYS_mkdir]   sys_mkdir,
 };
+
+// sysname - return the name of the system call for debugging.
+char*
+sysname(int num)
+{
+  switch(num){
+  case SYS_fork:    return "fork";
+  case SYS_exit:    return "exit";
+  case SYS_wait:    return "wait";
+  case SYS_read:    return "read";
+  case SYS_write:   return "write";
+  case SYS_kill:    return "kill";
+  case SYS_getpid:  return "getpid";
+  case SYS_sbrk:    return "sbrk";
+  case SYS_sleep:   return "sleep";
+  case SYS_uptime:  return "uptime";
+  case SYS_shutdown: return "shutdown";
+  case SYS_gettimeofday: return "gettimeofday";
+  case SYS_open:    return "open";
+  case SYS_mknod:   return "mknod";
+  case SYS_close:   return "close";
+  case SYS_dup:     return "dup";
+  case SYS_exec:    return "exec";
+  case SYS_fstat:   return "fstat";
+  case SYS_mkdir:   return "mkdir";
+  default:          return "unknown";
+  }
+}
 
 void
 syscall(void)

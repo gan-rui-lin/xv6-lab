@@ -277,11 +277,12 @@ iget(uint dev, uint inum)
   release(&icache.lock);
   
   // 看看根目录的 inode 是不是被 iget 了
+  #ifdef LOG_DEBUG
   if(dev == ROOTDEV && inum == ROOTINO){
     log_debug("iget: got root inode\n");
     log_debug("iget: ip->ref=%d, ip->valid=%d, ip->type=%d\n", ip->ref, ip->valid, ip->type);
   }
-
+  #endif
   return ip;
 }
 

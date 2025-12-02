@@ -12,6 +12,8 @@ void test_gettimeofday();
 
 void test_read();
 
+void test_shell();
+
 int main()
 {
     if (open("console", O_RDWR) < 0)
@@ -31,6 +33,8 @@ int main()
     test_gettimeofday();
 
     test_read();
+
+    test_shell();
 
     shutdown();
     return 0;
@@ -122,35 +126,64 @@ void test_gettimeofday()
 void test_read()
 {
     printfYellow("===========  Test Read README ===========\n");
-    
+
     int fd;
     char buffer[512];
     int n;
-    
+
     // 打开 README 文件
     fd = open("README", O_RDONLY);
-    if (fd < 0) {
+    if (fd < 0)
+    {
         printfYellow("Failed to open README file\n");
         return;
     }
-    
+
     printf("Successfully opened README file, fd: %d\n", fd);
-    
+
     // 读取文件内容
     printf("File content:\n");
     printfYellow("----------------------------------------\n");
-    
-    while ((n = read(fd, buffer, sizeof(buffer) - 1)) > 0) {
-        buffer[n] = '\0';  // 添加字符串结束符
+
+    while ((n = read(fd, buffer, sizeof(buffer) - 1)) > 0)
+    {
+        buffer[n] = '\0'; // 添加字符串结束符
         printf("%s", buffer);
     }
-    
+
     printfYellow("----------------------------------------\n");
-    
-    if (n < 0) {
+
+    if (n < 0)
+    {
         printfYellow("Error reading file\n");
     }
-    
+
     close(fd);
     printf("File closed successfully\n");
+}
+void test_shell()
+{
+    char *argv[] = {"sh", 0};
+    printfYellow("===========  Test Shell ===========\n");
+    int pid, wpid, status;
+    for (;;)
+    {
+        printf("init: starting sh\n");
+        pid = fork();
+        if (pid < 0)
+        {
+            printf("init: fork failed\n");
+            exit(-1);
+        }
+        if (pid == 0)
+        {
+            exec("sh", argv);
+            printf("init: exec sh failed\n");
+            exit(-1);
+        }
+        while ((wpid = wait(&status)) >= 0 && wpid != pid)
+        {
+            // printf("zombie!\n");
+        }
+    }
 }

@@ -1,4 +1,5 @@
 # include "types.h"
+struct stat;
 
 // system calls
 int fork(void);
@@ -23,8 +24,11 @@ int sleep(int);
 int uptime(void);
 int shutdown(void);
 int gettimeofday(struct timeval *tv);
+int fstat(int fd, struct stat*);
+
 
 // ulib.c
+int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);
 void *memmove(void*, const void*, int);
 char* strchr(const char*, char c);
@@ -40,3 +44,4 @@ void free(void*);
 int atoi(const char*);
 int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
+

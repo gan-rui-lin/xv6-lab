@@ -64,6 +64,7 @@ CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 &
 # CFLAGS += -DPAGE_TABLE_DEBUG
 # CFLAGS += -DTICKER_DEBUG
 # CFLAGS += -DCONSOLE_DEBUG
+# CFLAGS += -DLOG_DEBUG
 
 # 包含头文件路径：添加各个源代码子目录
 INCLUDES := -I$(SRC) $(foreach dir,$(SRC_DIRS),-I$(SRC)/$(dir))
@@ -147,6 +148,22 @@ $(SRC)/mkfs/mkfs: $(SRC)/mkfs/mkfs.c $(SRC)/fs/fs.h $(SRC)/param.h
 # details:
 # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
 .PRECIOUS: %.o
+
+ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
+# ULIB = $U/ulib.o $U/usys.o $U/printf.o
+
+_%: %.o $(ULIB)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
+	$(OBJDUMP) -S $@ > $*.asm
+	$(OBJDUMP) -t $@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $*.sym
+
+UPROGS=\
+	$U/_sh \
+	$U/_cat \
+	$U/_echo \
+	$U/_mkdir \
+	$U/_ls   \
+	
 
 # ===== 磁盘镜像构建 =====
 fs.img: $(SRC)/mkfs/mkfs README $(UPROGS)

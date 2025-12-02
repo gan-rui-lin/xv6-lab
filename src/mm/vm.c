@@ -423,8 +423,9 @@ uvmcreate()
 uint64 uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
 {
     char *mem;
+    #ifdef LOG_DEBUG
     log_debug("sz: %d\n", sz);
-
+    #endif
     // 计算程序段需要的页面数量（向上取整）
     uint64 prog_pages = PGROUNDUP(sz) / PGSIZE;
     if (prog_pages == 0)
@@ -433,8 +434,10 @@ uint64 uvmfirst(pagetable_t pagetable, uchar *src, uint sz)
     // 总共分配两倍的页面数，低地址存程序段，高地址作栈内存
     uint64 total_pages = prog_pages * 2;
     uint64 total_size = total_pages * PGSIZE;
+    #ifdef LOG_DEBUG
 
     log_debug("prog_pages: %d, total_pages: %d, total_size: %d\n", prog_pages, total_pages, total_size);
+    #endif
 
     // 分配程序段页面
     for (uint64 i = 0; i < prog_pages; i++)

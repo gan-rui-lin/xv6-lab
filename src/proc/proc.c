@@ -90,11 +90,7 @@ void userinit(void){
   p->cwd = namei("/");
 
   safestrcpy(p->name, "zeroproc", sizeof(p->name));
-  // static int nextpid = 0;
-  // p->pid = nextpid++;
 
-
-  // 暂时不调度，直接只跑这第一个程序
   // 设置进程状态为可运行
   p->state = RUNNABLE;
 
@@ -156,13 +152,14 @@ found:
     return 0;
 
   }
+  #ifdef LOG_DEBUG
     
   log_debug("proc %d: created pagetable at %p\n", p->pid, p->pagetable);
 
   log_debug("proc %d: trapframe at %p\n", p->pid, p->trapframe);
 
   log_debug("proc %d: kernel stack at %p\n", p->pid, p->kernel_stack);
-
+  #endif
   // context
   memset(&p->context, 0, sizeof(p->context));
   // swtch 函数会从 context 的 ra 和 sp 字段恢复
@@ -170,7 +167,9 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kernel_stack + PGSIZE;
 
+  #ifdef LOG_DEBUG
   log_debug("proc %d: context at %p\n", p->pid, p->context.sp);
+  #endif
   return p;
 }
 

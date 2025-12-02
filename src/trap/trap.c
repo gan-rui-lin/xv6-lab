@@ -62,8 +62,8 @@ usertrap(void)
   if(r_scause() == 8){
     // system call
 
-    // if(killed(p))
-    //   exit(-1);
+    if(killed(p))
+      exit(-1);
 
     // 需要手动更改 epc（并非硬件设置！）
     p->trapframe->epc += 4;

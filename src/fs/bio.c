@@ -26,6 +26,7 @@
 #include "fs.h"
 #include "buf.h"
 
+// bcache 结构体保存了 NBUF 个缓冲区；buf 本身通过双向链表连接。
 struct {
   struct spinlock lock;
   struct buf buf[NBUF];

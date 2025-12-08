@@ -249,7 +249,7 @@ virtio_disk_rw(int n, struct buf *b, int write)
 
   *R(n, VIRTIO_MMIO_QUEUE_NOTIFY) = 0; // value is queue number
 
-  // Wait for virtio_disk_intr() to say request has finished.
+  // 等待 virtio_disk_intr() 表示请求已完成
   while(b->disk == 1) {
     sleep(b, &disk[n].vdisk_lock);
   }
@@ -271,7 +271,7 @@ virtio_disk_intr(int n)
     if(disk[n].info[id].status != 0)
       panic("virtio_disk_intr status");
     
-    disk[n].info[id].b->disk = 0;   // disk is done with buf
+    disk[n].info[id].b->disk = 0;   // disk is done with buf -- 清除 DISK 位
     wakeup(disk[n].info[id].b);
 
     disk[n].used_idx = (disk[n].used_idx + 1) % NUM;

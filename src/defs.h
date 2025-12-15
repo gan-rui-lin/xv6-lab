@@ -1,5 +1,6 @@
 #include "types.h"
 #include "spinlock.h"
+// #include "sleeplock.h"
 #include "riscv.h"
 #include "proc/proc.h"
 
@@ -7,6 +8,7 @@
 #define THR 0  
 #define LSR 5
 #define TX_IDLE 0x20
+#define NULL (void*)0
 
 struct buf;
 struct context;
@@ -96,6 +98,11 @@ int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             memcmp(const void*, const void*, uint);
 void*           memmove(void*, const void*, uint);
 void*           memset(void*, int, uint);
+void*           memcpy(void *dst, const void *src, uint n);
+char*           strchr(const char*, char c);
+char*           strrchr(const char*, char c);
+int             strncasecmp(const char *s1, const char *s2, uint n);
+int             snprintf ( char * str, uint size, const char * format, ... );
 char*           safestrcpy(char*, const char*, int);
 int             strlen(const char*);
 int             strncmp(const char*, const char*, uint);

@@ -18,3 +18,16 @@ mkfs/mkfs
 .vscode/
 user/initcode.bin
 temp*
+~*
+*.obj
+*.swp
+*.swo
+*.tmp
+*.bak
+.*
+*.fat32
+src/thinfat32/fs
+src/thinfat32/obj
+src/thinfat32/build
+src/thinfat32/dist
+

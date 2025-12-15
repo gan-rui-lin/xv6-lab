@@ -20,3 +20,4 @@ mkfs
 user/initcode.bin
 temp*
 *.typ
+kernel-qemu

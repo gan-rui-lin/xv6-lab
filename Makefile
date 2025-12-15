@@ -179,6 +179,8 @@ clean:
 	rm -f $U/usys.S $U/usys.o $U/usys.d
 	rm -f $U/printf.o $U/printf.d
 	rm -rf $(BUILD_DIR)
+	rm -f kernel-qemu
+	rm -f $(UPROGS)
 
 # try to generate a unique GDB port
 # GDBPORT = $(shell expr `id -u` % 5000 + 25000)
@@ -208,3 +210,6 @@ qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 
+run: $K/kernel $(FS_IMG)
+# 	直接把 KERNEL_ELF 拷贝到根目录并命名为 kernel-qemu
+	cp $K/kernel kernel-qemu

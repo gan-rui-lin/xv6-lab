@@ -213,3 +213,5 @@ qemu-gdb: $K/kernel .gdbinit fs.img
 run: $K/kernel $(FS_IMG)
 # 	直接把 KERNEL_ELF 拷贝到根目录并命名为 kernel-qemu
 	cp $K/kernel kernel-qemu
+
+all: run

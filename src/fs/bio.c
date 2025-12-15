@@ -57,6 +57,7 @@ binit(void)
 }
 
 // 在缓冲区缓存中查找设备 dev 上的块 blockno。
+// 第一个参数给定不同的块设备，第二个参数给定块号。
 // 如果没有找到，则分配一个新的缓冲区。
 // 无论哪种情况，都会返回一个加锁的缓冲区。
 static struct buf*
@@ -81,7 +82,7 @@ bget(uint dev, uint blockno)
     if(b->refcnt == 0) {
       b->dev = dev;
       b->blockno = blockno;
-      b->valid = 0;
+      b->valid = 0; // 数据无效，之后需要从磁盘读取
       b->refcnt = 1;
       release(&bcache.lock);
       acquiresleep(&b->lock);

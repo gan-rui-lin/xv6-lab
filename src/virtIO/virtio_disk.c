@@ -177,9 +177,14 @@ alloc3_desc(int n, int *idx)
   return 0;
 }
 
+// 0 for read, 1 for write，采用中断方式触发 virtio_disk_intr()
 void
 virtio_disk_rw(int n, struct buf *b, int write)
+
+
 {
+
+  printf("virtio_disk_rw %d %d\n", b->blockno, write);
   uint64 sector = b->blockno * (BSIZE / 512);
 
   acquire(&disk[n].vdisk_lock);
@@ -263,6 +268,7 @@ virtio_disk_rw(int n, struct buf *b, int write)
 void
 virtio_disk_intr(int n)
 {
+  printf("virtio_disk_intr %d\n", n);
   acquire(&disk[n].vdisk_lock);
 
   while((disk[n].used_idx % NUM) != (disk[n].used->id % NUM)){

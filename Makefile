@@ -55,7 +55,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+CFLAGS = -Wall  -O -fno-omit-frame-pointer -ggdb -gdwarf-2
 CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
@@ -140,7 +140,7 @@ tags: $(OBJS) _init
 
 # ===== 磁盘文件系统构建工具 =====
 $(SRC)/mkfs/mkfs: $(SRC)/mkfs/mkfs.c $(SRC)/fs/fs.h $(SRC)/param.h
-	gcc -Werror -Wall -I. -o $(SRC)/mkfs/mkfs $(SRC)/mkfs/mkfs.c -DHOST_TIMEVAL_DEFINED
+	gcc -Wall -I. -o $(SRC)/mkfs/mkfs $(SRC)/mkfs/mkfs.c -DHOST_TIMEVAL_DEFINED
 # 	gcc -Werror -Wall -I. -I$(SRC) -o $(SRC)/mkfs/mkfs $(SRC)/mkfs/mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so

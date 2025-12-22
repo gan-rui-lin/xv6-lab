@@ -105,3 +105,44 @@ strlen(const char *s)
   return n;
 }
 
+char *
+strchr(const char *s, char c)
+{
+  for(; *s; s++)
+    if(*s == c)
+      return (char*)s;
+  return 0;
+}
+char *
+strrchr(const char *s, char c)
+{
+  char *last = 0;
+  for(; *s; s++)
+    if(*s == c)
+      last = (char*)s;
+  return last;
+}
+int             
+strncasecmp(const char *s1, const char *s2, uint n)
+{
+  char c1, c2;
+  while(n-- > 0) {
+    c1 = *s1++;
+    c2 = *s2++;
+    if(c1 >= 'A' && c1 <= 'Z')
+      c1 = c1 - 'A' + 'a';
+    if(c2 >= 'A' && c2 <= 'Z')
+      c2 = c2 - 'A' + 'a';
+    if(c1 != c2)
+      return c1 - c2;
+    if(c1 == 0)
+      return 0;
+  }
+  return 0;
+}
+
+int 
+snprintf ( char * str, uint size, const char * format, ... )
+{
+
+}

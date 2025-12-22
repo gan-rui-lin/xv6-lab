@@ -13,7 +13,6 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "sleeplock.h"
-#include "../fs/fs.h"
 #include "../fs/buf.h"
 #include "virtio.h"
 

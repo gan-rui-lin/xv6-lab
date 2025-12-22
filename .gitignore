@@ -19,5 +19,21 @@ mkfs
 .vscode/
 user/initcode.bin
 temp*
+<<<<<<< HEAD
 *.typ
 kernel-qemu
+=======
+~*
+*.obj
+*.swp
+*.swo
+*.tmp
+*.bak
+.*
+*.fat32
+src/thinfat32/fs
+src/thinfat32/obj
+src/thinfat32/build
+src/thinfat32/dist
+
+>>>>>>> zjy

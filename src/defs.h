@@ -1,5 +1,6 @@
 #include "types.h"
 #include "spinlock.h"
+// #include "sleeplock.h"
 #include "riscv.h"
 #include "proc/proc.h"
 
@@ -7,6 +8,7 @@
 #define THR 0  
 #define LSR 5
 #define TX_IDLE 0x20
+#define NULL (void*)0
 
 struct buf;
 struct context;
@@ -98,6 +100,11 @@ int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             memcmp(const void*, const void*, uint);
 void*           memmove(void*, const void*, uint);
 void*           memset(void*, int, uint);
+void*           memcpy(void *dst, const void *src, uint n);
+char*           strchr(const char*, char c);
+char*           strrchr(const char*, char c);
+int             strncasecmp(const char *s1, const char *s2, uint n);
+int             snprintf ( char * str, uint size, const char * format, ... );
 char*           safestrcpy(char*, const char*, int);
 int             strlen(const char*);
 int             strncmp(const char*, const char*, uint);
@@ -212,6 +219,15 @@ void            fileinit(void);
 int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
+
+//thinfat32.c
+int tf_attach_image(const char *path);
+int tf_detach_image(void);
+int read_sector(uint8_t *data, uint32_t sector);
+int write_sector(uint8_t *data, uint32_t blocknum);
+int tf_fetch(uint32_t sector);
+int tf_store(void);
+int tf_init(void);
 
 // exec.c
 int exec(char *path, char **argv);

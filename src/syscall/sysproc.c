@@ -27,6 +27,39 @@ sys_fork(void)
   return fork();
 }
 
+// Minimal Linux-compatible clone: only supports SIGCHLD exit signal, no threads/TLS.
+// Args (as passed from userspace on RISC-V):
+// a0: flags, a1: stack, a2: ptid, a3: tls, a4: ctid
+// Unsupported options will panic to avoid silent misbehavior.
+uint64
+sys_clone(void)
+{
+  uint64 flags, stack, ptid, tls, ctid;
+  // fetch arguments
+  argaddr(0, &flags);
+  argaddr(1, &stack);
+  argaddr(2, &ptid);
+  argaddr(3, &tls);
+  argaddr(4, &ctid);
+
+  // only allow pure fork semantics: exit signal must be SIGCHLD and no other flags
+  // Linux SIGCHLD commonly 17. We only accept (flags & ~0x7f)==0 and (flags & 0x7f)==17
+  #define LINUX_SIGCHLD 17
+  if (((flags & ~((uint64)0x7f)) != 0) || ((flags & 0x7f) != LINUX_SIGCHLD))
+    panic("sys_clone: unsupported flags");
+  if (stack != 0)
+    panic("sys_clone: stack unsupported");
+  if (ptid != 0 || tls != 0 || ctid != 0){
+    //TODO 实现 ptid/tls/ctid 支持
+    // 不过目前先打印调试信息
+    log_debug("sys_clone: ptid/tls/ctid unsupported (ptid=%p, tls=%p, ctid=%p)\n", ptid, tls, ctid);
+    return fork();
+  }
+    
+
+  return fork();
+}
+
 uint64
 sys_wait(void)
 {
@@ -102,4 +135,77 @@ sys_shutdown(void)
   }
   
   return 0;  // not reached
+}
+
+// Linux getpid (172) is already implemented as sys_getpid.
+// Provide getppid (173).
+uint64
+sys_getppid(void)
+{
+  struct proc *p = myproc();
+  if (p->parent)
+    return p->parent->pid;
+  return 0;
+}
+
+// Linux execve(path, argv, envp)
+// We currently do not support envp; panic if envp != 0 to avoid silent ignore.
+uint64
+sys_execve(void)
+{
+  char path[MAXPATH], *argv[MAXARG];
+  int i;
+  uint64 uargv, uarg, uenvp;
+
+  if(argstr(0, path, MAXPATH) < 0 || argaddr(1, &uargv) < 0 || argaddr(2, &uenvp) < 0)
+    return -1;
+  if(uenvp != 0)
+    panic("sys_execve: envp unsupported");
+
+  memset(argv, 0, sizeof(argv));
+  for(i=0;; i++){
+    if(i >= NELEM(argv))
+      goto bad;
+    if(fetchaddr(uargv+sizeof(uint64)*i, (uint64*)&uarg) < 0)
+      goto bad;
+    if(uarg == 0){
+      argv[i] = 0;
+      break;
+    }
+    argv[i] = kalloc();
+    if(argv[i] == 0)
+      panic("sys_execve kalloc");
+    if(fetchstr(uarg, argv[i], PGSIZE) < 0)
+      goto bad;
+  }
+
+  int ret = exec(path, argv);
+
+  for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
+    kfree(argv[i]);
+  return ret;
+
+bad:
+  for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
+    kfree(argv[i]);
+  return -1;
+}
+
+// Minimal wait4(pid, status, options): support only pid == -1 and options == 0
+// Panic on unsupported to surface issues early.
+uint64
+sys_wait4(void)
+{
+  int pid, options;
+  uint64 status;
+  argint(0, &pid);
+  argaddr(1, &status);
+  argint(2, &options);
+
+  if (pid != -1)
+    panic("sys_wait4: pid != -1 unsupported");
+  if (options != 0)
+    panic("sys_wait4: options unsupported");
+
+  return wait(status);
 }

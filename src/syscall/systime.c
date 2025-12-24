@@ -20,22 +20,28 @@ sys_gettimeofday(void)
 {
   uint64 tv_addr;
   struct timeval tv;
-  
+
   // 获取用户空间指针
   argaddr(0, &tv_addr);
-  
-  // S 态无法直接访问 硬件时钟寄存器，需要通过 r_time() 获取
+
+  // 读取时间计数器（cycles）
   uint64 cycles = r_time();
 
-  // RISC-V CLINT 时钟频率通常为 10MHz
-  // 将时钟周期转换为秒和微秒
-  tv.tv_sec = cycles / 10000000;
-  tv.tv_usec = (cycles % 10000000) / 10;
+  // QEMU/RISC-V 默认 timebase 常见为 12.5MHz
+  // 如需适配其他平台，可将 TIMEBASE 移至配置文件
+  const uint64 TIMEBASE = 12500000ULL; // cycles per second
+
+  // 安全换算：
+  // 秒 = cycles / TIMEBASE
+  // 微秒 = ((cycles % TIMEBASE) * 1_000_000) / TIMEBASE  (保证 < 1_000_000)
+  tv.tv_sec  = cycles / TIMEBASE;
+  tv.tv_usec = ((cycles % TIMEBASE) * 1000000ULL) / TIMEBASE;
+
 
   // 复制到用户空间
   if(copyout(myproc()->pagetable, tv_addr, (char*)&tv, sizeof(tv)) < 0)
     return -1;
-    
+
   return 0;
 }
 

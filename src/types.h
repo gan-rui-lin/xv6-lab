@@ -24,9 +24,10 @@ typedef uint64 pde_t;
 
 // 检查系统是否已经定义了 timeval
 #ifndef HOST_TIMEVAL_DEFINED
+// Match Linux ABI on RV64: fields are long (64-bit)
 struct timeval {
-  int tv_sec;
-  int tv_usec;
+  long tv_sec;
+  long tv_usec;
 };
 #endif
 

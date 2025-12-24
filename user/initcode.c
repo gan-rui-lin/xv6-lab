@@ -16,11 +16,9 @@ void test_read();
 
 void test_shell();
 
-void test_exec(){
-    
-    printfYellow("===========  Test Exec ===========\n");
+void test_(char* name){
 
-    char *argv[] = {"fork", 0};
+    char *argv[] = {name, 0};
 
     int pid = fork();
     if (pid < 0)
@@ -31,7 +29,10 @@ void test_exec(){
     else if (pid == 0)
     {
         // Child process
-        exec("fork", argv);
+        // exec("wait", argv);
+        // exec("fork", argv); 
+        exec(name, argv);
+        // exec("waitpid", argv);
         printf("Exec failed!\n");
         syscall(SYS_exit, -1);
     }
@@ -40,7 +41,6 @@ void test_exec(){
         // Parent process
         int status;
         wait(&status);
-        printf("Exec test completed with status: %d\n", status);
     }
 }
 
@@ -56,8 +56,8 @@ int main()
 
 
     // test_shell();
-
-    test_exec();
+    test_("fork");
+    test_("gettimeofday");
 
     shutdown();
     return 0;

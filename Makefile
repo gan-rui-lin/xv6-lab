@@ -167,7 +167,7 @@ UPROGS=\
 
 # ===== 磁盘镜像构建 =====
 fs.img: $(SRC)/mkfs/mkfs README $(UPROGS) 
-	$(SRC)/mkfs/mkfs fs.img README $(UPROGS) $U/fork
+	$(SRC)/mkfs/mkfs fs.img README $(UPROGS) $U/gettimeofday $U/wait $U/waitpid
 
 -include $(DEPS)
 

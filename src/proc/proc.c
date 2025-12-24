@@ -221,8 +221,9 @@ forkret(void)
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
     first = 0;
-    // fsinit(minor(ROOTDEV));
-    tf_init();
+    // ! 暂时还是使用 xv6 文件系统
+    fsinit(minor(ROOTDEV));
+    // tf_init();
   }
 
   usertrapret();

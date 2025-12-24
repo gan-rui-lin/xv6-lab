@@ -40,55 +40,6 @@ void main()
 
         userinit();          // 创建第一个用户进程
 
-        //添加代码：测试文件系统
-        // 添加测试代码
-//-------------------------------
-printf("[FAT32 TEST] Start...\n");
-
-// 初始化 FAT32 文件系统
-// if (tf_init() == 0) {
-//     printf("[FAT32 TEST] tf_init success!\n");
-// } else {
-//     printf("[FAT32 TEST] tf_init failed!\n");
-//     // 可以选择 return 或 panic，这里继续
-// }
-
-// 创建目录
-if (tf_mkdir("/testdir", 0) == 0) {
-    printf("[FAT32 TEST] mkdir /testdir success!\n");
-} else {
-    printf("[FAT32 TEST] mkdir /testdir fail!\n");
-}
-
-// 创建并写入新文件
-TFFile *fp = tf_fopen("/testdir/hello.txt", "w");
-if (fp) {
-    char *msg = "Hello, FAT32!";
-    if (tf_fwrite((uint8_t*)msg, 1, strlen(msg), fp) == strlen(msg)) {
-        printf("[FAT32 TEST] Write success\n");
-    } else {
-        printf("[FAT32 TEST] Write fail\n");
-    }
-    tf_fclose(fp);
-} else {
-    printf("[FAT32 TEST] open /testdir/hello.txt fail!\n");
-}
-
-// 再次读取验证
-fp = tf_fopen("/testdir/hello.txt", "r");
-if (fp) {
-    char buf[32] = {0};
-    tf_fread((uint8_t*)buf, strlen("Hello, FAT32!"), fp);
-    printf("[FAT32 TEST] Read: '%s'\n", buf);
-    tf_fclose(fp);
-} else {
-    printf("[FAT32 TEST] open /testdir/hello.txt for read fail!\n");
-}
-
-printf("[FAT32 TEST] End.\n");
-//-------------------------------
-        //end
-
         __sync_synchronize(); // 确保代码不乱序执行
 
 

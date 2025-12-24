@@ -166,8 +166,8 @@ UPROGS=\
 	
 
 # ===== 磁盘镜像构建 =====
-fs.img: $(SRC)/mkfs/mkfs README $(UPROGS)
-	$(SRC)/mkfs/mkfs fs.img README $(UPROGS)
+fs.img: $(SRC)/mkfs/mkfs README $(UPROGS) 
+	$(SRC)/mkfs/mkfs fs.img README $(UPROGS) $U/fork
 
 -include $(DEPS)
 

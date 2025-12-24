@@ -7,18 +7,21 @@
 #include "defs.h"
 #include "elf.h"
 
-// map ELF permissions to PTE permission bits.
+// map ELF program header flags (PF_X=0x1, PF_W=0x2, PF_R=0x4)
+// to PTE permission bits.
 int flags2perm(int flags)
 {
     int perm = 0;
-    if(flags & 0x1)
-      perm = PTE_X;
+    if(flags & 0x4)
+      perm |= PTE_R;
     if(flags & 0x2)
       perm |= PTE_W;
+    if(flags & 0x1)
+      perm |= PTE_X;
     return perm;
 }
 
-static int loadseg(pde_t *pgdir, uint64 addr, struct inode *ip, uint offset, uint sz);
+static int loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz);
 
 int
 exec(char *path, char **argv)
@@ -60,9 +63,10 @@ exec(char *path, char **argv)
       goto bad;
     if(ph.vaddr + ph.memsz < ph.vaddr)
       goto bad;
-    if((sz = uvmalloc(pagetable, sz, ph.vaddr + ph.memsz, flags2perm(ph.flags))) == 0)
-      goto bad;
-    if(ph.vaddr % PGSIZE != 0)
+    // Map the segment, allowing non-page-aligned vaddr by rounding.
+    uint64 va_start = PGROUNDDOWN(ph.vaddr);
+    uint64 va_end = PGROUNDUP(ph.vaddr + ph.memsz);
+    if((sz = uvmalloc(pagetable, sz, va_end, flags2perm(ph.flags))) == 0)
       goto bad;
     if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)
       goto bad;
@@ -77,7 +81,7 @@ exec(char *path, char **argv)
   // Allocate two pages at the next page boundary.
   // Use the second as the user stack.
   sz = PGROUNDUP(sz);
-  if((sz = uvmalloc(pagetable, sz, sz + 2*PGSIZE, PTE_W)) == 0)
+  if((sz = uvmalloc(pagetable, sz, sz + 2*PGSIZE, PTE_R|PTE_W)) == 0)
     goto bad;
   uvmclear(pagetable, sz-2*PGSIZE);
   sp = sz;
@@ -143,23 +147,19 @@ exec(char *path, char **argv)
 static int
 loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz)
 {
-  uint i, n;
-  uint64 pa;
-
-  if((va % PGSIZE) != 0)
-    panic("loadseg: va must be page aligned");
-
-  for(i = 0; i < sz; i += PGSIZE){
-    pa = walkaddr(pagetable, va + i);
+  uint64 i = 0;
+  while(i < sz){
+    uint64 va0 = PGROUNDDOWN(va + i);
+    uint64 pa = walkaddr(pagetable, va0);
     if(pa == 0)
       panic("loadseg: address should exist");
-    if(sz - i < PGSIZE)
+    uint64 pageoff = (va + i) - va0;
+    uint64 n = PGSIZE - pageoff;
+    if(n > sz - i)
       n = sz - i;
-    else
-      n = PGSIZE;
-    if(readi(ip, 0, (uint64)pa, offset+i, n) != n)
+    if(readi(ip, 0, (uint64)(pa + pageoff), offset + i, n) != n)
       return -1;
+    i += n;
   }
-  
   return 0;
 }

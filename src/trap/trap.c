@@ -74,7 +74,7 @@ usertrap(void)
 
     // printf("INFO: syscall\n");
 
-    syscall();
+    syscall_handler();
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {

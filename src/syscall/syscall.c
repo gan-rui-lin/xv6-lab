@@ -106,25 +106,25 @@ extern uint64 sys_mkdir(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
-[SYS_fork]    sys_fork,
-[SYS_exit]    sys_exit,
-[SYS_wait]    sys_wait,
-[SYS_read]    sys_read,
-[SYS_write]   sys_write,
-[SYS_kill]    sys_kill,
-[SYS_getpid]  sys_getpid,
-[SYS_sbrk]    sys_sbrk,
-[SYS_sleep]   sys_sleep,
-[SYS_uptime]  sys_uptime,
-[SYS_shutdown] sys_shutdown,
-[SYS_gettimeofday] sys_gettimeofday,
-[SYS_open]    sys_open,
-[SYS_mknod]   sys_mknod,
-[SYS_close]   sys_close,
-[SYS_dup]     sys_dup,
-[SYS_exec]    sys_exec,
-[SYS_fstat]   sys_fstat,
-[SYS_mkdir]   sys_mkdir,
+[SYS_xv6_fork]    sys_fork,
+[SYS_xv6_exit]    sys_exit,
+[SYS_xv6_wait]    sys_wait,
+[SYS_xv6_read]    sys_read,
+[SYS_xv6_write]   sys_write,
+[SYS_xv6_kill]    sys_kill,
+[SYS_xv6_getpid]  sys_getpid,
+[SYS_xv6_sbrk]    sys_sbrk,
+[SYS_xv6_sleep]   sys_sleep,
+[SYS_xv6_uptime]  sys_uptime,
+[SYS_xv6_shutdown] sys_shutdown,
+[SYS_xv6_gettimeofday] sys_gettimeofday,
+[SYS_xv6_open]    sys_open,
+[SYS_xv6_mknod]   sys_mknod,
+[SYS_xv6_close]   sys_close,
+[SYS_xv6_dup]     sys_dup,
+[SYS_xv6_exec]    sys_exec,
+[SYS_xv6_fstat]   sys_fstat,
+[SYS_xv6_mkdir]   sys_mkdir,
 };
 
 // sysname - return the name of the system call for debugging.
@@ -132,31 +132,31 @@ char*
 sysname(int num)
 {
   switch(num){
-  case SYS_fork:    return "fork";
-  case SYS_exit:    return "exit";
-  case SYS_wait:    return "wait";
-  case SYS_read:    return "read";
-  case SYS_write:   return "write";
-  case SYS_kill:    return "kill";
-  case SYS_getpid:  return "getpid";
-  case SYS_sbrk:    return "sbrk";
-  case SYS_sleep:   return "sleep";
-  case SYS_uptime:  return "uptime";
-  case SYS_shutdown: return "shutdown";
-  case SYS_gettimeofday: return "gettimeofday";
-  case SYS_open:    return "open";
-  case SYS_mknod:   return "mknod";
-  case SYS_close:   return "close";
-  case SYS_dup:     return "dup";
-  case SYS_exec:    return "exec";
-  case SYS_fstat:   return "fstat";
-  case SYS_mkdir:   return "mkdir";
+  case SYS_xv6_fork:    return "fork";
+  case SYS_xv6_exit:    return "exit";
+  case SYS_xv6_wait:    return "wait";
+  case SYS_xv6_read:    return "read";
+  case SYS_xv6_write:   return "write";
+  case SYS_xv6_kill:    return "kill";
+  case SYS_xv6_getpid:  return "getpid";
+  case SYS_xv6_sbrk:    return "sbrk";
+  case SYS_xv6_sleep:   return "sleep";
+  case SYS_xv6_uptime:  return "uptime";
+  case SYS_xv6_shutdown: return "shutdown";
+  case SYS_xv6_gettimeofday: return "gettimeofday";
+  case SYS_xv6_open:    return "open";
+  case SYS_xv6_mknod:   return "mknod";
+  case SYS_xv6_close:   return "close";
+  case SYS_xv6_dup:     return "dup";
+  case SYS_xv6_exec:    return "exec";
+  case SYS_xv6_fstat:   return "fstat";
+  case SYS_xv6_mkdir:   return "mkdir";
   default:          return "unknown";
   }
 }
 
 void
-syscall(void)
+syscall_handler(void)
 {
   int num;
   struct proc *p = myproc();

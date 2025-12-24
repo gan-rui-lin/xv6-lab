@@ -106,6 +106,11 @@ extern uint64 sys_mkdir(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
+[SYS_clone]      sys_fork, //!
+[SYS_fork]        sys_fork,
+[SYS_write]       sys_write,
+[SYS_exit]        sys_exit,
+[SYS_wait4]       sys_wait,
 [SYS_xv6_fork]    sys_fork,
 [SYS_xv6_exit]    sys_exit,
 [SYS_xv6_wait]    sys_wait,
@@ -132,6 +137,7 @@ char*
 sysname(int num)
 {
   switch(num){
+  
   case SYS_xv6_fork:    return "fork";
   case SYS_xv6_exit:    return "exit";
   case SYS_xv6_wait:    return "wait";

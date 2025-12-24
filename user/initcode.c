@@ -1,6 +1,8 @@
 #include "user.h"
 #include "memlayout.h"
 #include "../src/fcntl.h"
+#define TEST_SYSCALLS
+#include "../src/syscall/syscall.h"
 
 void test_fork();
 
@@ -14,6 +16,34 @@ void test_read();
 
 void test_shell();
 
+void test_exec(){
+    
+    printfYellow("===========  Test Exec ===========\n");
+
+    char *argv[] = {"fork", 0};
+
+    int pid = fork();
+    if (pid < 0)
+    {
+        printf("Fork failed!\n");
+        return;
+    }
+    else if (pid == 0)
+    {
+        // Child process
+        exec("fork", argv);
+        printf("Exec failed!\n");
+        syscall(SYS_exit, -1);
+    }
+    else
+    {
+        // Parent process
+        int status;
+        wait(&status);
+        printf("Exec test completed with status: %d\n", status);
+    }
+}
+
 int main()
 {
     if (open("console", O_RDWR) < 0)
@@ -24,17 +54,10 @@ int main()
     dup(0); // stdout
     dup(0); // stderr
 
-    test_sbrk();
 
-    test_fork();
+    // test_shell();
 
-    test_uptime();
-
-    test_gettimeofday();
-
-    test_read();
-
-    test_shell();
+    test_exec();
 
     shutdown();
     return 0;
@@ -54,7 +77,7 @@ void test_fork()
     {
         // Child process
         printf("Hello from child process! PID: %d\n", getpid());
-        exit(0);
+        syscall(SYS_exit, 0);
     }
     else
     {

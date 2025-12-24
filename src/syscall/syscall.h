@@ -2,7 +2,7 @@
 // linux 定义的系统调用号
 // 都采用下面的方式进行定义
 
-#ifdef __ASSEMBLER__
+#if defined(__ASSEMBLER__) || defined(__ASSEMBLY__)
 // 当被汇编文件（.S）包含时，提供 SYS_xv6_* 的数值宏，避免 C 语法进入汇编器。
 // 仅需为 usys.S 中使用到的 xv6 兼容调用号提供定义。
 #define SYS_xv6_fork           (1001)
@@ -30,11 +30,89 @@
 #define SYS_xv6_gettimeofday   (1023)
 
 #else
+// 正常包含情况
 
 #ifndef __scc
 #define __scc(X) ((long)(X))
 typedef long syscall_arg_t;
 #endif
+
+// 代表下面的实现都没有被包含，则进行定义
+#ifndef __SYSCALL_LL_E
+
+#define __SYSCALL_LL_E(x) (x)
+#define __SYSCALL_LL_O(x) (x)
+
+#define __asm_syscall(...)             \
+    __asm__ __volatile__("ecall\n\t"     \
+                         : "=r"(a0)    \
+                         : __VA_ARGS__ \
+                         : "memory");  \
+    return a0;
+
+static inline long __syscall0(long n)
+{
+    register long a7 __asm__("a7") = n;
+    register long a0 __asm__("a0");
+    __asm_syscall("r"(a7))
+}
+
+static inline long __syscall1(long n, long a)
+{
+    register long a7 __asm__("a7") = n;
+    register long a0 __asm__("a0") = a;
+    __asm_syscall("r"(a7), "0"(a0))
+}
+
+static inline long __syscall2(long n, long a, long b)
+{
+    register long a7 __asm__("a7") = n;
+    register long a0 __asm__("a0") = a;
+    register long a1 __asm__("a1") = b;
+    __asm_syscall("r"(a7), "0"(a0), "r"(a1))
+}
+
+static inline long __syscall3(long n, long a, long b, long c)
+{
+    register long a7 __asm__("a7") = n;
+    register long a0 __asm__("a0") = a;
+    register long a1 __asm__("a1") = b;
+    register long a2 __asm__("a2") = c;
+    __asm_syscall("r"(a7), "0"(a0), "r"(a1), "r"(a2))
+}
+
+static inline long __syscall4(long n, long a, long b, long c, long d)
+{
+    register long a7 __asm__("a7") = n;
+    register long a0 __asm__("a0") = a;
+    register long a1 __asm__("a1") = b;
+    register long a2 __asm__("a2") = c;
+    register long a3 __asm__("a3") = d;
+    __asm_syscall("r"(a7), "0"(a0), "r"(a1), "r"(a2), "r"(a3))
+}
+
+static inline long __syscall5(long n, long a, long b, long c, long d, long e)
+{
+    register long a7 __asm__("a7") = n;
+    register long a0 __asm__("a0") = a;
+    register long a1 __asm__("a1") = b;
+    register long a2 __asm__("a2") = c;
+    register long a3 __asm__("a3") = d;
+    register long a4 __asm__("a4") = e;
+    __asm_syscall("r"(a7), "0"(a0), "r"(a1), "r"(a2), "r"(a3), "r"(a4))
+}
+
+static inline long __syscall6(long n, long a, long b, long c, long d, long e, long f)
+{
+    register long a7 __asm__("a7") = n;
+    register long a0 __asm__("a0") = a;
+    register long a1 __asm__("a1") = b;
+    register long a2 __asm__("a2") = c;
+    register long a3 __asm__("a3") = d;
+    register long a4 __asm__("a4") = e;
+    register long a5 __asm__("a5") = f;
+    __asm_syscall("r"(a7), "0"(a0), "r"(a1), "r"(a2), "r"(a3), "r"(a4), "r"(a5))
+}
 
 #define __syscall1(n, a) __syscall1(n, __scc(a))
 #define __syscall2(n, a, b) __syscall2(n, __scc(a), __scc(b))
@@ -53,6 +131,8 @@ typedef long syscall_arg_t;
 
 #define __syscall(...) __SYSCALL_DISP(__syscall, __VA_ARGS__)
 #define syscall(...) __syscall(__VA_ARGS__)
+
+#endif // __SYSCALL_LL_E
 
 enum SysNum
 {
@@ -277,6 +357,7 @@ enum SysNum
     SYS_fchmodat2 = 452,
 
     // xv6 兼容的调用号，从 1000 开始
+    // 当对应 linux 对应 sys_func 实现好了后，就会从 1000 撤下，不再使用 xv6 兼容调用号
     SYS_xv6_fork = 1 + 1000,
     SYS_xv6_exit = 2 + 1000,
     SYS_xv6_wait = 3 + 1000,
@@ -303,4 +384,4 @@ enum SysNum
 
 };
 
-#endif // __ASSEMBLER__
+#endif // __ASSEMBLER__/__ASSEMBLY__

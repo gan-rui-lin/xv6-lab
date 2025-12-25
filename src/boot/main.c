@@ -13,7 +13,7 @@ volatile static int started = 0;
 void main()
 {
     // uart_puts("\nhere!\n");
-    print_ruos();
+;
     if (cpuid() == 0)
     {
         // 只有 hart0 执行系统初始化
@@ -21,6 +21,8 @@ void main()
         consoleinit(); // 初始化控制台, 目前只初始化 uart
 
         printfinit(); // 初始化printf功能
+
+        print_ruos();
 
         kinit(); // 物理页面分配器初始化
 

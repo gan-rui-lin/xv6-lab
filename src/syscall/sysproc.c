@@ -52,7 +52,9 @@ sys_clone(void)
   if (ptid != 0 || tls != 0 || ctid != 0){
     //TODO 实现 ptid/tls/ctid 支持
     // 不过目前先打印调试信息
+    #ifdef LOG_DEBUG
     log_debug("sys_clone: ptid/tls/ctid unsupported (ptid=%p, tls=%p, ctid=%p)\n", ptid, tls, ctid);
+    #endif
     return fork();
   }
     

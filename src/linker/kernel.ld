@@ -43,12 +43,6 @@ SECTIONS
     }
 
 
-    /* 预留堆区空间 */
-    . = ALIGN(16);
-    __heap_start = .;
-    . = . + 0x10000; /* 64KB 堆 */
-    __heap_end = .;
-
     PROVIDE(end = .);
 }
 

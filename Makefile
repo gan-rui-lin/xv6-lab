@@ -180,6 +180,8 @@ clean:
 	rm -f $U/printf.o $U/printf.d
 	rm -rf $(BUILD_DIR)
 	rm -f kernel-qemu
+	rm -f sbi-qemu
+	rm -f sdcard.img
 	rm -f $(UPROGS)
 
 # try to generate a unique GDB port
@@ -240,7 +242,8 @@ run: $K/kernel fs.img
 # 	! dangerous: 直接覆盖 sdcard.img
 # 	! 仅作临时测试用
 	cp fs.img sdcard.img
-
-	cp $(SRC)/bootloader/opensbi-riscv64-generic-fw_dynamic.bin sbi-qemu
+	
+	
+	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
 
 all: run

@@ -90,11 +90,11 @@ panic(char *s)
   printf("panic: ");   // 输出 panic 前缀
   printf(s);          // 输出具体的 panic 消息
   printf("\n");       // 换行
-  panicked = 1;       // 设置全局 panic 标志，冻结其他 CPU 的 UART 输出
+  // panicked = 1;       // 设置全局 panic 标志，冻结其他 CPU 的 UART 输出
   
-  // 进入无限循环，停止系统运行
-  for(;;)
-    ;
+  // // 进入无限循环，停止系统运行
+  // for(;;)
+  //   ;
 }
 
 // 初始化 printf 子系统

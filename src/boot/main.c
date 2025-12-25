@@ -40,6 +40,10 @@ void main()
         fileinit();      // 初始化文件表的锁
         virtio_disk_init(minor(ROOTDEV)); // 初始化磁盘驱动
 
+        // 使能 S 模式中断（外部/软件/定时器）并打开全局 SIE
+        w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
+        // intr_on();
+
         userinit();          // 创建第一个用户进程
 
         __sync_synchronize(); // 确保代码不乱序执行
@@ -60,18 +64,16 @@ void main()
         kvminithart();
         plicinithart();
 
+        // 次级核也需要使能 S 模式中断并打开全局 SIE
+        w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
+        intr_on();
+
         __sync_synchronize();
     }
 
 
 
-#ifdef TICKER_DEBUG
-    // 启用 S 模式下的中断
-    intr_on();
-#endif
-#ifdef CONSOLE_DEBUG
-    intr_on();
-#endif
+    // 中断已在各自分支中打开，这里不再条件打开。
 
     // 所有CPU都进入调度器，开始调度用户进程
     scheduler();  

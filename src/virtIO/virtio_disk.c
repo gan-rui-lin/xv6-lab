@@ -64,7 +64,7 @@ virtio_disk_init(int n)
   initlock(&disk[n].vdisk_lock, "virtio_disk");
 
   if(*R(n, VIRTIO_MMIO_MAGIC_VALUE) != 0x74726976 ||
-     *R(n, VIRTIO_MMIO_VERSION) != 1 ||
+    //  *R(n, VIRTIO_MMIO_VERSION) != 1 ||
      *R(n, VIRTIO_MMIO_DEVICE_ID) != 2 ||
      *R(n, VIRTIO_MMIO_VENDOR_ID) != 0x554d4551){
     panic("could not find virtio disk");

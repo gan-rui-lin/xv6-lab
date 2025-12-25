@@ -226,17 +226,21 @@ $(FAT32_IMG):
 	@echo "Done: FAT32 image ready."
 
 # 新：QEMU用FAT32镜像
-QEMUOPTS_FAT32 = -machine virt -bios none -kernel $(K)/kernel -m 128M -smp $(CPUS) -nographic
+QEMUOPTS_FAT32 = -machine virt -bios $(SRC)/bootloader/rustsbi-qemu-7.bin -kernel $(K)/kernel -m 128M -smp $(CPUS) -nographic
 QEMUOPTS_FAT32 += -drive file=$(FAT32_IMG),if=none,format=raw,id=xfat
 QEMUOPTS_FAT32 += -device virtio-blk-device,drive=xfat,bus=virtio-mmio-bus.0
 
 # 新目标：用FAT32启动
 qemu-fat32: $(K)/kernel $(FAT32_IMG)
-	$(QEMU) $(QEMUOPTS_FAT32)
+	cp test.fat32 sdcard.img
+	cp $K/kernel kernel-qemu
+	cp $(SRC)/bootloader/rustsbi-qemu-7.bin sbi-qemu
 
 fat32-gdb: $(K)/kernel .gdbinit $(FAT32_IMG)
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS_FAT32) -S $(QEMUGDB)
+
+	
 
 .gdbinit: .gdbinit.tmpl-riscv
 	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
@@ -255,4 +259,4 @@ run: $K/kernel fs.img
 	
 	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
 
-all: run
+all: qemu-fat32

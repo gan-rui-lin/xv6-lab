@@ -222,8 +222,8 @@ forkret(void)
     // be run from main().
     first = 0;
     // ! 暂时还是使用 xv6 文件系统
-    fsinit(minor(ROOTDEV));
-    // tf_init();
+    // fsinit(minor(ROOTDEV));
+    tf_init();
   }
 
   usertrapret();

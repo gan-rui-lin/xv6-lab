@@ -241,4 +241,6 @@ run: $K/kernel fs.img
 # 	! 仅作临时测试用
 	cp fs.img sdcard.img
 
+	cp $(SRC)/bootloader/opensbi-riscv64-generic-fw_dynamic.bin sbi-qemu
+
 all: run

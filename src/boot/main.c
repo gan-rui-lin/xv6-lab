@@ -42,7 +42,7 @@ void main()
 
         // 使能 S 模式中断（外部/软件/定时器）并打开全局 SIE
         w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
-        // intr_on();
+        intr_on();
 
         userinit();          // 创建第一个用户进程
 

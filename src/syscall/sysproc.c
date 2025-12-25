@@ -122,19 +122,14 @@ sys_kill(void)
 uint64
 sys_shutdown(void)
 {
-  #define TEST_FINISHER_FAIL    0x3333
-  #define TEST_FINISHER_PASS    0x5555
-  #define TEST_FINISHER_RESET   0x7777
+  // #define TEST_FINISHER_FAIL    0x3333
+  // #define TEST_FINISHER_PASS    0x5555
+  // #define TEST_FINISHER_RESET   0x7777
 
-  volatile uint32 *test_dev = (volatile uint32 *)TEST_DEVICE;
-  *test_dev = TEST_FINISHER_PASS;
+  // volatile uint32 *test_dev = (volatile uint32 *)TEST_DEVICE;
+  // *test_dev = TEST_FINISHER_PASS;
   
-  // 如果上面的方法失败，执行无限循环作为备用方案
-  // 这种情况下用户需要手动停止QEMU
-  while(1) {
-    // 让CPU进入低功耗状态
-    asm volatile("wfi");
-  }
+  sbi_shutdown();
   
   return 0;  // not reached
 }

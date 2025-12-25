@@ -230,13 +230,15 @@ fat32-gdb: $(K)/kernel .gdbinit $(FAT32_IMG)
 .gdbinit: .gdbinit.tmpl-riscv
 	sed "s/:1234/:$(GDBPORT)/" < $^ > $@
 
-# 注释：移除了对 fs.img 的依赖
 qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 
-run: $K/kernel $(FS_IMG)
+run: $K/kernel fs.img
 # 	直接把 KERNEL_ELF 拷贝到根目录并命名为 kernel-qemu
 	cp $K/kernel kernel-qemu
+# 	! dangerous: 直接覆盖 sdcard.img
+# 	! 仅作临时测试用
+	cp fs.img sdcard.img
 
 all: run

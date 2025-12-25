@@ -60,6 +60,7 @@ CFLAGS += -MD
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I. -I$(SRC)
+CFLAGS += -march=rv64gc -mabi=lp64
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 # CFLAGS += -DPAGE_TABLE_DEBUG
 # CFLAGS += -DTICKER_DEBUG
@@ -111,19 +112,26 @@ $U/usys.S: $U/usys.pl
 
 # 编译系统调用汇编文件
 $U/usys.o: $U/usys.S
-	$(CC) $(CFLAGS) -c -o $U/usys.o $U/usys.S
+	$(CC) $(CFLAGS) -I. -I$(SRC) -MMD -MP -c -o $U/usys.o $U/usys.S
 
 # 编译 initcode.c 为 ELF 文件
 $U/initcode.o: $U/initcode.c $U/user.h
-	$(CC) $(CFLAGS) -march=rv64g -nostdinc -I. -I$(SRC) -c $U/initcode.c -o $U/initcode.o
+	$(CC) $(CFLAGS) -nostdinc -I. -I$(SRC) -MMD -MP -c $U/initcode.c -o $U/initcode.o
 
 # 编译 printf.c 为 ELF 文件
 $U/printf.o: $U/printf.c $U/user.h
-	$(CC) $(CFLAGS) -march=rv64g -I. -I$(SRC) -c $U/printf.c -o $U/printf.o
+	$(CC) $(CFLAGS) -I. -I$(SRC) -MMD -MP -c $U/printf.c -o $U/printf.o
 
 # 创建入口点对象文件（确保在开头）
 $U/entry.o: $U/entry.S
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -I. -I$(SRC) -MMD -MP -c -o $@ $<
+
+# 通用的 user 目录编译规则，避免隐式规则造成工具链/ABI不一致
+$U/%.o: $U/%.c
+	$(CC) $(CFLAGS) -I. -I$(SRC) -MMD -MP -c $< -o $@
+
+$U/%.o: $U/%.S
+	$(CC) $(CFLAGS) -I. -I$(SRC) -MMD -MP -c $< -o $@
 
 # 修改链接顺序
 $U/initcode: $U/entry.o $U/initcode.o $U/usys.o $U/printf.o $U/user-riscv.ld
@@ -178,6 +186,7 @@ clean:
 	rm -f $U/initcode $U/initcode.o $U/initcode.asm $U/initcode.sym $U/initcode.d $U/initcode.bin
 	rm -f $U/usys.S $U/usys.o $U/usys.d
 	rm -f $U/printf.o $U/printf.d
+	rm -f $U/*.o $U/*.d
 	rm -rf $(BUILD_DIR)
 	rm -f kernel-qemu
 	rm -f sbi-qemu

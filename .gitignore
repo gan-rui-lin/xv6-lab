@@ -19,10 +19,8 @@ mkfs
 .vscode/
 user/initcode.bin
 temp*
-<<<<<<< HEAD
 *.typ
 kernel-qemu
-=======
 ~*
 *.obj
 *.swp
@@ -36,4 +34,4 @@ src/thinfat32/obj
 src/thinfat32/build
 src/thinfat32/dist
 
->>>>>>> zjy
+sbi-qemu

@@ -245,90 +245,10 @@ sys_brk(void)
   return addr;
 }
 
-sys_mmap()
+uint64
+sys_mmap(void)
 {
-    // u64 addr;
-    // size_t map_size;
-    // int prot;
-    // int flags;
-    // int fd;
-    // size_t offset;
-    // if (_arg_addr(0, addr) < 0 || _arg_addr(1, map_size) < 0 || _arg_int(2, prot) < 0 ||
-    //     _arg_int(3, flags) < 0 || _arg_int(4, fd) < 0 || _arg_addr(5, offset) < 0)
-    // {
-    //     printfRed("[SyscallHandler::sys_mmap] Error fetching mmap arguments\n");
-    //     return -syscall::SYS_EINVAL;
-    // }
-    // printfYellow("[SyscallHandler::sys_mmap] addr: %p, map_size: %u, prot: %d, flags: %d, fd: %d, offset: %u\n",
-    //               (void *)addr, map_size, prot, flags, fd, offset);
-    // fs::file *f = nullptr;
-    // proc::Pcb *p = proc::k_pm.get_cur_pcb();
-    // f = p->get_open_file(fd);
-    // if (!(flags & MAP_ANONYMOUS))
-    // {
-    //     if (f == nullptr)
-    //     {
-    //         printfRed("[SyscallHandler::sys_mmap] Invalid file descriptor: %d\n", fd);
-    //         return -EBADF; // 返回无效文件描述符错误
-    //     }
-    //     if (f->_attrs.u_read == 0)
-    //     {
-    //         printfRed("[SyscallHandler::sys_mmap] File descriptor %d is not open for reading\n", fd);
-    //         return -EACCES; // 返回权限错误
-    //     }
-    // }
-    // if (map_size == 0)
-    // {
-    //     printfRed("[SyscallHandler::sys_mmap] Invalid map_size: %zu\n", map_size);
-    //     return -EINVAL; // 返回无效参数错误
-    // }
-    // if (!(flags & MAP_SHARED) && !(flags & MAP_PRIVATE) && !(flags & MAP_SHARED_VALIDATE))
-    // {
-    //     printfRed("[SyscallHandler::sys_mmap] Invalid flags: %d\n", flags);
-    //     return -EINVAL; // 返回无效参数错误
-    // }
-    // // 处理 memfd 文件的特殊情况
-    // if (!(flags & MAP_ANONYMOUS) && f != nullptr)
-    // {
-    //     // 检查是否是 memfd 文件
-    //     if (f->_path_name.find("memfd:") == 0)
-    //     {
-    //         printfCyan("[SyscallHandler::sys_mmap] Handling memfd file: %s\n", f->_path_name.c_str());
-
-    //         // 检查 memfd 的 seals
-    //         if ((flags & MAP_SHARED) && (prot & PROT_WRITE) && (f->_seals & F_SEAL_WRITE))
-    //         {
-    //             printfRed("[SyscallHandler::sys_mmap] memfd文件被F_SEAL_WRITE密封，无法创建共享写映射\n");
-    //             return -EPERM;
-    //         }
-
-    //         // 对于 memfd 文件，我们需要直接处理内存映射，而不是通过文件系统路径
-    //         // 因为 memfd 文件的路径在文件系统中不存在
-
-    //         // 验证偏移量和大小
-    //         if (offset > f->lwext4_file_struct.fsize)
-    //         {
-    //             printfRed("[SyscallHandler::sys_mmap] offset %zu exceeds file size %llu\n",
-    //                       offset, f->lwext4_file_struct.fsize);
-    //             return -ENXIO;
-    //         }
-
-    //         if (offset + map_size > f->lwext4_file_struct.fsize)
-    //         {
-    //             printfYellow("[SyscallHandler::sys_mmap] mapping extends beyond file size, will be zero-filled\n");
-    //         }
-    //     }
-    // }
-
-    // int mmap_errno = 0;
-    // void *result = proc::k_pm.mmap((void *)addr, map_size, prot, flags, fd, offset, &mmap_errno);
-
-    // if (result == MAP_FAILED)
-    // {
-    //     printfRed("[SyscallHandler::sys_mmap] mmap failed with errno: %d\n", mmap_errno);
-    //     return -mmap_errno; // 返回负的错误码
-    // }
-    // // if(addr==0&&map_size==1024&&prot==2&&flags==2&&fd==3&&offset==0)
-    // // return -1;
-    // return (uint64)result; // 调用进程管理器的 mmap 函数
+  // TODO: 实现 mmap 系统调用
+  // 暂时返回错误，避免编译错误
+  return -1;
 }

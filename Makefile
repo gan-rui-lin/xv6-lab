@@ -182,7 +182,7 @@ APP_NAMES := \
 	read \
 	brk \
 	mmap \
-	
+	openat \
 
 # 从 user/apps/<name>/<name> 复制到 user/_<name>
 .PHONY: apps
@@ -273,7 +273,7 @@ run: $K/kernel fs.img
 # 	! 仅作临时测试用
 	cp fs.img sdcard.img
 	
-	cp $(SRC)/bootloader/rustsbi-qemu-7.bin sbi-qemu
-# 	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
-
+#	cp $(SRC)/bootloader/rustsbi-qemu-7.bin sbi-qemu
+	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
+#
 all: run

@@ -59,11 +59,12 @@ int main()
     // test_("fork");
     //test_("gettimeofday");
 
-    test_("open");
+    //test_("open");
     //test_("read");
     // test_("brk");
     //test_("mmap");
     //test_("openat");
+    test_("getpid");
     shutdown();
     return 0;
 }

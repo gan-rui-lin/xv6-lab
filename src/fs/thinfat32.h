@@ -8,7 +8,7 @@
 
 
 #define TF_MAX_PATH 256
-#define TF_FILE_HANDLES 5
+#define TF_FILE_HANDLES 64
 
 #define TF_FLAG_DIRTY 0x01
 #define TF_FLAG_OPEN 0x02

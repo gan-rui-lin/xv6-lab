@@ -172,10 +172,24 @@ UPROGS=\
 	$U/_mkdir \
 	$U/_ls   \
 	
+# 额外的 apps 名称（位于 user/apps/<name>）
+APP_NAMES := \
+	wait \
+	fork \
+	waitpid \
+	gettimeofday
+
+# 从 user/apps/<name>/<name> 复制到 user/_<name>
+.PHONY: apps
+apps: $(APP_NAMES)
+
+# 复制规则：构建 $(U)/<name> 自 $(U)/apps/<name>
+$(U)/%: $(U)/apps/%
+	cp $< $@
 
 # ===== 磁盘镜像构建 =====
-fs.img: $(SRC)/mkfs/mkfs README $(UPROGS) 
-	$(SRC)/mkfs/mkfs fs.img README $(UPROGS) $U/gettimeofday $U/wait $U/waitpid $U/fork
+fs.img: $(SRC)/mkfs/mkfs README $(UPROGS) $(addprefix $U/,$(APP_NAMES))
+	$(SRC)/mkfs/mkfs fs.img README $(UPROGS) $(addprefix $U/,$(APP_NAMES))
 
 -include $(DEPS)
 
@@ -192,6 +206,8 @@ clean:
 	rm -f sbi-qemu
 	rm -f sdcard.img
 	rm -f $(UPROGS)
+	rm -f $U/*.d $U/*.asm $U/*.o $U/*.sym $U/_*
+	rm -f $(addprefix $U/,$(APP_NAMES))
 
 # try to generate a unique GDB port
 # GDBPORT = $(shell expr `id -u` % 5000 + 25000)

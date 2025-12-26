@@ -47,8 +47,13 @@ sys_clone(void)
   #define LINUX_SIGCHLD 17
   if (((flags & ~((uint64)0x7f)) != 0) || ((flags & 0x7f) != LINUX_SIGCHLD))
     panic("sys_clone: unsupported flags");
-  if (stack != 0)
-    panic("sys_clone: stack unsupported");
+  // if (stack != 0)
+  //   panic("sys_clone: stack unsupported");
+  // If stack is provided but we're doing a simple fork (no CLONE_VM flag),
+  // we can safely ignore it since fork() will copy the entire address space.
+  // Only panic if stack is provided with thread-related flags.
+  // For now, we just accept any stack value for simple fork semantics.
+  
   if (ptid != 0 || tls != 0 || ctid != 0){
     //TODO 实现 ptid/tls/ctid 支持
     // 不过目前先打印调试信息

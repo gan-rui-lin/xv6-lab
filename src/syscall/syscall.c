@@ -107,6 +107,7 @@ extern uint64 sys_execve(void);
 extern uint64 sys_wait4(void);
 extern uint64 sys_getppid(void);
 extern uint64 sys_brk(void);
+extern uint64 sys_mmap(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -140,6 +141,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_xv6_fstat]   sys_fstat,
 [SYS_xv6_mkdir]   sys_mkdir,
 [SYS_brk] sys_brk,
+[SYS_mmap] sys_mmap,
 };
 
 // sysname - return the name of the system call for debugging.
@@ -167,6 +169,8 @@ sysname(int num)
   case SYS_xv6_exec:    return "exec";
   case SYS_xv6_fstat:   return "fstat";
   case SYS_xv6_mkdir:   return "mkdir";
+  case SYS_brk:    return "brk";
+  case SYS_mmap:    return "mmap";
   default:          return "unknown";
   }
 }

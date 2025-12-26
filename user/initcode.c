@@ -62,6 +62,7 @@ int main()
     //test_("open");
     //test_("read");
     // test_("brk");
+    //test_("mmap");
     shutdown();
     return 0;
 }

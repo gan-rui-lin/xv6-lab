@@ -47,12 +47,6 @@ sys_clone(void)
   #define LINUX_SIGCHLD 17
   if (((flags & ~((uint64)0x7f)) != 0) || ((flags & 0x7f) != LINUX_SIGCHLD))
     panic("sys_clone: unsupported flags");
-  // if (stack != 0)
-  //   panic("sys_clone: stack unsupported");
-  // If stack is provided but we're doing a simple fork (no CLONE_VM flag),
-  // we can safely ignore it since fork() will copy the entire address space.
-  // Only panic if stack is provided with thread-related flags.
-  // For now, we just accept any stack value for simple fork semantics.
   
   if (ptid != 0 || tls != 0 || ctid != 0){
     //TODO 实现 ptid/tls/ctid 支持
@@ -60,11 +54,13 @@ sys_clone(void)
     #ifdef LOG_DEBUG
     log_debug("sys_clone: ptid/tls/ctid unsupported (ptid=%p, tls=%p, ctid=%p)\n", ptid, tls, ctid);
     #endif
-    return fork();
   }
-    
-
-  return fork();
+  
+  // Use clone_fork which supports custom stack
+  // If stack != 0, the child's stack pointer will be set to the provided stack
+  // The userspace __clone wrapper has already saved the function pointer
+  // and argument on this stack before making the syscall.
+  return clone_fork(stack);
 }
 
 uint64
@@ -270,6 +266,7 @@ sys_mmap(void)
 uint64
 sys_sched_yield(void)
 {
+    // 原始 C++ 风格的实现（已注释）：
     // // printfCyan("[sche]  yield here \n");
     // Cpu::get_cpu()->push_intr_off();
     // Pcb *p = Cpu::get_cpu()->get_cur_proc();
@@ -280,4 +277,12 @@ sys_sched_yield(void)
     // p->_state = ProcState::RUNNABLE;
     // call_sched(); // 注意swtch的逻辑是函数调用, 所以重新调用就是视为从这个函数返回
     // p->_lock.release();
+    
+    // xv6 C 风格的实现：
+    struct proc *p = myproc();
+    acquire(&p->lock);
+    p->state = RUNNABLE;
+    sched();  // 切换到调度器，让出 CPU
+    release(&p->lock);
+    return 0;
 }

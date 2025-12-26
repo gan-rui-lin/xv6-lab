@@ -407,6 +407,64 @@ fork(void)
   return pid;
 }
 
+// Clone version of fork with custom stack support
+// If stack != 0, sets the child's stack pointer to the provided value
+int
+clone_fork(uint64 stack)
+{
+  int pid;
+  struct proc *np;
+  struct proc *p = myproc();
+
+  // Allocate process.
+  if((np = allocproc()) == 0){
+    return -1;
+  }
+
+  // 复制页表和物理页内容
+  if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
+    freeproc(np);
+    release(&np->lock);
+    return -1;
+  }
+  np->sz = p->sz;
+
+  // copy saved user registers.
+  *(np->trapframe) = *(p->trapframe);
+
+  // Cause fork to return 0 in the child.
+  np->trapframe->a0 = 0;
+  
+  // If a custom stack was provided, update the child's stack pointer
+  // This must be done BEFORE making the child RUNNABLE
+  if(stack != 0) {
+    np->trapframe->sp = stack;
+  }
+
+  // increment reference counts on open file descriptors.
+  int i;
+  for(i = 0; i < NOFILE; i++)
+    if(p->ofile[i])
+      np->ofile[i] = filedup(p->ofile[i]);
+  np->cwd = idup(p->cwd);
+
+  safestrcpy(np->name, p->name, sizeof(p->name));
+
+  pid = np->pid;
+
+  release(&np->lock);
+
+  acquire(&wait_lock);
+  np->parent = p;
+  release(&wait_lock);
+
+  acquire(&np->lock);
+  np->state = RUNNABLE;
+  release(&np->lock);
+
+  return pid;
+}
+
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int

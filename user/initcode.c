@@ -67,7 +67,8 @@ int main()
     //test_("getpid");
     //test_("exit");
     //test_("wait");
-    test_("execve");
+    //test_("execve");
+    test_("clone");
     shutdown();
     return 0;
 }

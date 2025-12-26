@@ -56,7 +56,7 @@ int main()
 
 
     // test_shell();
-    test_("fork");
+    //test_("fork");
     //test_("gettimeofday");
 
     //test_("open");
@@ -67,6 +67,7 @@ int main()
     //test_("getpid");
     //test_("exit");
     //test_("wait");
+    test_("execve");
     shutdown();
     return 0;
 }

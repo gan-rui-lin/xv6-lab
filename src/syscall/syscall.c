@@ -172,11 +172,11 @@ sysname(int num)
   case SYS_xv6_exec:    return "exec";
   case SYS_xv6_fstat:   return "fstat";
   case SYS_xv6_mkdir:   return "mkdir";
-  case SYS_brk:    return "brk";
-  case SYS_mmap:    return "mmap";
-  case SYS_openat:    return "openat";
-  case SYS_getpid:    return "getpid";
-  case SYS_getppid:   return "getppid";
+  // case SYS_brk:    return "brk";
+  // case SYS_mmap:    return "mmap";
+  // case SYS_openat:    return "openat";
+  // case SYS_getpid:    return "getpid";
+  // case SYS_getppid:   return "getppid";
   default:          return "unknown";
   }
 }

@@ -64,8 +64,9 @@ int main()
     // test_("brk");
     //test_("mmap");
     //test_("openat");
-    //test_("getppid");
-    test_("exit")
+    //test_("getpid");
+    //test_("exit");
+    //test_("wait");
     shutdown();
     return 0;
 }

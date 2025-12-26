@@ -185,6 +185,7 @@ APP_NAMES := \
 	openat \
 	getpid \
 	getppid \
+	exit \
 
 # 从 user/apps/<name>/<name> 复制到 user/_<name>
 .PHONY: apps

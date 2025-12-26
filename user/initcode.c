@@ -59,6 +59,9 @@ int main()
     test_("fork");
     test_("gettimeofday");
 
+    test_("open");
+    test_("read");
+
     shutdown();
     return 0;
 }

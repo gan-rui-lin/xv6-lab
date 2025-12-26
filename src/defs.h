@@ -124,6 +124,7 @@ int             growproc(int);
 void            proc_mapstacks(pagetable_t);
 pagetable_t     proc_pagetable(struct proc *);
 void            proc_freepagetable(pagetable_t, uint64);
+void            freeproc(struct proc *);  // free process resources
 int             kill(int);
 int             killed(struct proc*);
 void            setkilled(struct proc*);
@@ -138,6 +139,10 @@ void            wakeup(void*);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+
+// proc.c - global process table
+extern struct proc proc[];  // array of NPROC processes
+extern struct spinlock wait_lock;  // lock for wait/wakeup
 void            scheduler(void);
 void            sched(void);
 void            reparent(struct proc *);

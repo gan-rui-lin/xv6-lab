@@ -68,8 +68,9 @@ int main()
     //test_("exit");
     //test_("wait");
     //test_("execve");
-    test_("clone");
+    //test_("clone");
     //test_("yield");
+    test_("waitpid");
     shutdown();
     return 0;
 }

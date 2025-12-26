@@ -199,7 +199,7 @@ bad:
 }
 
 // Minimal wait4(pid, status, options): support only pid == -1 and options == 0
-// Panic on unsupported to surface issues early.
+// Now also supports waiting for a specific child process by PID
 uint64
 sys_wait4(void)
 {
@@ -209,13 +209,72 @@ sys_wait4(void)
   argaddr(1, &status);
   argint(2, &options);
 
-  if (pid != -1)
-    panic("sys_wait4: pid != -1 unsupported");
+  // 原来的实现（已注释）：
+  // if (pid != -1)
+  //   panic("sys_wait4: pid != -1 unsupported");
+  
   if (options != 0)
     panic("sys_wait4: options unsupported");
 
-  return wait(status);
+  // If pid == -1, wait for any child (original behavior)
+  if (pid == -1) {
+    return wait(status);
+  }
+  
+  // If pid > 0, wait for specific child process
+  // We need to implement waitpid functionality
+  struct proc *pp;
+  int havekids;
+  struct proc *p = myproc();
+
+  acquire(&wait_lock);
+
+  for(;;){
+    // Scan through table looking for the specific child
+    havekids = 0;
+    for(pp = proc; pp < &proc[NPROC]; pp++){
+      // Check if this is our child
+      if(pp->parent == p){
+        // Check if this matches the requested PID
+        if(pp->pid == pid){
+          acquire(&pp->lock);
+          havekids = 1;
+          
+          if(pp->state == ZOMBIE){
+            // Found the matching child
+            int cpid = pp->pid;
+            
+            // Debug: print the xstate before copying
+            // printf("sys_wait4: found zombie child pid=%d, xstate=%d\n", cpid, pp->xstate);
+            
+            if(status != 0 && copyout(p->pagetable, status, (char *)&pp->xstate,
+                                    sizeof(pp->xstate)) < 0) {
+              release(&pp->lock);
+              release(&wait_lock);
+              return -1;
+            }
+            freeproc(pp);
+            release(&pp->lock);
+            release(&wait_lock);
+            return cpid;
+          }
+          release(&pp->lock);
+        }
+      }
+    }
+
+    // No matching child found
+    if(!havekids || killed(p)){
+      release(&wait_lock);
+      printf("sys_wait4: no matching child found for pid=%d\n", pid);
+      return -1;
+    }
+    
+    // Wait for the child to exit
+    sleep(p, &wait_lock);
+  }
 }
+
 
 // brk() 设置程序的堆顶地址
 // 参数 addr: 新的堆顶地址
@@ -286,3 +345,28 @@ sys_sched_yield(void)
     release(&p->lock);
     return 0;
 }
+
+// sys_waitpid () {
+  // int pid;
+  // uint64 wstatus_addr;
+  // int option;
+  // if (_arg_int(0, pid) < 0)
+  //     return -1;
+  // if (_arg_addr(1, wstatus_addr) < 0)
+  //     return -1;
+  // if (_arg_int(2, option) < 0)
+  //     return -1;
+
+  // // 检查无效的PID值
+  // // 根据POSIX标准，PID不能是INT_MIN或其他无效值
+  // if (pid == INT_MIN)
+  // {
+  //     return SYS_ESRCH;
+  // }
+
+  // // printf("[SyscallHandler::sys_wait4] pid: %d, wstatus_addr: %p, option: %d\n",
+  // //    pid, wstatus_addr, option);
+  // int waitret = proc::k_pm.wait4(pid, wstatus_addr, option);
+  // // printf("[SyscallHandler::sys_wait4] waitret: %d\n",waitret);
+  // return waitret;pid != -1 unsupported
+// }

@@ -27,7 +27,8 @@ struct spinlock pid_lock;
 // 临界区数据：子进程的状态 ZOMBIE 或者 非 ZOMBIE
 struct spinlock wait_lock;
 
-static void freeproc(struct proc *p);
+// Changed from static to allow use in sys_wait4
+void freeproc(struct proc *p);
 
 // 需要关中断，以防止内核切换过程中的险态
 int
@@ -260,7 +261,8 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
 }
 
 // 释放内存，清理进程表项
-static void
+// Changed from static to allow use in sys_wait4
+void
 freeproc(struct proc *p)
 {
   if(p->trapframe)
@@ -636,7 +638,10 @@ exit(int status)
   
   acquire(&p->lock);
 
-  p->xstate = status;
+  // Encode exit status in Linux wait format:
+  // bits 8-15: exit status (for normal termination)
+  // bits 0-7: signal number (0 for normal termination)
+  p->xstate = (status & 0xff) << 8;
   p->state = ZOMBIE;
 
   release(&wait_lock);

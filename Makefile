@@ -187,6 +187,7 @@ APP_NAMES := \
 	getppid \
 	exit \
 	execve \
+	test_echo \
 # 从 user/apps/<name>/<name> 复制到 user/_<name>
 .PHONY: apps
 apps: $(APP_NAMES)

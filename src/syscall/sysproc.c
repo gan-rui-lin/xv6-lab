@@ -146,7 +146,7 @@ sys_getppid(void)
 }
 
 // Linux execve(path, argv, envp)
-// We currently do not support envp; panic if envp != 0 to avoid silent ignore.
+// We currently do not support envp; we silently ignore it if it's empty (first element is NULL).
 uint64
 sys_execve(void)
 {
@@ -156,8 +156,17 @@ sys_execve(void)
 
   if(argstr(0, path, MAXPATH) < 0 || argaddr(1, &uargv) < 0 || argaddr(2, &uenvp) < 0)
     return -1;
-  if(uenvp != 0)
-    panic("sys_execve: envp unsupported");
+  
+  // Check if envp is non-empty (not just non-NULL)
+  // If envp is provided, check if the first element is NULL (empty array)
+  if(uenvp != 0) {
+    uint64 first_env;
+    if(fetchaddr(uenvp, &first_env) < 0)
+      return -1;
+    if(first_env != 0)
+      panic("sys_execve: non-empty envp unsupported");
+    // If first_env == 0, envp is empty, we can proceed
+  }
 
   memset(argv, 0, sizeof(argv));
   for(i=0;; i++){

@@ -179,7 +179,8 @@ APP_NAMES := \
 	waitpid \
 	gettimeofday \
 	open \
-	read
+	read \
+	brk \
 	
 
 # 从 user/apps/<name>/<name> 复制到 user/_<name>

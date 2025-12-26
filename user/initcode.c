@@ -4,17 +4,17 @@
 #define TEST_SYSCALLS
 #include "../src/syscall/syscall.h"
 
-void test_fork();
+//void test_fork();
 
-void test_sbrk();
+// void test_sbrk();
 
-void test_uptime();
+// void test_uptime();
 
-void test_gettimeofday();
+// void test_gettimeofday();
 
-void test_read();
+// void test_read();
 
-void test_shell();
+// void test_shell();
 
 void test_(char* name){
 
@@ -56,12 +56,12 @@ int main()
 
 
     // test_shell();
-    test_("fork");
+    // test_("fork");
     //test_("gettimeofday");
 
     //test_("open");
     //test_("read");
-
+    // test_("brk");
     shutdown();
     return 0;
 }

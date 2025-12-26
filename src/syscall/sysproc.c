@@ -206,3 +206,41 @@ sys_wait4(void)
 
   return wait(status);
 }
+
+// brk() 设置程序的堆顶地址
+// 参数 addr: 新的堆顶地址
+// 如果 addr == 0，返回当前堆顶地址
+// 如果 addr != 0，尝试将堆顶设置为 addr，成功返回新地址，失败返回 -1
+uint64
+sys_brk(void)
+{
+  uint64 addr;
+  struct proc *p = myproc();
+  
+  // 获取参数：目标堆顶地址
+  if(argaddr(0, &addr) < 0)
+    return -1;
+  
+  // 如果 addr == 0，返回当前堆顶地址（查询模式）
+  if(addr == 0) {
+    return p->sz;
+  }
+  
+  // 检查地址是否合法（不能小于当前大小或太大）
+  if(addr < p->sz) {
+    // 缩小内存
+    int n = addr - p->sz;  // n 是负数
+    if(growproc(n) < 0)
+      return -1;
+    return addr;
+  } else if(addr > p->sz) {
+    // 扩大内存
+    int n = addr - p->sz;  // n 是正数
+    if(growproc(n) < 0)
+      return -1;
+    return addr;
+  }
+  
+  // addr == p->sz，不需要改变
+  return addr;
+}

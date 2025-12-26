@@ -35,3 +35,5 @@ src/thinfat32/build
 src/thinfat32/dist
 
 sbi-qemu
+
+sdcard.img-backup

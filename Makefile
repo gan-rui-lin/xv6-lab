@@ -184,6 +184,7 @@ APP_NAMES := \
 	mmap \
 	openat \
 	getpid \
+	getppid \
 
 # 从 user/apps/<name>/<name> 复制到 user/_<name>
 .PHONY: apps

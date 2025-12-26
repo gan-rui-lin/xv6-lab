@@ -109,7 +109,7 @@ extern uint64 sys_getppid(void);
 extern uint64 sys_brk(void);
 extern uint64 sys_mmap(void);
 extern uint64 sys_openat(void);
-
+extern uint64 sys_sched_yield(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
@@ -145,6 +145,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_fstat]       sys_fstat,
 [SYS_openat]      sys_openat,
 [SYS_mmap]        sys_mmap,
+[SYS_sched_yield] sys_sched_yield,
 };
 
 // sysname - return the name of the system call for debugging.

@@ -189,6 +189,7 @@ APP_NAMES := \
 	execve \
 	test_echo \
 	clone \
+	yield \
 # 从 user/apps/<name>/<name> 复制到 user/_<name>
 .PHONY: apps
 apps: $(APP_NAMES)

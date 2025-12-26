@@ -266,3 +266,18 @@ sys_mmap(void)
   // 暂时返回错误，避免编译错误
   return -1;
 }
+
+uint64
+sys_sched_yield(void)
+{
+    // // printfCyan("[sche]  yield here \n");
+    // Cpu::get_cpu()->push_intr_off();
+    // Pcb *p = Cpu::get_cpu()->get_cur_proc();
+    // Cpu::get_cpu()->pop_intr_off();
+    // // printfCyan("[sche]  yield here,p->addr:%x \n",Cpu::get_cpu()->get_cur_proc());
+    // p->_lock.acquire();
+    // // printfCyan("[sche]  yield here \n");
+    // p->_state = ProcState::RUNNABLE;
+    // call_sched(); // 注意swtch的逻辑是函数调用, 所以重新调用就是视为从这个函数返回
+    // p->_lock.release();
+}

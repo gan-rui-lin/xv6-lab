@@ -183,6 +183,7 @@ APP_NAMES := \
 	brk \
 	mmap \
 	openat \
+	getpid \
 
 # 从 user/apps/<name>/<name> 复制到 user/_<name>
 .PHONY: apps

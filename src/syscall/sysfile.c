@@ -565,6 +565,49 @@ sys_chdir(void)
 }
 
 uint64
+sys_mkdirat(void)
+{
+  char path[MAXPATH];
+  int dirfd;
+  struct inode *ip;
+  int n;
+
+  if(argint(0, &dirfd) < 0 || (n = argstr(1, path, MAXPATH)) < 0)
+    return -1;
+
+  begin_op(ROOTDEV);
+
+  struct file *dirf = 0;
+  if(path[0] != '/' && dirfd != AT_FDCWD && dirfd >= 0){
+    struct proc *p = myproc();
+    if(dirfd >= NOFILE){
+      end_op(ROOTDEV);
+      return -1;
+    }
+    dirf = p->ofile[dirfd];
+    if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR){
+      end_op(ROOTDEV);
+      return -1;
+    }
+  }
+
+  if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
+    ip = create(path, T_DIR, 0, 0);
+  } else {
+    ip = createat(dirf->ip, path, T_DIR, 0, 0);
+  }
+
+  if(ip == 0){
+    end_op(ROOTDEV);
+    return -1;
+  }
+
+  iunlockput(ip);
+  end_op(ROOTDEV);
+  return 0;
+}
+
+uint64
 sys_exec(void)
 {
   char path[MAXPATH], *argv[MAXARG];
@@ -636,4 +679,75 @@ sys_pipe(void)
     return -1;
   }
   return 0;
+}
+
+uint64
+sys_dup3(void)
+{
+  int oldfd, newfd;
+  struct file *f;
+
+  if(argint(0, &oldfd) < 0 || argint(1, &newfd) < 0)
+    return -1;
+  if(oldfd < 0 || oldfd >= NOFILE || (f = myproc()->ofile[oldfd]) == 0)
+    return -1;
+  if(newfd < 0 || newfd >= NOFILE)
+    return -1;
+  struct proc *p = myproc();
+  if(p->ofile[newfd])
+    fileclose(p->ofile[newfd]);
+  p->ofile[newfd] = f;
+  filedup(f);
+  return newfd;
+}
+
+uint64
+sys_getdents64(void)
+{
+  int fd;
+  uint64 buf, len;
+  struct file *f;
+
+  if(argint(0, &fd) < 0 || argaddr(1, &buf) < 0 || argaddr(2, &len) < 0)
+    return -1;
+  if(fd < 0 || fd >= NOFILE || (f = myproc()->ofile[fd]) == 0)
+    return -1;
+  if(f->type != FD_INODE || f->ip->type != T_DIR)
+    return -1;
+  // For simplicity, return 0 (no entries)
+  // TODO: implement directory reading
+  return 1;
+}
+
+uint64
+sys_mount(void)
+{
+  // TODO: implement mount
+  return 0;
+}
+
+uint64
+sys_getcwd(void)
+{
+  uint64 buf, size;
+  if(argaddr(0, &buf) < 0 || argaddr(1, &size) < 0)
+    return -1;
+  struct proc *p = myproc();
+  if(p->cwd == 0)
+    return -1;
+  // For simplicity, return "/"
+  char *cwd = "/";
+  int len = strlen(cwd) + 1;
+  if(len > size)
+    return -1;
+  if(copyout(p->pagetable, buf, cwd, len) < 0)
+    return -1;
+  return buf;
+}
+
+uint64
+sys_pipe2(void)
+{
+  // For simplicity, same as sys_pipe
+  return sys_pipe();
 }

@@ -73,6 +73,16 @@ int main()
     test_("clone");
     test_("yield");
     test_("waitpid");
+
+    test_("dup");
+    // test_("close");
+    test_("mkdir"); //! failed
+    test_("chdir"); //! another syscall called, not completed
+    test_("dup2");  //! failed
+    test_("getdents"); //! wrong getdents fd:1
+    // test_("mount"); //! exception
+    test_("pipe");  //? maybe right
+    test_("fstat"); //! wrong
     shutdown();
     return 0;
 }

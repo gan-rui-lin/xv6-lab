@@ -381,7 +381,6 @@ enum SysNum
     SYS_xv6_uptime = 21 + 1000,
     SYS_xv6_shutdown = 22 + 1000,
     SYS_xv6_gettimeofday = 23 + 1000,
-
 };
 
 #endif // __ASSEMBLER__/__ASSEMBLY__

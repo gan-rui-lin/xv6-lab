@@ -111,9 +111,22 @@ extern uint64 sys_brk(void);
 extern uint64 sys_mmap(void);
 extern uint64 sys_openat(void);
 extern uint64 sys_sched_yield(void);
+extern uint64 sys_dup3(void);
+extern uint64 sys_getdents64(void);
+extern uint64 sys_mount(void);
+extern uint64 sys_getcwd(void);
+extern uint64 sys_chdir(void);
+extern uint64 sys_pipe2(void);
+extern uint64 sys_dup2(void);
+extern uint64 sys_mkdirat(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
+[SYS_dup]         sys_dup,
+[SYS_dup3]        sys_dup3,
+[SYS_getdents64]  sys_getdents64,
+[SYS_mount]       sys_mount,
+[SYS_getcwd]      sys_getcwd,
 [SYS_clone]      sys_clone,
 [SYS_fork]        sys_fork,
 [SYS_read]        sys_read,
@@ -150,6 +163,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_openat]      sys_openat,
 [SYS_mmap]        sys_mmap,
 [SYS_sched_yield] sys_sched_yield,
+[SYS_chdir]       sys_chdir,
+[SYS_pipe2]       sys_pipe2,
 };
 
 // sysname - return the name of the system call for debugging.

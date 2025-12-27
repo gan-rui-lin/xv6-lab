@@ -52,7 +52,7 @@ fsinit(int dev) {
   // 尝试初始化 FAT32（优先）。若失败则回退到原始 xv6fs。
   fat32_init(dev);
   if(fat32_mode){
-    log_warn("fsinit: use FAT32 mode on dev %d\n", dev);
+    // log_warn("fsinit: use FAT32 mode on dev %d\n", dev);
     return;
   }
   readsb(dev, &sb);
@@ -331,9 +331,10 @@ ilock(struct inode *ip)
     return;
   }
 
-  if(sb.magic != FSMAGIC) {
-    log_error("ilock: superblock not initialized! magic=0x%x\n", sb.magic);
-  }
+  // xv6fs:
+  // if(sb.magic != FSMAGIC) {
+  //   log_error("ilock: superblock not initialized! magic=0x%x\n", sb.magic);
+  // }
 
   struct buf *bp;
   struct dinode *dip;
@@ -743,6 +744,41 @@ namei(char *path)
   }
   char name[DIRSIZ];
   return namex(path, 0, name);
+}
+
+// Resolve path relative to a given base directory inode (non-FAT32 path).
+// Does not allow absolute paths; if path starts with '/', falls back to namei.
+struct inode*
+nameiat(struct inode *base, char *path)
+{
+  if(fat32_mode){
+    return fat32_nameiat(base, path);
+  }
+  if(!base || !path){
+    return 0;
+  }
+  if(path[0] == '/'){
+    // absolute path
+    return namei(path);
+  }
+  char name[DIRSIZ];
+  struct inode *ip = idup(base);
+  struct inode *next;
+  if(ip == 0) return 0;
+  while((path = skipelem(path, name)) != 0){
+    ilock(ip);
+    if(ip->type != T_DIR){
+      iunlockput(ip);
+      return 0;
+    }
+    if((next = dirlookup(ip, name, 0)) == 0){
+      iunlockput(ip);
+      return 0;
+    }
+    iunlockput(ip);
+    ip = next;
+  }
+  return ip;
 }
 
 struct inode*

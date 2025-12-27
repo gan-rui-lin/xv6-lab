@@ -57,7 +57,7 @@ int main()
 
     // test_shell();
     test_("fork");
-    //test_("gettimeofday");
+    test_("gettimeofday");
 
     test_("open");
     test_("read");

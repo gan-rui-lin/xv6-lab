@@ -11,6 +11,22 @@
 #include "fs/file.h"
 #include "fs/stat.h"
 #include "fcntl.h"
+#// 兼容 Linux open/openat 的 flags 到内核内部标志
+static int normalize_open_flags(int flags)
+{
+  int norm = 0;
+  // 基本读写位：Linux 与内核一致（O_RDONLY=0, O_WRONLY=1, O_RDWR=2）
+  if(flags & O_WRONLY) norm |= O_WRONLY;
+  if(flags & O_RDWR)   norm |= O_RDWR;
+  // Linux O_CREAT=0x40 → 内核 O_CREATE=0x200
+  if(flags & 0x40)     norm |= O_CREATE;
+  // Linux O_TRUNC=0x200 → 内核 O_TRUNC=0x400
+  if(flags & 0x200)    norm |= O_TRUNC;
+  // Linux O_DIRECTORY=0x200000 → 内核 O_DIRECTORY=0x10000
+  if(flags & 0x200000) norm |= O_DIRECTORY;
+  // 其余未映射位忽略
+  return norm;
+}
 
 
 // Fetch the nth word-sized system call argument as a file descriptor
@@ -299,9 +315,12 @@ sys_open(void)
   if((n = argstr(0, path, MAXPATH)) < 0 || argint(1, &omode) < 0)
     return -1;
 
+  int kflags = normalize_open_flags(omode);
+  log_info("sys_open: path='%s' omode=0x%x kflags=0x%x", path, omode, kflags);
+
   begin_op(ROOTDEV);
 
-  if(omode & O_CREATE){
+  if(kflags & O_CREATE){
     ip = create(path, T_FILE, 0, 0);
     if(ip == 0){
       end_op(ROOTDEV);
@@ -309,14 +328,21 @@ sys_open(void)
     }
   } else {
     if((ip = namei(path)) == 0){
+      log_warn("sys_open: namei('%s') failed", path);
       end_op(ROOTDEV);
       return -1;
     }
     ilock(ip);
-    if(ip->type == T_DIR && omode != O_RDONLY){
-      iunlockput(ip);
-      end_op(ROOTDEV);
-      return -1;
+    if(ip->type == T_DIR){
+      // Allow opening directories when O_DIRECTORY is specified;
+      // treat access as read-only.
+      if(!(kflags == O_RDONLY || (kflags & O_DIRECTORY))){
+        log_warn("sys_open: reject open dir without O_DIRECTORY/O_RDONLY");
+        iunlockput(ip);
+        end_op(ROOTDEV);
+        return -1;
+      }
+      log_info("sys_open: opened directory");
     }
   }
 
@@ -343,8 +369,13 @@ sys_open(void)
   }
   f->ip = ip;
   f->off = 0;
-  f->readable = !(omode & O_WRONLY);
-  f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
+  if(ip->type == T_DIR){
+    f->readable = 1;
+    f->writable = 0;
+  } else {
+    f->readable = !(kflags & O_WRONLY);
+    f->writable = (kflags & O_WRONLY) || (kflags & O_RDWR);
+  }
 
   iunlock(ip);
   end_op(ROOTDEV);
@@ -365,25 +396,65 @@ sys_openat(void)
   int n;
 
   // 提取参数（Linux 布局）
-  if(argint(0, &dirfd) < 0) return -1; // 忽略
+  if(argint(0, &dirfd) < 0) return -1;
   if((n = argstr(1, path, MAXPATH)) < 0 || argint(2, &flags) < 0)
     return -1;
 
+  int kflags = normalize_open_flags(flags);
+  log_info("sys_openat: dirfd=%d path='%s' flags=0x%x kflags=0x%x", dirfd, path, flags, kflags);
+
   begin_op(ROOTDEV);
 
-  if(flags & O_CREATE){
-    ip = create(path, T_FILE, 0, 0);
-    if(ip == 0){
-      end_op(ROOTDEV);
-      return -1;
-    }
+  // First resolve the target according to dirfd semantics
+  if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
+    if(path[0] == '/') log_info("sys_openat: absolute path");
+    else log_info("sys_openat: relative to cwd");
+    ip = namei(path);
   } else {
-    if((ip = namei(path)) == 0){
+    struct proc *p = myproc();
+    if(dirfd < 0 || dirfd >= NOFILE){
+      log_warn("sys_openat: dirfd out of range %d", dirfd);
       end_op(ROOTDEV);
       return -1;
     }
-    ilock(ip);
-    if(ip->type == T_DIR && flags != O_RDONLY){
+    struct file *dirf = p->ofile[dirfd];
+    if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR){
+      log_warn("sys_openat: dirfd not a directory fd=%d", dirfd);
+      end_op(ROOTDEV);
+      return -1;
+    }
+    log_info("sys_openat: relative to dirfd=%d", dirfd);
+    ip = nameiat(dirf->ip, path);
+  }
+
+  if(ip == 0){
+    // Not found; if O_CREATE is set, attempt to create when possible
+    if(kflags & O_CREATE){
+      if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
+        ip = create(path, T_FILE, 0, 0);
+        if(ip == 0){
+          end_op(ROOTDEV);
+          return -1;
+        }
+      } else {
+        // TODO: create relative to dirfd for xv6fs; FAT32 write not supported
+        log_warn("sys_openat: create relative to dirfd not supported");
+        end_op(ROOTDEV);
+        return -1;
+      }
+    } else {
+      log_warn("sys_openat: resolve failed for '%s'", path);
+      end_op(ROOTDEV);
+      return -1;
+    }
+  }
+
+  ilock(ip);
+  if(ip->type == T_DIR && kflags != O_RDONLY){
+    if(kflags & O_DIRECTORY){
+      // allow open directory with O_DIRECTORY
+    } else {
+      log_warn("sys_openat: reject opening dir with write flags");
       iunlockput(ip);
       end_op(ROOTDEV);
       return -1;
@@ -413,8 +484,13 @@ sys_openat(void)
   }
   f->ip = ip;
   f->off = 0;
-  f->readable = !(flags & O_WRONLY);
-  f->writable = (flags & O_WRONLY) || (flags & O_RDWR);
+  if(ip->type == T_DIR){
+    f->readable = 1;
+    f->writable = 0;
+  } else {
+    f->readable = !(kflags & O_WRONLY);
+    f->writable = (kflags & O_WRONLY) || (kflags & O_RDWR);
+  }
 
   iunlock(ip);
   end_op(ROOTDEV);

@@ -200,6 +200,7 @@ void            iunlockput(struct inode*);
 void            iupdate(struct inode*);
 int             namecmp(const char*, const char*);
 struct inode*   namei(char*);
+struct inode*   nameiat(struct inode*, char*);
 struct inode*   nameiparent(char*, char*);
 int             readi(struct inode*, int, uint64, uint, uint);
 void            stati(struct inode*, struct stat*);
@@ -209,6 +210,7 @@ int             writei(struct inode*, int, uint64, uint, uint);
 extern int      fat32_mode; // 0: xv6fs, 1: FAT32
 void            fat32_init(int dev);
 struct inode*   fat32_namei(char*);
+struct inode*   fat32_nameiat(struct inode*, char*);
 int             fat32_readi(struct inode*, int, uint64, uint, uint);
 struct inode*   iget_pub(uint dev, uint inum);
 

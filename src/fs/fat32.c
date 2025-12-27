@@ -100,6 +100,42 @@ static int match_sfn(const char *comp, const uint8 *name11)
 
 // Find a path component within a directory cluster chain.
 // Returns 0 if not found; else fills type,size,start cluster.
+// Extract ASCII chars from an LFN entry into buf (append order)
+static void lfn_copy_chars(uint8 *de, int ofs, int cnt, char *buf, int *plen)
+{
+  int len = *plen;
+  for(int i=0;i<cnt;i+=2){
+    uint8 lo = de[ofs + i];
+    uint8 hi = de[ofs + i + 1];
+    if(lo == 0x00){
+      // zero terminator
+      break;
+    }
+    if(hi == 0 && lo != 0xFF){
+      buf[len++] = (char)lo;
+    }
+  }
+  *plen = len;
+}
+
+static void lfn_extract_append(uint8 *de, char *buf, int *plen)
+{
+  // name fields are UCS-2; take low byte if high byte is 0
+  lfn_copy_chars(de, 1, 10, buf, plen);   // name1: 5 chars
+  lfn_copy_chars(de, 14, 12, buf, plen);  // name2: 6 chars
+  lfn_copy_chars(de, 28, 4, buf, plen);   // name3: 2 chars
+  buf[*plen] = 0;
+}
+
+static int str_eq(const char *a, const char *b)
+{
+  while(*a && *b){
+    if(*a != *b) return 0;
+    a++; b++;
+  }
+  return *a == *b;
+}
+
 static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *out_size, uint32 *out_clus)
 {
   uint32 cl = dir_clus;
@@ -109,18 +145,37 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
       uint8 buf[512];
       read_sector512(fat.dev, sec + s, buf);
       // iterate entries
+      char lfn_name[260];
+      int lfn_len = 0;
       for(int off=0; off<512; off+=32){
         uint8 *de = buf + off;
         uint8 first = de[0];
         if(first == 0x00) // end of dir
           return 0;
         if(first == 0xE5) // deleted
+        {
+          // reset any accumulated LFN when encountering deleted
+          lfn_len = 0; lfn_name[0] = 0;
           continue;
+        }
         uint8 attr = de[11];
-        if(attr == 0x0F) // long name entry
+        if(attr == 0x0F){ // long name entry
+          // Accumulate LFN; entries appear before SFN in display order
+          lfn_extract_append(de, lfn_name, &lfn_len);
           continue;
-        // match name
-        if(match_sfn(comp, de)){
+        }
+        // match name: prefer LFN if accumulated; else match SFN
+        int matched = 0;
+        if(lfn_len > 0){
+          // compare component to long name (case-sensitive)
+          if(str_eq(comp, lfn_name)){
+            matched = 1;
+          }
+        }
+        if(!matched && match_sfn(comp, de)){
+          matched = 1;
+        }
+        if(matched){
           uint16 cl_hi = *(uint16 *)(de + 20);
           uint16 cl_lo = *(uint16 *)(de + 26);
           uint32 startc = ((uint32)cl_hi << 16) | cl_lo;
@@ -131,6 +186,8 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
           *out_clus = startc;
           return 1;
         }
+        // clear LFN after processing SFN that didn't match
+        lfn_len = 0; lfn_name[0] = 0;
       }
     }
     // next cluster in chain
@@ -197,7 +254,7 @@ void fat32_init(int dev)
   fat.fat_start_sec = fat.rsvd_secs;
   fat.first_data_sec = fat.rsvd_secs + fat.nfats * fat.fatsz32;
   fat32_mode = 1;
-  log_info("FAT32: bps=%d spc=%d rsvd=%d nfats=%d fatsz=%d root=%x", bps, spc, rsvd, nf, fatsz32, rootclus);
+  // log_info("FAT32: bps=%d spc=%d rsvd=%d nfats=%d fatsz=%d root=%x", bps, spc, rsvd, nf, fatsz32, rootclus);
 }
 
 static struct inode *make_device_inode(uint dev, short major, short minor)
@@ -295,6 +352,52 @@ struct inode* fat32_namei(char *path)
     int ok = dir_find(cur, comps[i], &typ, &sz, &st);
     if(!ok){
       log_warn("fat32_namei: not found '%s'", comps[i]);
+      return 0;
+    }
+    cur = st; cur_type = typ; cur_size = sz;
+  }
+  return make_inode(fat.dev, cur_type, cur_size, cur);
+}
+
+// Resolve path relative to a given base directory inode for FAT32.
+// If path is absolute, behaves like fat32_namei.
+struct inode* fat32_nameiat(struct inode *base, char *path)
+{
+  if(!path || !*path){
+    log_warn("fat32_nameiat: empty path");
+    return 0;
+  }
+  if(!fat32_mode){
+    log_warn("fat32_nameiat: fat32 disabled");
+    return 0;
+  }
+  if(path[0] == '/'){
+    return fat32_namei(path);
+  }
+  // Split path
+  char workbuf[MAXPATH];
+  char *comps[32];
+  int n = split_path(path, comps, 32, workbuf, sizeof(workbuf));
+  uint32 cur;
+  if(base && base->major == FAT32_INODE_TAG){
+    cur = base->addrs[0];
+    if(cur == 0) cur = fat.root_clus;
+  } else {
+    cur = fat.root_clus;
+  }
+  short cur_type = T_DIR;
+  uint32 cur_size = 0;
+  if(n == 0){
+    return make_inode(fat.dev, T_DIR, 0, cur);
+  }
+  for(int i=0;i<n;i++){
+    if(comps[i][0] == '.' && comps[i][1] == 0){
+      continue;
+    }
+    short typ; uint32 sz; uint32 st;
+    int ok = dir_find(cur, comps[i], &typ, &sz, &st);
+    if(!ok){
+      log_warn("fat32_nameiat: not found '%s'", comps[i]);
       return 0;
     }
     cur = st; cur_type = typ; cur_size = sz;

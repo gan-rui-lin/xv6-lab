@@ -7,7 +7,7 @@ SRC=src
 NPROC := $(shell nproc)
 MAKEFLAGS += -j$(NPROC)
 # ! 提交时改为 release 模式
-mode := release
+mode ?= release
 $(info === Build mode: $(mode) ===)
 
 
@@ -293,4 +293,9 @@ run: $K/kernel
 	cp $(SRC)/bootloader/rustsbi-qemu-7.bin sbi-qemu
 # 	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
 #
-all: run
+all:
+	$(MAKE) clean
+	$(MAKE) run
+
+debug:
+	$(MAKE) mode=debug all

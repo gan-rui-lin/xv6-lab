@@ -726,7 +726,9 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
             *(uint16 *)(de_dotdot + 26) = dir_clus & 0xFFFF;
             write_sector512(fat.dev, data_sec, data_buf);
           }
-          return make_inode(fat.dev, type, 0, new_clus);
+          struct inode *ip = make_inode(fat.dev, type, 0, new_clus);
+          // ilock(ip);
+          return ip;
         }
       }
     }
@@ -737,5 +739,48 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
   }
   log_warn("fat32_createat: no free directory entry");
   return NULL;
+}
+
+struct inode* fat32_create(char *path, short type, int major, int minor)
+{
+  if(!path || !*path){
+    log_warn("fat32_create: empty path");
+    return 0;
+  }
+  if(!fat32_mode){
+    log_warn("fat32_create: fat32 disabled");
+    return 0;
+  }
+  begin_op(fat.dev);
+  // Split path
+  char workbuf[MAXPATH];
+  char *comps[32];
+  int n = split_path(path, comps, 32, workbuf, sizeof(workbuf));
+  if(n == 0){
+    log_warn("fat32_create: invalid path");
+    end_op(fat.dev);
+    return 0;
+  }
+  // Find parent
+  uint32 cur = fat.root_clus;
+  short cur_type = T_DIR;
+  for(int i = 0; i < n - 1; i++){
+    short typ; uint32 sz; uint32 st;
+    int ok = dir_find(cur, comps[i], &typ, &sz, &st);
+    if(!ok || typ != T_DIR){
+      log_warn("fat32_create: parent not found '%s'", comps[i]);
+      end_op(fat.dev);
+      return 0;
+    }
+    cur = st;
+  }
+  // Parent inode
+  struct inode *dp = make_inode(fat.dev, T_DIR, 0, cur);
+  // Create
+  struct inode *ip = fat32_createat(dp, comps[n-1], type, major, minor);
+  // Clean up dp
+  iput(dp);
+  end_op(fat.dev);
+  return ip;
 }
 

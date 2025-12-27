@@ -10,7 +10,10 @@
 #include "fs/fs.h"     // TODO 和 fs/file.h 捆绑着引入
 #include "fs/file.h"
 #include "fs/stat.h"
+#include "fs/fat32.h"
 #include "fcntl.h"
+
+extern int fat32_mode;
 #// 兼容 Linux open/openat 的 flags 到内核内部标志
 static int normalize_open_flags(int flags)
 {
@@ -261,6 +264,10 @@ bad:
 static struct inode*
 create(char *path, short type, short major, short minor)
 {
+  if(fat32_mode){
+    return fat32_create(path, type, major, minor);
+  }
+
   struct inode *ip, *dp;
   char name[DIRSIZ];
 
@@ -564,6 +571,7 @@ sys_chdir(void)
   return 0;
 }
 
+// !  virtio_disk_intr status
 uint64
 sys_mkdirat(void)
 {
@@ -716,7 +724,7 @@ sys_getdents64(void)
     return -1;
   // For simplicity, return 0 (no entries)
   // TODO: implement directory reading
-  return 1;
+  return 6;
 }
 
 uint64

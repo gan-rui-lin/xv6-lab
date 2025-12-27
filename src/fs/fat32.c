@@ -308,10 +308,6 @@ int fat32_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
     log_warn("fat32_readi: non-fat inode");
     return -1;
   }
-  if(user_dst){
-    log_warn("fat32_readi: user_dst unsupported, only kernel dst");
-    return -1;
-  }
   if(off > ip->size) return -1;
   if(off + n > ip->size) n = ip->size - off;
   uint32 start_clus = ip->addrs[0];
@@ -336,7 +332,13 @@ int fat32_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
     uint8 secbuf[512];
     read_sector512(fat.dev, sec0 + sec_idx, secbuf);
     uint m = MIN(n - tot, fat.bps - sec_off);
-    memmove((void *)(dst + tot), secbuf + sec_off, m);
+    if(user_dst){
+      if(either_copyout(1, dst + tot, secbuf + sec_off, m) == -1){
+        return -1;
+      }
+    } else {
+      memmove((void *)(dst + tot), secbuf + sec_off, m);
+    }
     tot += m;
     cur_off_in_cluster += m;
     if(cur_off_in_cluster >= bytes_per_cluster && tot < n){

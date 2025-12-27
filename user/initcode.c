@@ -56,19 +56,19 @@ int main()
 
 
     // test_shell();
-    //test_("fork");
+    test_("fork");
     //test_("gettimeofday");
 
     //test_("open");
     //test_("read");
-    // test_("brk");
+    test_("brk");
     //test_("mmap");
-    //test_("openat");
-    //test_("getpid");
-    //test_("exit");
-    //test_("wait");
-    //test_("execve");
-    //test_("clone");
+    test_("openat");
+    test_("getpid");
+    test_("exit");
+    test_("wait");
+    test_("execve");
+    test_("clone");
     //test_("yield");
     test_("waitpid");
     shutdown();

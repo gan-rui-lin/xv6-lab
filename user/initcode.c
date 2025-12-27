@@ -54,7 +54,9 @@ int main()
     dup(0); // stdout
     dup(0); // stderr
 
+    test_("getppid");
 
+    // test_("chdir");
     // test_shell();
     test_("fork");
     test_("gettimeofday");
@@ -69,7 +71,7 @@ int main()
     test_("wait");
     test_("execve");
     test_("clone");
-    //test_("yield");
+    test_("yield");
     test_("waitpid");
     shutdown();
     return 0;

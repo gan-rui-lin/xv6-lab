@@ -119,6 +119,7 @@ extern uint64 sys_chdir(void);
 extern uint64 sys_pipe2(void);
 extern uint64 sys_dup2(void);
 extern uint64 sys_mkdirat(void);
+extern uint64 sys_uname(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
@@ -165,6 +166,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_sched_yield] sys_sched_yield,
 [SYS_chdir]       sys_chdir,
 [SYS_pipe2]       sys_pipe2,
+[SYS_mkdirat] sys_mkdirat,
+[SYS_uname]       sys_uname,
 };
 
 // sysname - return the name of the system call for debugging.

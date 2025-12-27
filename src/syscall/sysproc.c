@@ -370,3 +370,33 @@ sys_sched_yield(void)
   // // printf("[SyscallHandler::sys_wait4] waitret: %d\n",waitret);
   // return waitret;pid != -1 unsupported
 // }
+
+
+uint64
+sys_uname(void)
+{
+  uint64 addr;
+  if (argaddr(0, &addr) < 0)
+    return -1;
+
+  struct {
+    char sysname[65];
+    char nodename[65];
+    char release[65];
+    char version[65];
+    char machine[65];
+    char domainname[65];
+  } un;
+
+  safestrcpy(un.sysname, "ruos", 65);
+  safestrcpy(un.nodename, "ru-node", 65);
+  safestrcpy(un.release, "1.0", 65);
+  safestrcpy(un.version, "1.0.0", 65);
+  safestrcpy(un.machine, "riscv64", 65);
+  safestrcpy(un.domainname, "(none)", 65);
+
+  if (copyout(myproc()->pagetable, addr, (char*)&un, sizeof(un)) < 0)
+    return -1;
+
+  return 0;
+}

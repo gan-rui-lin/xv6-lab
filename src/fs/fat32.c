@@ -98,33 +98,105 @@ static int match_sfn(const char *comp, const uint8 *name11)
   return 1;
 }
 
-// Find a path component within a directory cluster chain.
-// Returns 0 if not found; else fills type,size,start cluster.
-// Extract ASCII chars from an LFN entry into buf (append order)
-static void lfn_copy_chars(uint8 *de, int ofs, int cnt, char *buf, int *plen)
+// // Find a path component within a directory cluster chain.
+// // Returns 0 if not found; else fills type,size,start cluster.
+// // Extract ASCII chars from an LFN entry into buf (append order)
+// static void lfn_copy_chars(uint8 *de, int ofs, int cnt, char *buf, int *plen)
+// {
+//   int len = *plen;
+//   for(int i=0;i<cnt;i+=2){
+//     uint8 lo = de[ofs + i];
+//     uint8 hi = de[ofs + i + 1];
+//     if(lo == 0x00){
+//       // zero terminator
+//       break;
+//     }
+//     if(hi == 0 && lo != 0xFF){
+//       buf[len++] = (char)lo;
+//     }
+//   }
+//   *plen = len;
+// }
+
+// static void lfn_extract_append(uint8 *de, char *buf, int *plen)
+// {
+//   // name fields are UCS-2; take low byte if high byte is 0
+//   lfn_copy_chars(de, 1, 10, buf, plen);   // name1: 5 chars
+//   lfn_copy_chars(de, 14, 12, buf, plen);  // name2: 6 chars
+//   lfn_copy_chars(de, 28, 4, buf, plen);   // name3: 2 chars
+//   buf[*plen] = 0;
+// }
+
+static void lfn_extract_append(uint8 *de, char *buf, int *len)
 {
-  int len = *plen;
-  for(int i=0;i<cnt;i+=2){
-    uint8 lo = de[ofs + i];
-    uint8 hi = de[ofs + i + 1];
-    if(lo == 0x00){
-      // zero terminator
-      break;
+  uint8 seq_byte = de[0];
+  uint8 seq = seq_byte & 0x1F;  // 序列号 (1-20)
+  int is_last = (seq_byte & 0x40) != 0;  // 最后一个片段标志
+  
+  // log_info("lfn_extract_append: seq=%d, is_last=%d", seq, is_last);
+  
+  if(seq == 0 || seq > 20) {
+    log_warn("lfn_extract_append: invalid sequence number %d\n\n", seq);
+    return;
+  }
+  
+  // 提取13个Unicode字符
+  uint8 chars[13];
+  chars[0]  = de[1] | (de[2] << 8);
+  chars[1]  = de[3] | (de[4] << 8);
+  chars[2]  = de[5] | (de[6] << 8);
+  chars[3]  = de[7] | (de[8] << 8);
+  chars[4]  = de[9] | (de[10] << 8);
+  chars[5]  = de[14] | (de[15] << 8);
+  chars[6]  = de[16] | (de[17] << 8);
+  chars[7]  = de[18] | (de[19] << 8);
+  chars[8]  = de[20] | (de[21] << 8);
+  chars[9]  = de[22] | (de[23] << 8);
+  chars[10] = de[24] | (de[25] << 8);
+  chars[11] = de[28] | (de[29] << 8);
+  chars[12] = de[30] | (de[31] << 8);
+  
+  // 计算这个片段应该插入的位置
+  // LFN条目是逆序存储的：最后一个片段（seq=1）先被读取
+  // 我们需要从后向前填充
+  int pos = (seq - 1) * 13;
+  
+  // 复制字符
+  for(int i = 0; i < 13; i++) {
+    if(chars[i] == 0 || chars[i] == 0xFFFF) {
+      break;  // 字符串结束标记
     }
-    if(hi == 0 && lo != 0xFF){
-      buf[len++] = (char)lo;
+    
+    // 简单的Unicode到ASCII转换
+    char c = (chars[i] < 128) ? (char)chars[i] : '?';
+    
+    // 确保不会越界
+    if(pos + i < 259) {
+      buf[pos + i] = c;
     }
   }
-  *plen = len;
-}
-
-static void lfn_extract_append(uint8 *de, char *buf, int *plen)
-{
-  // name fields are UCS-2; take low byte if high byte is 0
-  lfn_copy_chars(de, 1, 10, buf, plen);   // name1: 5 chars
-  lfn_copy_chars(de, 14, 12, buf, plen);  // name2: 6 chars
-  lfn_copy_chars(de, 28, 4, buf, plen);   // name3: 2 chars
-  buf[*plen] = 0;
+  
+  // 如果是最后一个片段（序列号最高且有0x40标志），设置字符串结束符
+  if(is_last) {
+    // 找到实际字符串结束的位置
+    int total_len = pos + 13;
+    for(int i = 0; i < 13; i++) {
+      if(chars[i] == 0 || chars[i] == 0xFFFF) {
+        total_len = pos + i;
+        break;
+      }
+    }
+    
+    if(total_len < 260) {
+      buf[total_len] = 0;
+      *len = total_len;
+    } else {
+      buf[259] = 0;
+      *len = 259;
+    }
+    
+    log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
+  }
 }
 
 static int str_eq(const char *a, const char *b)
@@ -139,60 +211,109 @@ static int str_eq(const char *a, const char *b)
 static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *out_size, uint32 *out_clus)
 {
   uint32 cl = dir_clus;
+  // log_info("dir_find: looking for '%s' in dir cluster %d", comp, dir_clus);
+  
   for(;;){
     uint32 sec = clus_to_sec(cl);
     for(uint s=0; s<fat.spc; ++s){
       uint8 buf[512];
       read_sector512(fat.dev, sec + s, buf);
+      
+      // // 打印当前扇区前几个字节，确认读取正确
+      // log_info("dir_find: sector %d, first 8 bytes: %02x %02x %02x %02x %02x %02x %02x %02x", 
+      //          sec + s, 
+      //          buf[0], buf[1], buf[2], buf[3], 
+      //          buf[4], buf[5], buf[6], buf[7]);
+      
       // iterate entries
       char lfn_name[260];
       int lfn_len = 0;
+      lfn_name[0] = 0;
+      
       for(int off=0; off<512; off+=32){
         uint8 *de = buf + off;
         uint8 first = de[0];
-        if(first == 0x00) // end of dir
+        uint8 attr = de[11];
+        
+        // 打印每个条目的基本信息
+        // log_info("dir_find: offset %d, first=0x%02x, attr=0x%02x", off, first, attr);
+        
+        if(first == 0x00){ // end of dir
+          // log_info("dir_find: end of directory marker");
           return 0;
-        if(first == 0xE5) // deleted
-        {
+        }
+        if(first == 0xE5){ // deleted
           // reset any accumulated LFN when encountering deleted
           lfn_len = 0; lfn_name[0] = 0;
+          // log_info("dir_find: deleted entry");
           continue;
         }
-        uint8 attr = de[11];
+        
         if(attr == 0x0F){ // long name entry
-          // Accumulate LFN; entries appear before SFN in display order
+          // log_info("dir_find: LFN entry, accumulating");
           lfn_extract_append(de, lfn_name, &lfn_len);
+          // log_info("dir_find: current LFN='%s'", lfn_name);
           continue;
         }
+        
+        // // 提取并打印SFN
+        // char sfn_name[13] = {0};
+        // for(int i=0; i<8 && de[i]!=' '; i++){
+        //   sfn_name[i] = de[i];
+        // }
+        // if(de[8] != ' '){
+        //   int len = strlen(sfn_name);
+        //   sfn_name[len] = '.';
+        //   for(int i=0; i<3 && de[8+i]!=' '; i++){
+        //     sfn_name[len+1+i] = de[8+i];
+        //   }
+        // }
+        
+        uint16 cl_hi = *(uint16 *)(de + 20);
+        uint16 cl_lo = *(uint16 *)(de + 26);
+        uint32 startc = ((uint32)cl_hi << 16) | cl_lo;
+        
+        // log_info("dir_find: SFN='%s', LFN='%s', start cluster=%d, size=%d", 
+        //          sfn_name, lfn_name, startc, *(uint32 *)(de + 28));
+        
         // match name: prefer LFN if accumulated; else match SFN
         int matched = 0;
         if(lfn_len > 0){
           // compare component to long name (case-sensitive)
+          // log_info("dir_find: comparing '%s' with LFN '%s'", comp, lfn_name);
           if(str_eq(comp, lfn_name)){
             matched = 1;
+            // log_info("dir_find: matched with LFN!");
           }
         }
-        if(!matched && match_sfn(comp, de)){
-          matched = 1;
+        if(!matched){
+          // log_info("dir_find: comparing '%s' with SFN '%s'", comp, sfn_name);
+          if(match_sfn(comp, de)){
+            matched = 1;
+            // log_info("dir_find: matched with SFN!");
+          }
         }
+        
         if(matched){
-          uint16 cl_hi = *(uint16 *)(de + 20);
-          uint16 cl_lo = *(uint16 *)(de + 26);
-          uint32 startc = ((uint32)cl_hi << 16) | cl_lo;
           uint32 fsz = *(uint32 *)(de + 28);
           short type = (attr & 0x10) ? T_DIR : T_FILE;
           *out_type = type;
           *out_size = fsz;
           *out_clus = startc;
+          // log_info("dir_find: FOUND! type=%d, size=%d, cluster=%d", type, fsz, startc);
           return 1;
         }
+        
         // clear LFN after processing SFN that didn't match
         lfn_len = 0; lfn_name[0] = 0;
+        // log_info("dir_find: moving to next entry");
       }
     }
+    
     // next cluster in chain
     uint32 nxt = fat_next_clus(cl);
     if(nxt >= 0x0FFFFFF8 || nxt == 0x0FFFFFFF){
+      // log_info("dir_find: end of cluster chain");
       break;
     }
     if(nxt < 2){
@@ -200,7 +321,10 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
       break;
     }
     cl = nxt;
+    // log_info("dir_find: moving to next cluster %d", cl);
   }
+  
+  // log_info("dir_find: file not found");
   return 0;
 }
 
@@ -359,6 +483,37 @@ struct inode* fat32_namei(char *path)
   return make_inode(fat.dev, cur_type, cur_size, cur);
 }
 
+  
+  // struct msdos_dir_entry *de = (struct msdos_dir_entry*)buf;
+  // for(int i=0; i<16; i++){  // 16 entries per sector
+  //   if(de[i].name[0] == 0x00){
+  //     log_info("  end of directory");
+  //     break;
+  //   }
+  //   if(de[i].name[0] == 0xE5){
+  //     continue;  // deleted entry
+  //   }
+    
+  //   char namebuf[13] = {0};
+  //   // 提取短文件名
+  //   int j;
+  //   for(j=0; j<8 && de[i].name[j]!=' '; j++){
+  //     namebuf[j] = de[i].name[j];
+  //   }
+  //   if(de[i].ext[0] != ' '){
+  //     namebuf[j] = '.';
+  //     for(int k=0; k<3 && de[i].ext[k]!=' '; k++){
+  //       namebuf[j+1+k] = de[i].ext[k];
+  //     }
+  //   }
+    
+  //   uint32 first_clus = (de[i].starthi << 16) | de[i].start;
+  //   log_info("  [%d] '%s' attrib=0x%x cluster=%d size=%d", 
+  //            i, namebuf, de[i].attrib, first_clus, de[i].size);
+  // }
+
+// Resolve path relative to a given base directory inode for FAT32.
+// If path is absolute, behaves like fat32_namei.
 // Resolve path relative to a given base directory inode for FAT32.
 // If path is absolute, behaves like fat32_namei.
 struct inode* fat32_nameiat(struct inode *base, char *path)
@@ -371,38 +526,72 @@ struct inode* fat32_nameiat(struct inode *base, char *path)
     log_warn("fat32_nameiat: fat32 disabled");
     return 0;
   }
+  
+  log_info("fat32_nameiat: start, path='%s'", path);
+  if(base){
+    log_info("fat32_nameiat: base inode: dev=%d, inum=%d, type=%d, addr[0]=%d", 
+             base->dev, base->inum, base->type, base->addrs[0]);
+  }else{
+    log_info("fat32_nameiat: base is NULL");
+  }
+  
   if(path[0] == '/'){
+    log_info("fat32_nameiat: absolute path, use fat32_namei");
     return fat32_namei(path);
   }
+  
   // Split path
   char workbuf[MAXPATH];
   char *comps[32];
   int n = split_path(path, comps, 32, workbuf, sizeof(workbuf));
+  // log_info("fat32_nameiat: split_path returned %d components", n);
+  // for(int i=0;i<n;i++){
+  //   log_info("fat32_nameiat: comps[%d]='%s'", i, comps[i]);
+  // }
+  
   uint32 cur;
   if(base && base->major == FAT32_INODE_TAG){
     cur = base->addrs[0];
     if(cur == 0) cur = fat.root_clus;
+    // log_info("fat32_nameiat: start from base cluster %d", cur);
   } else {
     cur = fat.root_clus;
+    // log_info("fat32_nameiat: start from root cluster %d", cur);
   }
+  
   short cur_type = T_DIR;
   uint32 cur_size = 0;
   if(n == 0){
+    // log_info("fat32_nameiat: empty path after splitting");
     return make_inode(fat.dev, T_DIR, 0, cur);
   }
+  
   for(int i=0;i<n;i++){
     if(comps[i][0] == '.' && comps[i][1] == 0){
+      // log_info("fat32_nameiat: skip '.' component");
       continue;
     }
+    
     short typ; uint32 sz; uint32 st;
     int ok = dir_find(cur, comps[i], &typ, &sz, &st);
+    // log_info("fat32_nameiat: dir_find('%s') returned %d, type=%d, size=%d, cluster=%d", 
+    //          comps[i], ok, typ, sz, st);
+    
     if(!ok){
       log_warn("fat32_nameiat: not found '%s'", comps[i]);
       return 0;
     }
     cur = st; cur_type = typ; cur_size = sz;
   }
-  return make_inode(fat.dev, cur_type, cur_size, cur);
+  
+  struct inode *ip = make_inode(fat.dev, cur_type, cur_size, cur);
+  if(ip){
+    // log_info("fat32_nameiat: success, created inode dev=%d, inum=%d, type=%d, cluster=%d", 
+    //          ip->dev, ip->inum, ip->type, ip->addrs[0]);
+  }else{
+    log_warn("fat32_nameiat: make_inode failed");
+  }
+  return ip;
 }
 
 int fat32_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)

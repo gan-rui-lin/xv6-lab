@@ -384,7 +384,6 @@ sys_open(void)
 }
 
 // Linux 兼容的 openat(56): a0=dirfd, a1=pathname, a2=flags, a3=mode
-// 这里忽略 dirfd/mode，最小化适配到现有的 sys_open 逻辑。
 uint64
 sys_openat(void)
 {
@@ -401,14 +400,14 @@ sys_openat(void)
     return -1;
 
   int kflags = normalize_open_flags(flags);
-  log_info("sys_openat: dirfd=%d path='%s' flags=0x%x kflags=0x%x", dirfd, path, flags, kflags);
+  // log_info("sys_openat: dirfd=%d path='%s' flags=0x%x kflags=0x%x", dirfd, path, flags, kflags);
 
   begin_op(ROOTDEV);
 
   // First resolve the target according to dirfd semantics
   if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
-    if(path[0] == '/') log_info("sys_openat: absolute path");
-    else log_info("sys_openat: relative to cwd");
+    // if(path[0] == '/') log_info("sys_openat: absolute path");
+    // else log_info("sys_openat: relative to cwd");
     ip = namei(path);
   } else {
     struct proc *p = myproc();
@@ -423,7 +422,7 @@ sys_openat(void)
       end_op(ROOTDEV);
       return -1;
     }
-    log_info("sys_openat: relative to dirfd=%d", dirfd);
+    // log_info("sys_openat: relative to dirfd=%d", dirfd);
     ip = nameiat(dirf->ip, path);
   }
 

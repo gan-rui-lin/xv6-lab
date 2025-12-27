@@ -290,7 +290,7 @@ run: $K/kernel
 	cp $K/kernel kernel-qemu
 # 	cp sdcard.img-backup sdcard.img
 	
-	cp $(SRC)/bootloader/rustsbi-qemu-7.bin sbi-qemu
+# 	cp $(SRC)/bootloader/opensbi-riscv64-generic-fw_dynamic.bin sbi-qemu
 # 	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
 #
 all:

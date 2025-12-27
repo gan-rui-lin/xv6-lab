@@ -207,7 +207,7 @@ clean:
 	rm -rf $(BUILD_DIR)
 	rm -f kernel-qemu
 	rm -f sbi-qemu
-	rm -f sdcard.img
+# 	rm -f sdcard.img
 	rm -f $(UPROGS)
 	rm -f $U/*.d $U/*.asm $U/*.o $U/*.sym $U/_*
 	rm -f $(addprefix $U/,$(APP_NAMES))
@@ -267,7 +267,7 @@ qemu-gdb: $K/kernel .gdbinit fs.img
 run: $K/kernel 
 # 	直接把 KERNEL_ELF 拷贝到根目录并命名为 kernel-qemu
 	cp $K/kernel kernel-qemu
-	cp sdcard.img-backup sdcard.img
+# 	cp sdcard.img-backup sdcard.img
 	
 	cp $(SRC)/bootloader/rustsbi-qemu-7.bin sbi-qemu
 # 	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu

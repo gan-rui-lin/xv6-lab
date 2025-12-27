@@ -2,7 +2,6 @@
 #include "riscv.h"
 #include "types.h"
 
-#include "./fs/thinfat32.h"
 
 #include "sleeplock.h" // TODO 和 fs/file.h 捆绑着引入
 #include "fs/fs.h"     // TODO 和 fs/file.h 捆绑着引入

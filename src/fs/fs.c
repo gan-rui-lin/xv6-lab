@@ -26,12 +26,14 @@
 #include "fs.h"
 #include "buf.h"
 #include "file.h"
+#include "fs/fat32.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 static void itrunc(struct inode*);
 // there should be one superblock per disk device, but we run with
 // only one device
 struct superblock sb; 
+int fat32_mode = 0; // 0: xv6fs, 1: FAT32
 
 // Read the super block.
 static void
@@ -47,9 +49,22 @@ readsb(int dev, struct superblock *sb)
 // Init fs
 void
 fsinit(int dev) {
+  // 尝试初始化 FAT32（优先）。若失败则回退到原始 xv6fs。
+  fat32_init(dev);
+  if(fat32_mode){
+    log_warn("fsinit: use FAT32 mode on dev %d", dev);
+    return;
+  }
   readsb(dev, &sb);
-  if(sb.magic != FSMAGIC)
+  if(sb.magic != FSMAGIC){
+    log_warn("fsinit: superblock magic invalid: 0x%x, fallback FAT32", sb.magic);
+    fat32_init(dev);
+    if(fat32_mode){
+      log_warn("fsinit: fallback succeeded, FAT32 enabled");
+      return;
+    }
     panic("invalid file system");
+  }
   initlog(dev, &sb);
 }
 
@@ -196,6 +211,12 @@ iinit()
 
 static struct inode* iget(uint dev, uint inum);
 
+// Public wrapper for FAT32 to obtain an icache inode
+struct inode* iget_pub(uint dev, uint inum)
+{
+  return iget(dev, inum);
+}
+
 // Allocate an inode on device dev.
 // Mark it as allocated by  giving it type type.
 // Returns an unlocked but allocated and referenced inode.
@@ -302,6 +323,14 @@ idup(struct inode *ip)
 void
 ilock(struct inode *ip)
 {
+  // FAT32: 仅获取锁，不从 xv6fs 盘读取
+  if(fat32_mode && ip && (ip->major == FAT32_INODE_TAG || ip->type == T_DEVICE)){
+    if(ip->ref < 1) panic("ilock(FAT32)");
+    acquiresleep(&ip->lock);
+    if(ip->valid == 0) ip->valid = 1;
+    return;
+  }
+
   if(sb.magic != FSMAGIC) {
     log_error("ilock: superblock not initialized! magic=0x%x\n", sb.magic);
   }
@@ -486,6 +515,9 @@ stati(struct inode *ip, struct stat *st)
 int
 readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
 {
+  if(fat32_mode && ip && ip->major == FAT32_INODE_TAG){
+    return fat32_readi(ip, user_dst, dst, off, n);
+  }
   uint tot, m;
   struct buf *bp;
 
@@ -700,6 +732,9 @@ namex(char *path, int nameiparent, char *name)
 struct inode*
 namei(char *path)
 {
+  if(fat32_mode){
+    return fat32_namei(path);
+  }
   char name[DIRSIZ];
   return namex(path, 0, name);
 }

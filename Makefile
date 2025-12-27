@@ -250,7 +250,7 @@ QEMUOPTS_FAT32 += -drive file=$(FAT32_IMG),if=none,format=raw,id=xfat
 QEMUOPTS_FAT32 += -device virtio-blk-device,drive=xfat,bus=virtio-mmio-bus.0
 
 # 新目标：用FAT32启动
-qemu-fat32: $(K)/kernel $(FAT32_IMG)
+qemu-fat32: $(K)/kernel
 	$(QEMU) $(QEMUOPTS_FAT32)
 
 fat32-gdb: $(K)/kernel .gdbinit $(FAT32_IMG)
@@ -264,12 +264,10 @@ qemu-gdb: $K/kernel .gdbinit fs.img
 	@echo "*** Now run 'gdb' in another window." 1>&2
 	$(QEMU) $(QEMUOPTS) -S $(QEMUGDB)
 
-run: $K/kernel fs.img
+run: $K/kernel 
 # 	直接把 KERNEL_ELF 拷贝到根目录并命名为 kernel-qemu
 	cp $K/kernel kernel-qemu
-# 	! dangerous: 直接覆盖 sdcard.img
-# 	! 仅作临时测试用
-	cp fs.img sdcard.img
+	cp sdcard.img-backup sdcard.img
 	
 	cp $(SRC)/bootloader/rustsbi-qemu-7.bin sbi-qemu
 # 	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu

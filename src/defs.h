@@ -199,6 +199,13 @@ int             readi(struct inode*, int, uint64, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, int, uint64, uint, uint);
 
+// fat32 (minimal)
+extern int      fat32_mode; // 0: xv6fs, 1: FAT32
+void            fat32_init(int dev);
+struct inode*   fat32_namei(char*);
+int             fat32_readi(struct inode*, int, uint64, uint, uint);
+struct inode*   iget_pub(uint dev, uint inum);
+
 // virtio_disk.c
 void            virtio_disk_init(int);
 void            virtio_disk_rw(int, struct buf *, int);

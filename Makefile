@@ -192,9 +192,17 @@ APP_NAMES := \
 	waitpid \
 	gettimeofday \
 	open \
-	read
-	
-
+	read \
+	brk \
+	mmap \
+	openat \
+	getpid \
+	getppid \
+	exit \
+	execve \
+	test_echo \
+	clone \
+	yield \
 # 从 user/apps/<name>/<name> 复制到 user/_<name>
 .PHONY: apps
 apps: $(APP_NAMES)
@@ -282,7 +290,7 @@ run: $K/kernel
 	cp $K/kernel kernel-qemu
 # 	cp sdcard.img-backup sdcard.img
 	
-	cp $(SRC)/bootloader/rustsbi-qemu-7.bin sbi-qemu
-# 	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
-
+#	cp $(SRC)/bootloader/rustsbi-qemu-7.bin sbi-qemu
+	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
+#
 all: run

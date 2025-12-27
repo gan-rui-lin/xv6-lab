@@ -557,3 +557,7 @@ sys_pipe(void)
   return 0;
 }
 
+sys_openat()
+{
+  
+}

@@ -689,22 +689,26 @@ static struct inode*
 namex(char *path, int nameiparent, char *name)
 {
   struct inode *ip, *next;
-  // log_debug("namex: looking up path %s, name is %s\n", path, name);
+  //printf("namex: looking up path '%s'\n", path);
 
   if(*path == '/'){
     // printf("namex: starting at root 111 /\n");
     ip = iget(ROOTDEV, ROOTINO);
-    // log_debug("namex: starting at root /\n");
+    //printf("namex: starting at root /, got inode %d\n", ip ? ip->inum : -1);
   }
-  else
+  else{
     ip = idup(myproc()->cwd);
+    //printf("namex: starting at cwd, got inode %d\n", ip ? ip->inum : -1);
+  }
   if(ip == 0){
     log_error("namex: no cwd\n");
     return 0;
   }
   while((path = skipelem(path, name)) != 0){
+    //printf("namex: looking for '%s' in inode %d\n", name, ip->inum);
     ilock(ip);
     if(ip->type != T_DIR){
+      //printf("namex: inode %d is not a directory\n", ip->inum);
       iunlockput(ip);
       return 0;
     }
@@ -714,9 +718,11 @@ namex(char *path, int nameiparent, char *name)
       return ip;
     }
     if((next = dirlookup(ip, name, 0)) == 0){
+      //printf("namex: '%s' not found in inode %d\n", name, ip->inum);
       iunlockput(ip);
       return 0;
     }
+    //printf("namex: found '%s' as inode %d\n", name, next->inum);
     iunlockput(ip);
     ip = next;
   }

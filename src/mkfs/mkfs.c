@@ -127,6 +127,24 @@ main(int argc, char *argv[])
   strcpy(de.name, "..");
   iappend(rootino, &de, sizeof(de));
 
+  // 创建 /mnt 目录
+  uint mntino = ialloc(T_DIR);
+  bzero(&de, sizeof(de));
+  de.inum = xshort(mntino);
+  strcpy(de.name, "mnt");
+  iappend(rootino, &de, sizeof(de));
+  
+  // mnt 目录的 . 和 .. 条目
+  bzero(&de, sizeof(de));
+  de.inum = xshort(mntino);
+  strcpy(de.name, ".");
+  iappend(mntino, &de, sizeof(de));
+  
+  bzero(&de, sizeof(de));
+  de.inum = xshort(rootino);
+  strcpy(de.name, "..");
+  iappend(mntino, &de, sizeof(de));
+
   for(i = 2; i < argc; i++){
     // get rid of "user/"
     char *shortname;

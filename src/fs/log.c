@@ -214,25 +214,25 @@ commit(int dev)
 void
 log_write(struct buf *b)
 {
-  int i;
+  // int i;
 
-  int dev = b->dev;
-  if (log[dev].lh.n >= LOGSIZE || log[dev].lh.n >= log[dev].size - 1)
-    panic("too big a transaction");
-  if (log[dev].outstanding < 1)
-    panic("log_write outside of trans");
+  // int dev = b->dev;
+  // if (log[dev].lh.n >= LOGSIZE || log[dev].lh.n >= log[dev].size - 1)
+  //   panic("too big a transaction");
+  // if (log[dev].outstanding < 1)
+  //   panic("log_write outside of trans");
 
-  acquire(&log[dev].lock);
-  for (i = 0; i < log[dev].lh.n; i++) {
-    if (log[dev].lh.block[i] == b->blockno)   // log absorbtion
-      break;
-  }
-  log[dev].lh.block[i] = b->blockno;
-  if (i == log[dev].lh.n) {  // Add new block to log?
-    bpin(b);
-    log[dev].lh.n++;
-  }
-  release(&log[dev].lock);
+  // acquire(&log[dev].lock);
+  // for (i = 0; i < log[dev].lh.n; i++) {
+  //   if (log[dev].lh.block[i] == b->blockno)   // log absorbtion
+  //     break;
+  // }
+  // log[dev].lh.block[i] = b->blockno;
+  // if (i == log[dev].lh.n) {  // Add new block to log?
+  //   bpin(b);
+  //   log[dev].lh.n++;
+  // }
+  // release(&log[dev].lock);
 }
 
 

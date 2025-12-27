@@ -45,6 +45,16 @@ static void read_sector512(uint dev, uint32 lba, uint8 *dst)
   brelse(bp);
 }
 
+static void write_sector512(uint dev, uint32 lba, uint8 *src)
+{
+  uint blk = lba / (BSIZE / 512);
+  uint offs = (lba % (BSIZE / 512)) * 512;
+  struct buf *bp = bread(dev, blk);
+  memmove(bp->data + offs, src, 512);
+  log_write(bp);
+  brelse(bp);
+}
+
 static uint32 clus_to_sec(uint32 clus)
 {
   if(clus < 2){
@@ -65,6 +75,26 @@ static uint32 fat_next_clus(uint32 clus)
   uint32 val = *(uint32 *)(sec + sec_off);
   val &= 0x0FFFFFFF; // 28-bit value
   return val;
+}
+
+static uint32 fat_alloc_clus(void)
+{
+  // Find free cluster starting from 2
+  for(uint32 cl = 2; cl < 0x0FFFFFF8; cl++){
+    uint32 val = fat_next_clus(cl);
+    if(val == 0){
+      // Mark as EOC
+      uint32 offset_bytes = cl * 4;
+      uint32 fat_sec = fat.fat_start_sec + (offset_bytes / fat.bps);
+      uint32 sec_off = offset_bytes % fat.bps;
+      uint8 sec[512];
+      read_sector512(fat.dev, fat_sec, sec);
+      *(uint32 *)(sec + sec_off) = 0x0FFFFFFF;
+      write_sector512(fat.dev, fat_sec, sec);
+      return cl;
+    }
+  }
+  return 0;
 }
 
 // Compare path component against short 8.3 dir entry name
@@ -195,7 +225,8 @@ static void lfn_extract_append(uint8 *de, char *buf, int *len)
       *len = 259;
     }
     
-    log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
+    // 比较重要的 log_info 输出
+    // log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
   }
 }
 
@@ -475,7 +506,7 @@ struct inode* fat32_namei(char *path)
     short typ; uint32 sz; uint32 st;
     int ok = dir_find(cur, comps[i], &typ, &sz, &st);
     if(!ok){
-      log_warn("fat32_namei: not found '%s'", comps[i]);
+      log_warn("fat32_namei: not found '%s'\n", comps[i]);
       return 0;
     }
     cur = st; cur_type = typ; cur_size = sz;
@@ -484,33 +515,6 @@ struct inode* fat32_namei(char *path)
 }
 
   
-  // struct msdos_dir_entry *de = (struct msdos_dir_entry*)buf;
-  // for(int i=0; i<16; i++){  // 16 entries per sector
-  //   if(de[i].name[0] == 0x00){
-  //     log_info("  end of directory");
-  //     break;
-  //   }
-  //   if(de[i].name[0] == 0xE5){
-  //     continue;  // deleted entry
-  //   }
-    
-  //   char namebuf[13] = {0};
-  //   // 提取短文件名
-  //   int j;
-  //   for(j=0; j<8 && de[i].name[j]!=' '; j++){
-  //     namebuf[j] = de[i].name[j];
-  //   }
-  //   if(de[i].ext[0] != ' '){
-  //     namebuf[j] = '.';
-  //     for(int k=0; k<3 && de[i].ext[k]!=' '; k++){
-  //       namebuf[j+1+k] = de[i].ext[k];
-  //     }
-  //   }
-    
-  //   uint32 first_clus = (de[i].starthi << 16) | de[i].start;
-  //   log_info("  [%d] '%s' attrib=0x%x cluster=%d size=%d", 
-  //            i, namebuf, de[i].attrib, first_clus, de[i].size);
-  // }
 
 // Resolve path relative to a given base directory inode for FAT32.
 // If path is absolute, behaves like fat32_namei.
@@ -648,3 +652,90 @@ int fat32_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   }
   return tot;
 }
+
+struct inode* fat32_createat(struct inode *dp, char *name, short type, int major, int minor)
+{
+  if(!dp || dp->major != FAT32_INODE_TAG || dp->type != T_DIR){
+    log_warn("fat32_createat: invalid dp");
+    return NULL;
+  }
+  uint32 dir_clus = dp->addrs[0];
+  uint32 new_clus = fat_alloc_clus();
+  if(new_clus == 0){
+    log_warn("fat32_createat: no free cluster");
+    return NULL;
+  }
+  // Find free directory entry
+  uint32 cl = dir_clus;
+  for(;;){
+    uint32 sec = clus_to_sec(cl);
+    for(uint s = 0; s < fat.spc; ++s){
+      uint8 buf[512];
+      read_sector512(fat.dev, sec + s, buf);
+      for(int off = 0; off < 512; off += 32){
+        uint8 *de = buf + off;
+        if(de[0] == 0x00 || de[0] == 0xE5){
+          // Free slot, write SFN
+          memset(de, 0, 32);
+          // Assume name is 8.3, uppercase
+          char sfn[11];
+          memset(sfn, ' ', 11);
+          int len = strlen(name);
+          int dot = -1;
+          for(int i = 0; i < len; i++){
+            if(name[i] == '.') dot = i;
+          }
+          int name_len = (dot >= 0) ? dot : len;
+          int ext_len = (dot >= 0) ? len - dot - 1 : 0;
+          for(int i = 0; i < 8 && i < name_len; i++){
+            char c = name[i];
+            if(c >= 'a' && c <= 'z') c -= 32;
+            sfn[i] = c;
+          }
+          for(int i = 0; i < 3 && i < ext_len; i++){
+            char c = name[dot + 1 + i];
+            if(c >= 'a' && c <= 'z') c -= 32;
+            sfn[8 + i] = c;
+          }
+          memmove(de, sfn, 11);
+          de[11] = (type == T_DIR) ? 0x10 : 0x00;
+          *(uint16 *)(de + 20) = new_clus >> 16;
+          *(uint16 *)(de + 26) = new_clus & 0xFFFF;
+          *(uint32 *)(de + 28) = 0; // size
+          write_sector512(fat.dev, sec + s, buf);
+          // For directory, initialize . and ..
+          if(type == T_DIR){
+            uint32 data_sec = clus_to_sec(new_clus);
+            uint8 data_buf[512] = {0};
+            // .
+            uint8 *de_dot = data_buf;
+            memset(de_dot, 0, 32);
+            de_dot[0] = '.';
+            memset(de_dot + 1, ' ', 10);
+            de_dot[11] = 0x10;
+            *(uint16 *)(de_dot + 20) = new_clus >> 16;
+            *(uint16 *)(de_dot + 26) = new_clus & 0xFFFF;
+            // ..
+            uint8 *de_dotdot = data_buf + 32;
+            memset(de_dotdot, 0, 32);
+            de_dotdot[0] = '.';
+            de_dotdot[1] = '.';
+            memset(de_dotdot + 2, ' ', 9);
+            de_dotdot[11] = 0x10;
+            *(uint16 *)(de_dotdot + 20) = dir_clus >> 16;
+            *(uint16 *)(de_dotdot + 26) = dir_clus & 0xFFFF;
+            write_sector512(fat.dev, data_sec, data_buf);
+          }
+          return make_inode(fat.dev, type, 0, new_clus);
+        }
+      }
+    }
+    // Next cluster
+    uint32 nxt = fat_next_clus(cl);
+    if(nxt >= 0x0FFFFFF8) break;
+    cl = nxt;
+  }
+  log_warn("fat32_createat: no free directory entry");
+  return NULL;
+}
+

@@ -58,3 +58,8 @@ struct dirent {
   char name[DIRSIZ];
 };
 
+// Function declarations
+struct inode* namei(char *path);
+struct inode* nameiat(struct inode *base, char *path);
+struct inode* createat(struct inode *dp, char *name, short type, short major, short minor);
+

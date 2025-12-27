@@ -786,3 +786,14 @@ nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
 }
+
+struct inode*
+createat(struct inode *dp, char *name, short type, short major, short minor)
+{
+  if(fat32_mode){
+    return fat32_createat(dp, name, type, major, minor);
+  }
+  // For xv6fs, create is absolute, so not supported for relative
+  log_warn("createat: xv6fs does not support relative create");
+  return NULL;
+}

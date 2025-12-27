@@ -19,11 +19,11 @@ static int normalize_open_flags(int flags)
   if(flags & O_WRONLY) norm |= O_WRONLY;
   if(flags & O_RDWR)   norm |= O_RDWR;
   // Linux O_CREAT=0x40 → 内核 O_CREATE=0x200
-  if(flags & 0x40)     norm |= O_CREATE;
+  if(flags & LINUX_O_CREAT)     norm |= O_CREATE;
   // Linux O_TRUNC=0x200 → 内核 O_TRUNC=0x400
-  if(flags & 0x200)    norm |= O_TRUNC;
+  if(flags & LINUX_O_TRUNC)    norm |= O_TRUNC;
   // Linux O_DIRECTORY=0x200000 → 内核 O_DIRECTORY=0x10000
-  if(flags & 0x200000) norm |= O_DIRECTORY;
+  if(flags & LINUX_O_DIRECTORY) norm |= O_DIRECTORY;
   // 其余未映射位忽略
   return norm;
 }
@@ -404,24 +404,28 @@ sys_openat(void)
 
   begin_op(ROOTDEV);
 
+  struct file *dirf = 0;
+  if(path[0] != '/' && dirfd != AT_FDCWD && dirfd >= 0){
+    struct proc *p = myproc();
+    if(dirfd >= NOFILE){
+      log_warn("sys_openat: dirfd out of range %d", dirfd);
+      end_op(ROOTDEV);
+      return -1;
+    }
+    dirf = p->ofile[dirfd];
+    if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR){
+      log_warn("sys_openat: dirfd not a directory fd=%d", dirfd);
+      end_op(ROOTDEV);
+      return -1;
+    }
+  }
+
   // First resolve the target according to dirfd semantics
   if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
     // if(path[0] == '/') log_info("sys_openat: absolute path");
     // else log_info("sys_openat: relative to cwd");
     ip = namei(path);
   } else {
-    struct proc *p = myproc();
-    if(dirfd < 0 || dirfd >= NOFILE){
-      log_warn("sys_openat: dirfd out of range %d", dirfd);
-      end_op(ROOTDEV);
-      return -1;
-    }
-    struct file *dirf = p->ofile[dirfd];
-    if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR){
-      log_warn("sys_openat: dirfd not a directory fd=%d", dirfd);
-      end_op(ROOTDEV);
-      return -1;
-    }
     // log_info("sys_openat: relative to dirfd=%d", dirfd);
     ip = nameiat(dirf->ip, path);
   }
@@ -436,10 +440,12 @@ sys_openat(void)
           return -1;
         }
       } else {
-        // TODO: create relative to dirfd for xv6fs; FAT32 write not supported
-        log_warn("sys_openat: create relative to dirfd not supported");
-        end_op(ROOTDEV);
-        return -1;
+        ip = createat(dirf->ip, path, T_FILE, 0, 0);
+        if(ip == 0){
+          log_warn("sys_openat: createat failed for '%s'", path);
+          end_op(ROOTDEV);
+          return -1;
+        }
       }
     } else {
       log_warn("sys_openat: resolve failed for '%s'", path);

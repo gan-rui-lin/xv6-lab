@@ -6,6 +6,10 @@ SRC=src
 # 默认使用所有可用 CPU 核心进行并行编译
 NPROC := $(shell nproc)
 MAKEFLAGS += -j$(NPROC)
+# ! 提交时改为 release 模式
+mode := release
+$(info === Build mode: $(mode) ===)
+
 
 # ===== 路径定义 =====
 SRC_DIRS := boot devs lib mm proc sync syscall trap
@@ -62,6 +66,15 @@ CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I. -I$(SRC)
 CFLAGS += -march=rv64gc -mabi=lp64
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+
+
+ifeq ($(mode),debug)
+CFLAGS += -DLOG_DEBUG_ENABLE
+CFLAGS += -DLOG_INFO_ENABLE
+CFLAGS += -DLOG_WARN_ENABLE
+CFLAGS += -DLOG_ERROR_ENABLE
+endif
+
 # CFLAGS += -DPAGE_TABLE_DEBUG
 # CFLAGS += -DTICKER_DEBUG
 # CFLAGS += -DCONSOLE_DEBUG

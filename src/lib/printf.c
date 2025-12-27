@@ -231,43 +231,60 @@ printf(char *fmt, ...)
 void
 log_info(char *fmt, ...)
 {
+  #ifdef LOG_INFO_ENABLE
     va_list ap;
     va_start(ap, fmt);
     printf_color(COLOR_GREEN, "[INFO] ");
     vprintf_internal(fmt, ap);
     printf_color(COLOR_RESET, "");
     va_end(ap);
+
+  #else
+    (void)fmt; // 避免未使用参数的编译警告
+  #endif
 }
 
 void
 log_warn(char *fmt, ...)
 {
+  #ifdef LOG_WARN_ENABLE
     va_list ap;
     va_start(ap, fmt);
     printf_color(COLOR_YELLOW, "[WARN] ");
     vprintf_internal(fmt, ap);
     printf_color(COLOR_RESET, "");
     va_end(ap);
+  #else
+    (void)fmt; // 避免未使用参数的编译警告
+  #endif
 }
 
 void
 log_error(char *fmt, ...)
 {
+  #ifdef LOG_ERROR_ENABLE
     va_list ap;
     va_start(ap, fmt);
     printf_color(COLOR_RED, "[ERROR] ");
     vprintf_internal(fmt, ap);
     printf_color(COLOR_RESET, "");
     va_end(ap);
+  #else
+    (void)fmt; // 避免未使用参数的编译警告
+  #endif
 }
 
 void
 log_debug(char *fmt, ...)
 {
+  #ifdef LOG_DEBUG_ENABLE
     va_list ap;
     va_start(ap, fmt);
     printf_color(COLOR_CYAN, "[DEBUG] ");
     vprintf_internal(fmt, ap);
     printf_color(COLOR_RESET, "");
     va_end(ap);
+  #else
+    (void)fmt; // 避免未使用参数的编译警告
+  #endif
 }

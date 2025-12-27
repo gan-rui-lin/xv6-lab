@@ -352,6 +352,76 @@ sys_open(void)
   return fd;
 }
 
+// Linux 兼容的 openat(56): a0=dirfd, a1=pathname, a2=flags, a3=mode
+// 这里忽略 dirfd/mode，最小化适配到现有的 sys_open 逻辑。
+uint64
+sys_openat(void)
+{
+  char path[MAXPATH];
+  int dirfd, flags;
+  int fd;
+  struct file *f;
+  struct inode *ip;
+  int n;
+
+  // 提取参数（Linux 布局）
+  if(argint(0, &dirfd) < 0) return -1; // 忽略
+  if((n = argstr(1, path, MAXPATH)) < 0 || argint(2, &flags) < 0)
+    return -1;
+
+  begin_op(ROOTDEV);
+
+  if(flags & O_CREATE){
+    ip = create(path, T_FILE, 0, 0);
+    if(ip == 0){
+      end_op(ROOTDEV);
+      return -1;
+    }
+  } else {
+    if((ip = namei(path)) == 0){
+      end_op(ROOTDEV);
+      return -1;
+    }
+    ilock(ip);
+    if(ip->type == T_DIR && flags != O_RDONLY){
+      iunlockput(ip);
+      end_op(ROOTDEV);
+      return -1;
+    }
+  }
+
+  if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
+    iunlockput(ip);
+    end_op(ROOTDEV);
+    return -1;
+  }
+
+  if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
+    if(f)
+      fileclose(f);
+    iunlockput(ip);
+    end_op(ROOTDEV);
+    return -1;
+  }
+
+  if(ip->type == T_DEVICE){
+    f->type = FD_DEVICE;
+    f->major = ip->major;
+    f->minor = ip->minor;
+  } else {
+    f->type = FD_INODE;
+  }
+  f->ip = ip;
+  f->off = 0;
+  f->readable = !(flags & O_WRONLY);
+  f->writable = (flags & O_WRONLY) || (flags & O_RDWR);
+
+  iunlock(ip);
+  end_op(ROOTDEV);
+
+  return fd;
+}
+
 uint64
 sys_mkdir(void)
 {

@@ -52,7 +52,7 @@ fsinit(int dev) {
   // 尝试初始化 FAT32（优先）。若失败则回退到原始 xv6fs。
   fat32_init(dev);
   if(fat32_mode){
-    log_warn("fsinit: use FAT32 mode on dev %d", dev);
+    log_warn("fsinit: use FAT32 mode on dev %d\n", dev);
     return;
   }
   readsb(dev, &sb);

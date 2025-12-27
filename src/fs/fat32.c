@@ -247,11 +247,29 @@ struct inode* fat32_namei(char *path)
   char workbuf[MAXPATH];
   char *comps[32];
   int n = split_path(path, comps, 32, workbuf, sizeof(workbuf));
-  uint32 cur = fat.root_clus;
+  // base: root for absolute; cwd for relative
+  uint32 cur = (path[0] == '/') ? fat.root_clus : fat.root_clus;
+  if(path[0] != '/'){
+    struct proc *p = myproc();
+    if(p && p->cwd){
+      uint32 cwdclus = p->cwd->addrs[0];
+      if(cwdclus != 0) cur = cwdclus;
+    }
+  }
   short cur_type = T_DIR;
   uint32 cur_size = 0;
   if(n == 0){
     return make_inode(fat.dev, T_DIR, 0, cur);
+  }
+  // 单个 "." 解析为当前工作目录
+  if(n == 1 && comps[0][0] == '.' && comps[0][1] == 0){
+    struct proc *p = myproc();
+    if(p && p->cwd){
+      uint32 cwdclus = p->cwd->addrs[0];
+      if(cwdclus == 0) cwdclus = fat.root_clus;
+      return make_inode(fat.dev, T_DIR, 0, cwdclus);
+    }
+    return make_inode(fat.dev, T_DIR, 0, fat.root_clus);
   }
   // special device: console
   if(n == 1){
@@ -269,6 +287,10 @@ struct inode* fat32_namei(char *path)
     }
   }
   for(int i=0;i<n;i++){
+    // skip '.' components
+    if(comps[i][0] == '.' && comps[i][1] == 0){
+      continue;
+    }
     short typ; uint32 sz; uint32 st;
     int ok = dir_find(cur, comps[i], &typ, &sz, &st);
     if(!ok){

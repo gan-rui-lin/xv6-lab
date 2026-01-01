@@ -217,9 +217,23 @@ syscall_handler(void)
   // 获取系统调用号
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    // printf("syscall %d called from pid %d\n", num, p->pid);
+    // 轻量 syscall 跟踪：仅针对 busybox 进程打印调用与返回值
+    int trace = ((p->name)[0] == 'b' &&
+                 (p->name)[1] == 'u' &&
+                 (p->name)[2] == 's' &&
+                 (p->name)[3] == 'y' &&
+                 (p->name)[4] == 'b' &&
+                 (p->name)[5] == 'o' &&
+                 (p->name)[6] == 'x' );
+    if (trace) {
+      printf("[syscall] pid=%d name=%s num=%d\n", p->pid, p->name, num);
+    }
     // 系统函数返回值放在 p->trapframe->a0
-    p->trapframe->a0 = syscalls[num]();  
+    uint64 ret = syscalls[num]();
+    p->trapframe->a0 = ret;
+    if (trace) {
+      printf("[syscall] pid=%d name=%s num=%d ret=%ld\n", p->pid, p->name, num, (long)ret);
+    }
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);

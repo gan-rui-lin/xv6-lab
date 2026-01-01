@@ -323,9 +323,50 @@ sys_brk(void)
 uint64
 sys_mmap(void)
 {
-  // TODO: 实现 mmap 系统调用
-  // 暂时返回错误，避免编译错误
-  return -1;
+  // Minimal mmap: support MAP_PRIVATE|MAP_ANONYMOUS only; ignore addr/fd/offset.
+  // Args: a0=addr (hint), a1=len, a2=prot, a3=flags, a4=fd, a5=offset
+  uint64 addr, len, prot, flags, fd, off;
+  argaddr(0, &addr);
+  argaddr(1, &len);
+  argaddr(2, &prot);
+  argaddr(3, &flags);
+  argaddr(4, &fd);
+  argaddr(5, &off);
+
+  // Linux flags/prot bits (minimal subset)
+  #define LINUX_PROT_READ   0x1
+  #define LINUX_PROT_WRITE  0x2
+  #define LINUX_PROT_EXEC   0x4
+  #define LINUX_MAP_PRIVATE 0x02
+  #define LINUX_MAP_FIXED   0x10
+  #define LINUX_MAP_ANON    0x20
+
+  // Only support anonymous private mappings for now, and no MAP_FIXED.
+  if(((flags & LINUX_MAP_PRIVATE) == 0) || ((flags & LINUX_MAP_ANON) == 0))
+    return -1;
+  if(flags & LINUX_MAP_FIXED)
+    return -1;
+
+  if(len == 0)
+    return -1;
+
+  struct proc *p = myproc();
+
+  // Compute permissions
+  int perm = 0;
+  if (prot & LINUX_PROT_READ)  perm |= PTE_R;
+  if (prot & LINUX_PROT_WRITE) perm |= PTE_W;
+  if (prot & LINUX_PROT_EXEC)  perm |= PTE_X;
+
+  // Map at the end of current heap; page-align size and start.
+  uint64 oldsz = PGROUNDUP(p->sz);
+  uint64 newsz = oldsz + PGROUNDUP(len);
+  if(uvmalloc(p->pagetable, oldsz, newsz, perm) == 0)
+    return -1;
+  p->sz = newsz;
+
+  // Return mapping start address
+  return oldsz;
 }
 
 uint64

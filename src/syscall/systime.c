@@ -45,3 +45,37 @@ sys_gettimeofday(void)
   return 0;
 }
 
+
+uint64
+sys_times(){
+  // Linux times(): fill user tms if provided, return ticks since start
+  uint64 tms_addr;
+  struct {
+    long tms_utime;
+    long tms_stime;
+    long tms_cutime;
+    long tms_cstime;
+  } tms;
+
+  // get buffer address
+  argaddr(0, &tms_addr);
+
+  // read current ticks
+  uint xticks;
+  acquire(&tickslock);
+  xticks = ticks;
+  release(&tickslock);
+
+  // minimal accounting: expose uptime ticks as user time
+  tms.tms_utime = (long)xticks;
+  tms.tms_stime = 0;
+  tms.tms_cutime = 0;
+  tms.tms_cstime = 0;
+
+  if (tms_addr != 0) {
+    if (copyout(myproc()->pagetable, tms_addr, (char*)&tms, sizeof(tms)) < 0)
+      return -1;
+  }
+
+  return xticks;
+}

@@ -1,4 +1,5 @@
 
+
 // Minimal FAT32 read-only support to enable exec()
 // - Path lookup with short 8.3 names (uppercase)
 // - File reading via cluster chain
@@ -34,87 +35,6 @@ static struct {
   uint32 fat_start_sec; // FAT start sector (LBA)
 } fat;
 
-
-// FAT32目录遍历，仿Linux getdents64，返回写入的字节数
-// 参数：ip=目录inode，off=目录偏移（以字节为单位），dst=用户空间buf，len=buf大小
-// 返回：实际写入的字节数，或0表示结尾，-1表示错误
-// int fat32_getdents64(struct inode *ip, uint off, uint64 dst, uint len) {
-//   if (!ip || ip->major != FAT32_INODE_TAG || ip->type != T_DIR) return -1;
-//   struct proc *p = myproc();
-//   uint32 cl = ip->addrs[0];
-//   uint32 bytes_per_cluster = fat.spc * fat.bps;
-//   uint32 dir_off = off; // 当前目录偏移
-//   uint written = 0;
-//   char lfn_buf[256];
-//   int lfn_len = 0;
-//   int reclen;
-//   while (written + sizeof(struct dirent) < len) {
-//     // 计算当前偏移对应的cluster和sector
-//     uint32 cur_cl = cl;
-//     uint32 remain = dir_off;
-//     while (remain >= bytes_per_cluster) {
-//       cur_cl = fat_next_clus(cur_cl);
-//       if (cur_cl >= 0x0FFFFFF8) return written; // 结尾
-//       remain -= bytes_per_cluster;
-//     }
-//     uint32 sec = clus_to_sec(cur_cl);
-//     uint32 sec_off = remain / 512;
-//     uint32 ent_off = remain % 512;
-//     uint8 secbuf[512];
-//     read_sector512(fat.dev, sec + sec_off, secbuf);
-//     if (ent_off + 32 > 512) {
-//       // 跨扇区不处理
-//       break;
-//     }
-//     uint8 *de = secbuf + ent_off;
-//     // 目录项结束
-//     if (de[0] == 0x00) break;
-//     // 跳过无效项
-//     if (de[0] == 0xE5) {
-//       dir_off += 32;
-//       continue;
-//     }
-//     // LFN项
-//     if ((de[11] & 0x0F) == 0x0F) {
-//       // 累积LFN片段
-//       lfn_extract_append(de, lfn_buf, &lfn_len);
-//       dir_off += 32;
-//       continue;
-//     }
-//     // SFN项
-//     struct dirent dent;
-//     memset(&dent, 0, sizeof(dent));
-//     // inode号用起始cluster
-//     dent.d_ino = ((uint32)de[26] | ((uint32)de[27] << 8) | ((uint32)de[20] << 16) | ((uint32)de[21] << 24));
-//     dent.d_off = dir_off + 32; // 下一个dirent偏移
-//     dent.d_reclen = sizeof(struct dirent);
-//     // 类型
-//     if (de[11] & 0x10) dent.d_type = 4; // DT_DIR
-//     else dent.d_type = 8; // DT_REG
-//     // 文件名
-//     if (lfn_len > 0) {
-//       int n = lfn_len < sizeof(dent.d_name) - 1 ? lfn_len : sizeof(dent.d_name) - 1;
-//       memmove(dent.d_name, lfn_buf, n);
-//       dent.d_name[n] = 0;
-//       lfn_len = 0;
-//     } else {
-//       // 8.3转字符串
-//       int i = 0, j = 0;
-//       while (i < 8 && de[i] != ' ') dent.d_name[j++] = de[i++];
-//       if (de[8] != ' ') {
-//         dent.d_name[j++] = '.';
-//         int k = 8;
-//         while (k < 11 && de[k] != ' ') dent.d_name[j++] = de[k++];
-//       }
-//       dent.d_name[j] = 0;
-//     }
-//     // 拷贝到用户空间
-//     if (copyout(p->pagetable, dst + written, (char *)&dent, sizeof(dent)) < 0) return -1;
-//     written += sizeof(dent);
-//     dir_off += 32;
-//   }
-//   return written;
-// }
 
 
 // fat32_mode is defined in fs/fs.c
@@ -948,3 +868,84 @@ struct inode* fat32_create(char *path, short type, int major, int minor)
   return ip;
 }
 
+
+// FAT32目录遍历，仿Linux getdents64，返回写入的字节数
+// 参数：ip=目录inode，off=目录偏移（以字节为单位），dst=用户空间buf，len=buf大小
+// 返回：实际写入的字节数，或0表示结尾，-1表示错误
+int fat32_getdents64(struct inode *ip, uint off, uint64 dst, uint len) {
+  if (!ip || ip->major != FAT32_INODE_TAG || ip->type != T_DIR) return -1;
+  struct proc *p = myproc();
+  uint32 cl = ip->addrs[0];
+  uint32 bytes_per_cluster = fat.spc * fat.bps;
+  uint32 dir_off = off; // 当前目录偏移
+  uint written = 0;
+  char lfn_buf[256];
+  int lfn_len = 0;
+  int reclen;
+  while (written + sizeof(struct dirent) < len) {
+    // 计算当前偏移对应的cluster和sector
+    uint32 cur_cl = cl;
+    uint32 remain = dir_off;
+    while (remain >= bytes_per_cluster) {
+      cur_cl = fat_next_clus(cur_cl);
+      if (cur_cl >= 0x0FFFFFF8) return written; // 结尾
+      remain -= bytes_per_cluster;
+    }
+    uint32 sec = clus_to_sec(cur_cl);
+    uint32 sec_off = remain / 512;
+    uint32 ent_off = remain % 512;
+    uint8 secbuf[512];
+    read_sector512(fat.dev, sec + sec_off, secbuf);
+    if (ent_off + 32 > 512) {
+      // 跨扇区不处理
+      break;
+    }
+    uint8 *de = secbuf + ent_off;
+    // 目录项结束
+    if (de[0] == 0x00) break;
+    // 跳过无效项
+    if (de[0] == 0xE5) {
+      dir_off += 32;
+      continue;
+    }
+    // LFN项
+    if ((de[11] & 0x0F) == 0x0F) {
+      // 累积LFN片段
+      lfn_extract_append(de, lfn_buf, &lfn_len);
+      dir_off += 32;
+      continue;
+    }
+    // SFN项
+    struct dirent dent;
+    memset(&dent, 0, sizeof(dent));
+    // inode号用起始cluster
+    dent.d_ino = ((uint32)de[26] | ((uint32)de[27] << 8) | ((uint32)de[20] << 16) | ((uint32)de[21] << 24));
+    dent.d_off = dir_off + 32; // 下一个dirent偏移
+    dent.d_reclen = sizeof(struct dirent);
+    // 类型
+    if (de[11] & 0x10) dent.d_type = 4; // DT_DIR
+    else dent.d_type = 8; // DT_REG
+    // 文件名
+    if (lfn_len > 0) {
+      int n = lfn_len < sizeof(dent.d_name) - 1 ? lfn_len : sizeof(dent.d_name) - 1;
+      memmove(dent.d_name, lfn_buf, n);
+      dent.d_name[n] = 0;
+      lfn_len = 0;
+    } else {
+      // 8.3转字符串
+      int i = 0, j = 0;
+      while (i < 8 && de[i] != ' ') dent.d_name[j++] = de[i++];
+      if (de[8] != ' ') {
+        dent.d_name[j++] = '.';
+        int k = 8;
+        while (k < 11 && de[k] != ' ') dent.d_name[j++] = de[k++];
+      }
+      dent.d_name[j] = 0;
+    }
+    // 拷贝到用户空间
+    if (copyout(p->pagetable, dst + written, (char *)&dent, sizeof(dent)) < 0) return -1;
+    written += sizeof(dent);
+    dir_off += 32;
+  }
+  return written;
+}

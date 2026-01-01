@@ -54,37 +54,37 @@ int main()
     dup(0); // stdout
     dup(0); // stderr
 
-    // test_("getppid");
+    test_("getppid");
 
     // test_("chdir");
     // test_shell();
-    // test_("fork");
-    // test_("gettimeofday");
+    test_("fork");
+    test_("gettimeofday");
 
-    // test_("open");
-    // test_("read");
-    // test_("brk");
-    // //test_("mmap");
-    // test_("openat");
-    // test_("getpid");
-    // test_("exit");
-    // test_("wait");
-    // test_("execve");
-    // test_("clone");
-    // test_("yield");
-    // test_("waitpid");
+    test_("open");
+    test_("read");
+    test_("brk");
+    //test_("mmap");
+    test_("openat");
+    test_("getpid");
+    test_("exit");
+    test_("wait");
+    test_("execve");
+    test_("clone");
+    test_("yield");
+    test_("waitpid");
 
-    // test_("dup");
-    // test_("close");
+    test_("dup");
+    test_("close");
     test_("mkdir_"); //! failed
-    // // test_("chdir"); //! another syscall called, not completed
-    // test_("dup2");  //! failed
-    // test_("getdents"); //! wrong getdents fd:1
-    // // test_("mount"); //! exception
-    // test_("pipe");  //? maybe right
-    // test_("fstat"); //! wrong
-    // test_("write");
-    // test_("uname");
+    // test_("chdir"); //! another syscall called, not completed
+    test_("dup2");  //! failed
+    test_("getdents"); //! wrong getdents fd:1
+    // test_("mount"); //! exception
+    test_("pipe");  //? maybe right
+    test_("fstat"); //! wrong
+    test_("write");
+    test_("uname");
     shutdown();
     return 0;
 }

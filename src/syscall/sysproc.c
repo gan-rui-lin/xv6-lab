@@ -428,14 +428,12 @@ sys_nanosleep(void)
   if (req.sec < 0 || req.usec < 0 || req.usec >= 1000000L)
     return -1;
 
-  // 将时间粗略转换为 tick 数：
-  // 无全局HZ常量，这里按最小保证策略：
-  // 至少睡一tick，且每整秒增加一tick。
-  int n_ticks = 0;
-  if (req.sec > 0)
-    n_ticks += (int)req.sec;
-  if (req.usec > 0)
-    n_ticks += 1; // 有微秒部分则增加一个tick
+  // 精确转换为 tick 数：假定时钟中断为 1ms/tick（HZ=1000）。
+  // 将秒/微秒转换为总纳秒并按 1ms 进行向上取整。
+  const long TICK_NS = 1000000L;   // 1 ms
+  unsigned long long total_ns = (unsigned long long)req.sec * 1000000000ULL
+                              + (unsigned long long)req.usec * 1000ULL;
+  int n_ticks = (int)((total_ns + TICK_NS - 1) / TICK_NS); // ceil(total_ns / 1ms)
 
   if (n_ticks <= 0)
     return 0;

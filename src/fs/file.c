@@ -101,6 +101,7 @@ filestat(struct file *f, uint64 addr)
     if(copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0)  // 拷贝给用户空间
       return -1;
     return 0;
+    
   }
   return -1;                        // 非普通文件/设备类型无法 stat
 }

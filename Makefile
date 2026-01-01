@@ -196,6 +196,7 @@ APP_NAMES := \
 	brk \
 	mmap \
 	openat \
+	fstat \
 	getpid \
 	getppid \
 	exit \
@@ -203,6 +204,7 @@ APP_NAMES := \
 	test_echo \
 	clone \
 	yield \
+	
 # 从 user/apps/<name>/<name> 复制到 user/_<name>
 .PHONY: apps
 apps: $(APP_NAMES)

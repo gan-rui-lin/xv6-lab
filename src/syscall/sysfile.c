@@ -221,12 +221,57 @@ uint64
 sys_fstat(void)
 {
   struct file *f;
-  uint64 st; // user pointer to struct stat
-
-  if(argfd(0, 0, &f) < 0 || argaddr(1, &st) < 0)
+  int fd;
+  uint64 kst_addr;
+  struct proc *p = myproc();
+  
+  // 获取参数: fd 和 kstat 指针
+  if(argint(0, &fd) < 0 || argaddr(1, &kst_addr) < 0)
     return -1;
-  return filestat(f, st);
+  
+  // 获取文件描述符对应的文件
+  if(argfd(0, &fd, &f) < 0)
+    return -1;
+  
+  // 获取文件状态信息
+  if(f->type == FD_INODE || f->type == FD_DEVICE){
+    struct stat st;
+    struct kstat kst;
+    
+    ilock(f->ip);
+    stati(f->ip, &st);
+    iunlock(f->ip);
+    
+    // 将 stat 转换为 kstat (Linux格式)
+    kst.st_dev = st.dev;
+    kst.st_ino = st.ino;
+    kst.st_mode = (st.type == T_DIR) ? 0040000 : 0100000; // S_IFDIR : S_IFREG
+    kst.st_nlink = st.nlink;
+    kst.st_uid = 0;
+    kst.st_gid = 0;
+    kst.st_rdev = 0;
+    kst.__pad = 0;
+    kst.st_size = st.size;
+    kst.st_blksize = 512;
+    kst.__pad2 = 0;
+    kst.st_blocks = (st.size + 511) / 512;
+    kst.st_atime_sec = 0;
+    kst.st_atime_nsec = 0;
+    kst.st_mtime_sec = 0;
+    kst.st_mtime_nsec = 0;
+    kst.st_ctime_sec = 0;
+    kst.st_ctime_nsec = 0;
+    
+    // 复制到用户空间
+    if(copyout(p->pagetable, kst_addr, (char *)&kst, sizeof(kst)) < 0)
+      return -1;
+      
+    return 0;
+  }
+  
+  return -1;
 }
+
 
 // Create the path new as a link to the same inode as old.
 uint64

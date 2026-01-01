@@ -18,6 +18,8 @@ struct inode* fat32_nameiat(struct inode *base, char *path);
 int fat32_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n);
 struct inode* fat32_createat(struct inode *dp, char *name, short type, int major, int minor);
 struct inode* fat32_create(char *path, short type, int major, int minor);
+int fat32_unlink(char *path, int want_dir);
+
 
 // Read directory entries in Linux getdents64 format from a FAT32 directory
 // off is the logical entry index (count of directory entries already returned)

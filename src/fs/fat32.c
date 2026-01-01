@@ -1090,8 +1090,11 @@ struct inode* fat32_create(char *path, short type, int major, int minor)
   uint32 cur = fat.root_clus;
   short cur_type = T_DIR;
   for(int i = 0; i < n - 1; i++){
+    // 跳过 "."
+    if(comps[i][0] == '.' && comps[i][1] == 0)continue;
     short typ; uint32 sz; uint32 st;
     int ok = dir_find(cur, comps[i], &typ, &sz, &st);
+    char *jd=".";
     if(!ok || typ != T_DIR){
       log_warn("fat32_create: parent not found '%s'", comps[i]);
       end_op(fat.dev);
@@ -1109,4 +1112,154 @@ struct inode* fat32_create(char *path, short type, int major, int minor)
   return ip;
 }
 
+// Unlink a file or directory entry on FAT32 by path.
+// For now we only mark the directory entry (and its LFN entries) as deleted;
+// we do not free clusters. want_dir!=0 means caller expects a directory.
+int fat32_unlink(char *path, int want_dir)
+{
+  if(!path || !*path){
+    log_warn("fat32_unlink: empty path");
+    return -1;
+  }
+  if(!fat32_mode){
+    log_warn("fat32_unlink: fat32 disabled");
+    return -1;
+  }
+
+  begin_op(fat.dev);
+
+  // Split path into components
+  char workbuf[MAXPATH];
+  char *comps[32];
+  int n = split_path(path, comps, 32, workbuf, sizeof(workbuf));
+  if(n == 0){
+    log_warn("fat32_unlink: invalid path");
+    end_op(fat.dev);
+    return -1;
+  }
+
+  // Walk to parent directory (similar to fat32_create)
+  uint32 cur = fat.root_clus;
+  for(int i = 0; i < n - 1; i++){
+    // skip '.' components
+    if(comps[i][0] == '.' && comps[i][1] == 0)
+      continue;
+    short typ; uint32 sz; uint32 st;
+    int ok = dir_find(cur, comps[i], &typ, &sz, &st);
+    if(!ok || typ != T_DIR){
+      log_warn("fat32_unlink: parent not found '%s'", comps[i]);
+      end_op(fat.dev);
+      return -1;
+    }
+    cur = st;
+  }
+
+  const char *target = comps[n-1];
+
+  // Scan parent directory entries and mark matching entry deleted
+  uint32 dir_clus = cur;
+  uint32 cl = dir_clus;
+
+  for(;;){
+    uint32 sec = clus_to_sec(cl);
+    for(uint s = 0; s < fat.spc; s++){
+      uint8 buf[512];
+      read_sector512(fat.dev, sec + s, buf);
+
+      char lfn_name[260];
+      int lfn_len = 0;
+      lfn_name[0] = 0;
+
+      for(int off = 0; off < 512; off += 32){
+        uint8 *de = buf + off;
+        uint8 first = de[0];
+        uint8 attr  = de[11];
+
+        if(first == 0x00){
+          // end of directory; not found
+          log_warn("fat32_unlink: not found '%s'", target);
+          end_op(fat.dev);
+          return -1;
+        }
+        if(first == 0xE5){
+          // deleted entry, reset any accumulated LFN
+          lfn_len = 0;
+          lfn_name[0] = 0;
+          continue;
+        }
+
+        if(attr == 0x0F){
+          // LFN entry, accumulate name and continue
+          lfn_extract_append(de, lfn_name, &lfn_len);
+          continue;
+        }
+
+        // Normal SFN entry
+        int matched = 0;
+        if(lfn_len > 0){
+          if(str_eq(target, lfn_name))
+            matched = 1;
+        }
+        if(!matched){
+          if(match_sfn(target, de))
+            matched = 1;
+        }
+
+        if(!matched){
+          // clear LFN buffer and move on
+          lfn_len = 0;
+          lfn_name[0] = 0;
+          continue;
+        }
+
+        // Type check: directory vs non-directory
+        int is_dir = (attr & 0x10) != 0;
+        if(is_dir && !want_dir){
+          log_warn("fat32_unlink: '%s' is a directory", target);
+          end_op(fat.dev);
+          return -1;
+        }
+        if(!is_dir && want_dir){
+          log_warn("fat32_unlink: '%s' is not a directory", target);
+          end_op(fat.dev);
+          return -1;
+        }
+
+        // Mark SFN entry as deleted
+        de[0] = 0xE5;
+
+        // Also mark preceding LFN entries in this run as deleted
+        int back = off - 32;
+        while(back >= 0){
+          uint8 *lde = buf + back;
+          if(lde[11] != 0x0F)
+            break;
+          if(lde[0] == 0xE5 || lde[0] == 0x00)
+            break;
+          lde[0] = 0xE5;
+          back -= 32;
+        }
+
+        write_sector512(fat.dev, sec + s, buf);
+        log_info("fat32_unlink: deleted entry '%s' in cluster %u sector %u", target, cl, sec + s);
+        end_op(fat.dev);
+        return 0;
+      }
+    }
+
+    // Move to next cluster in directory chain
+    uint32 nxt = fat_next_clus(cl);
+    if(nxt >= 0x0FFFFFF8 || nxt == 0x0FFFFFFF)
+      break;
+    if(nxt < 2){
+      log_warn("fat32_unlink: bad next cluster %x", nxt);
+      break;
+    }
+    cl = nxt;
+  }
+
+  log_warn("fat32_unlink: not found '%s' in chain", target);
+  end_op(fat.dev);
+  return -1;
+}
 

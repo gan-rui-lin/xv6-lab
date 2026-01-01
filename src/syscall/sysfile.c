@@ -909,3 +909,96 @@ sys_pipe2(void)
   // For simplicity, same as sys_pipe
   return sys_pipe();
 }
+
+
+uint64
+sys_unlinkat(void)
+{
+  int dirfd;
+  char path[MAXPATH];
+  int flags;
+
+  // 参数: dirfd, path, flags
+  if(argint(0, &dirfd) < 0 || argstr(1, path, MAXPATH) < 0 || argint(2, &flags) < 0)
+    return -1;
+
+  log_info("sys_unlinkat: dirfd=%d path='%s' flags=0x%x", dirfd, path, flags);
+
+  int want_dir = (flags & AT_REMOVEDIR) != 0;
+
+  // FAT32 模式：使用 FAT32 的删除实现
+  if(fat32_mode){
+    // log_info("sys_unlinkat: using FAT32 unlink");
+    // 仅支持绝对路径，或相对当前工作目录 (dirfd == AT_FDCWD)
+    if(path[0] != '/' && dirfd != AT_FDCWD)
+      return -1;
+      log_info("sys_unlinkat: calling fat32_unlink");
+    int r = fat32_unlink(path, want_dir);
+    log_info("sys_unlinkat: fat32_unlink returned %d", r);
+    return (r == 0) ? 0 : -1;
+  }
+
+  // xv6 原生 inode 文件系统逻辑
+  // 目前同样只实现绝对路径或 AT_FDCWD 相对路径
+  if(path[0] != '/' && dirfd != AT_FDCWD)
+    return -1;
+
+  struct inode *ip, *dp;
+  struct dirent de;
+  char name[DIRSIZ];
+  uint off;
+
+  begin_op(ROOTDEV);
+  if((dp = nameiparent(path, name)) == 0){
+    end_op(ROOTDEV);
+    return -1;
+  }
+
+  ilock(dp);
+
+  // Cannot unlink "." or "..".
+  if(namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
+    goto bad;
+
+  if((ip = dirlookup(dp, name, &off)) == 0)
+    goto bad;
+  ilock(ip);
+
+  if(ip->nlink < 1)
+    panic("unlinkat: nlink < 1");
+
+  if(ip->type == T_DIR){
+    // 只有在 AT_REMOVEDIR 时才允许删除目录，且目录必须为空
+    if(!want_dir || !isdirempty(ip)){
+      iunlockput(ip);
+      goto bad;
+    }
+  } else {
+    // 非目录但设置了 AT_REMOVEDIR，也应失败
+    if(want_dir){
+      iunlockput(ip);
+      goto bad;
+    }
+  }
+
+  memset(&de, 0, sizeof(de));
+  if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+    panic("unlinkat: writei");
+  if(ip->type == T_DIR){
+    dp->nlink--;
+    iupdate(dp);
+  }
+  iunlockput(dp);
+
+  ip->nlink--;
+  iupdate(ip);
+  iunlockput(ip);
+
+  end_op(ROOTDEV);
+  return 0;
+
+bad:
+  iunlockput(dp);
+  end_op(ROOTDEV);
+  return -1;
+}

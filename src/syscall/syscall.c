@@ -123,6 +123,8 @@ extern uint64 sys_mkdirat(void);
 extern uint64 sys_uname(void);
 extern uint64 sys_nanosleep(void);
 extern uint64 sys_times(void);
+extern uint64 sys_unlinkat(void);
+
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
@@ -174,6 +176,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_pipe2]       sys_pipe2,
 [SYS_mkdirat] sys_mkdirat,
 [SYS_uname]       sys_uname,
+[SYS_unlinkat]    sys_unlinkat,
 };
 
 // sysname - return the name of the system call for debugging.

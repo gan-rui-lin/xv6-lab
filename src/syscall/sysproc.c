@@ -89,26 +89,32 @@ sys_sbrk(void)
 // These are intentionally lightweight: they defer to kernel helpers where
 // available, or return simple defaults.
 
-uint64
-sys_sleep(void)
+static int
+sleep_ticks(int n)
 {
-    int n;
+  log_debug("sys_sleep: sleeping for %d ticks\n", n);
   uint ticks0;
-
-  argint(0, &n);
   acquire(&tickslock);
   ticks0 = ticks;
-  // 直到滴答数达到要求才返回
   while(ticks - ticks0 < n){
     if(killed(myproc())){
       release(&tickslock);
       return -1;
     }
-    // 等待 devintr 中的时钟中断唤醒
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
   return 0;
+}
+
+uint64
+sys_sleep(void)
+{
+  int n;
+  argint(0, &n);
+  if (n <= 0)
+    return 0;
+  return sleep_ticks(n);
 }
 
 uint64
@@ -399,4 +405,46 @@ sys_uname(void)
     return -1;
 
   return 0;
+}
+
+uint64
+sys_nanosleep(void)
+{
+  // args: a0 = req (user ptr), a1 = rem (user ptr)
+  uint64 req_addr, rem_addr;
+  argaddr(0, &req_addr);
+  argaddr(1, &rem_addr);
+
+  struct {
+    long sec;
+    long usec;
+  } req;
+
+  if (req_addr == 0)
+    return -1;
+  if (copyin(myproc()->pagetable, (char*)&req, req_addr, sizeof(req)) != 0)
+    return -1;
+
+  if (req.sec < 0 || req.usec < 0 || req.usec >= 1000000L)
+    return -1;
+
+  // 精确转换为 tick 数：假定时钟中断为 1ms/tick（HZ=1000）。
+  // 将秒/微秒转换为总纳秒并按 1ms 进行向上取整。
+  const long TICK_NS = 1000000L;   // 1 ms
+  unsigned long long total_ns = (unsigned long long)req.sec * 1000000000ULL
+                              + (unsigned long long)req.usec * 1000ULL;
+  int n_ticks = (int)((total_ns + TICK_NS - 1) / TICK_NS); // ceil(total_ns / 1ms)
+
+  if (n_ticks <= 0)
+    return 0;
+
+  int ret = sleep_ticks(n_ticks);
+
+  // 完成后，若需要，置剩余时间为0
+  if (rem_addr) {
+    struct { long sec; long usec; } rem = {0, 0};
+    if (copyout(myproc()->pagetable, rem_addr, (char*)&rem, sizeof(rem)) < 0)
+      return -1;
+  }
+  return ret;
 }

@@ -12,6 +12,18 @@ volatile static int ticker = 1; // 用于调试的 ticker 变量
 
 struct spinlock tickslock;
 uint ticks;
+// Simple SBI legacy call wrapper for setting next timer interrupt.
+// Many OpenSBI builds support the legacy set_timer (a7=0).
+static inline void sbi_set_timer(uint64 stime)
+{
+  register uint64 a0 asm("a0") = stime;
+  register uint64 a7 asm("a7") = 0; // legacy SBI set_timer
+  asm volatile("ecall" : "+r"(a0) : "r"(a7) : "memory");
+}
+
+// Choose a tick interval in cycles. From OpenSBI info: mtimer @ 10MHz.
+// 1ms tick -> 10,000 cycles.
+#define TICK_CYCLES 10000ULL
 
 extern char trampoline[], uservec[], userret[];
 
@@ -37,6 +49,9 @@ void
 trapinithart(void)
 {
   w_stvec((uint64)kernelvec);
+
+  // Program first timer interrupt via SBI (legacy). This kicks off ticking.
+  sbi_set_timer(r_time() + TICK_CYCLES);
 }
 
 //
@@ -250,12 +265,13 @@ void
 clockintr()
 {
   acquire(&tickslock);
-  #ifdef TICKER_DEBUG
-  printf("%d tick from cpu %d\n", ++ticker, cpuid());
-  #endif
+  // log_debug("clockintr: ticks before=%d\n", ticks);
   ticks++;
   wakeup(&ticks);
   release(&tickslock);
+
+  // Schedule next tick.
+  sbi_set_timer(r_time() + TICK_CYCLES);
 }
 
 // check if it's an external interrupt or software interrupt,
@@ -292,19 +308,14 @@ devintr()
       plic_complete(irq);
 
     return 1;
-  } else if(scause == 0x8000000000000001L){
-    // software interrupt from a machine-mode timer interrupt,
-    // forwarded by timervec in kernelvec.S.
-    // 通过机器级的时钟中断(timervec)触发的 S 级的软件中断(sip[1] = 0)
-
-    // 只在 CPU0 下处理时钟中断
+  } else if((scause & 0x8000000000000000L) && (scause & 0xff) == 5){
+    // supervisor timer interrupt (STIP), typically provided via SBI/aclint-mtimer
     if(cpuid() == 0){
       clockintr();
     }
-    
-    // acknowledge the software interrupt by clearing
-    // the SSIP bit in sip.
-    w_sip(r_sip() & ~2);
+
+    // acknowledge by clearing the STIP bit in sip
+    w_sip(r_sip() & ~(1 << 5));
 
     return 2;
   } else {

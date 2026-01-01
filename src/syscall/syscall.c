@@ -120,9 +120,13 @@ extern uint64 sys_pipe2(void);
 extern uint64 sys_dup2(void);
 extern uint64 sys_mkdirat(void);
 extern uint64 sys_uname(void);
+extern uint64 sys_nanosleep(void);
+extern uint64 sys_times(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
+[SYS_times]       sys_times,
+[SYS_nanosleep]   sys_nanosleep,
 [SYS_dup]         sys_dup,
 [SYS_dup3]        sys_dup3,
 [SYS_getdents64]  sys_getdents64,

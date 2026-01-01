@@ -58,6 +58,8 @@ int main()
 
     // test_("chdir");
     // test_shell();
+    test_("times");
+    test_("sleep");
     test_("fork");
     test_("gettimeofday");
 

@@ -817,9 +817,12 @@ sys_getdents64(void)
     return -1;
   if(f->type != FD_INODE || f->ip->type != T_DIR)
     return -1;
-  // For simplicity, return 0 (no entries)
-  // TODO: implement directory reading
-  return 6;
+  int n = 0;
+  if(fat32_mode && f->ip->major == FAT32_INODE_TAG) {
+    n = fat32_getdents64(f->ip, f->off, buf, len);
+    if(n > 0) f->off += n / sizeof(struct dirent) * 32; // 每个dirent对应32字节目录项
+  } 
+  return n;
 }
 
 uint64

@@ -230,7 +230,7 @@ static void lfn_extract_append(uint8 *de, char *buf, int *len)
     }
     
     // 比较重要的 log_info 输出
-    log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
+    // log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
   }
 }
 
@@ -361,6 +361,152 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
   
   // log_info("dir_find: file not found");
   return 0;
+}
+
+// Enumerate directory entries in getdents64 format.
+// *offp is a logical entry index: number of valid SFN/LFN entries already returned.
+// We rescan from the beginning and skip *offp entries, then start filling.
+int
+fat32_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen)
+{
+  if(dp == 0 || dp->major != FAT32_INODE_TAG || dp->type != T_DIR)
+    return -1;
+
+  struct proc *p = myproc();
+  if(p == 0)
+    return -1;
+
+  uint32 dir_clus = dp->addrs[0];
+  if(dir_clus == 0)
+    dir_clus = fat.root_clus;
+
+  uint skip = (offp ? *offp : 0);   // how many directory entries already returned
+  uint count = 0;                    // how many directory entries processed this scan
+  int written = 0;                   // bytes written to user buffer
+
+  uint32 cl = dir_clus;
+
+  for(;;){
+    uint32 sec = clus_to_sec(cl);
+    for(uint s = 0; s < fat.spc; s++){
+      uint8 buf[512];
+      read_sector512(fat.dev, sec + s, buf);
+
+      char lfn_name[260];
+      int lfn_len = 0;
+      lfn_name[0] = 0;
+
+      for(int off = 0; off < 512; off += 32){
+        uint8 *de = buf + off;
+        uint8 first = de[0];
+        uint8 attr  = de[11];
+
+        if(first == 0x00){
+          // end of directory
+          goto done;
+        }
+        if(first == 0xE5){
+          // deleted entry, reset any accumulated LFN
+          lfn_len = 0;
+          lfn_name[0] = 0;
+          continue;
+        }
+
+        if(attr == 0x0F){
+          // long filename entry, accumulate name and continue
+          lfn_extract_append(de, lfn_name, &lfn_len);
+          continue;
+        }
+
+        // Skip volume label/system entries (ATTR_VOLUME_ID)
+        if(attr & 0x08){
+          lfn_len = 0;
+          lfn_name[0] = 0;
+          continue;
+        }
+
+        // Now a normal SFN entry representing a file or directory
+        uint16 cl_hi = *(uint16 *)(de + 20);
+        uint16 cl_lo = *(uint16 *)(de + 26);
+        uint32 startc = ((uint32)cl_hi << 16) | cl_lo;
+
+        // Have we already returned this entry in previous calls?
+        if(count < skip){
+          count++;
+          lfn_len = 0;
+          lfn_name[0] = 0;
+          continue;
+        }
+
+        // Check buffer space for another linux_dirent64
+        if(written + (int)sizeof(struct linux_dirent64) > (int)maxlen){
+          goto done;
+        }
+
+        struct linux_dirent64 ent;
+        memset(&ent, 0, sizeof(ent));
+
+        ent.d_ino = startc ? startc : 1;
+        ent.d_off = 0; // not used by current tests
+        ent.d_reclen = sizeof(struct linux_dirent64);
+        ent.d_type = (attr & 0x10) ? 4 : 8; // 4=DT_DIR, 8=DT_REG (Linux values)
+
+        // Choose name: prefer accumulated LFN, else build SFN
+        char name[DIRSIZ];
+        memset(name, 0, sizeof(name));
+        if(lfn_len > 0){
+          // Use long filename
+          strncpy(name, lfn_name, DIRSIZ - 1);
+          name[DIRSIZ - 1] = 0;
+        } else {
+          // Build short 8.3 name
+          char sfn[13] = {0};
+          int i = 0;
+          for(i = 0; i < 8 && de[i] != ' '; i++){
+            sfn[i] = de[i];
+          }
+          if(de[8] != ' '){
+            int len = strlen(sfn);
+            sfn[len] = '.';
+            for(int j = 0; j < 3 && de[8 + j] != ' '; j++){
+              sfn[len + 1 + j] = de[8 + j];
+            }
+          }
+          strncpy(name, sfn, DIRSIZ - 1);
+          name[DIRSIZ - 1] = 0;
+        }
+
+        strncpy(ent.d_name, name, DIRSIZ - 1);
+        ent.d_name[DIRSIZ - 1] = 0;
+
+        if(copyout(p->pagetable, uaddr + written, (char *)&ent, sizeof(ent)) < 0){
+          return -1;
+        }
+
+        written += sizeof(ent);
+        count++;
+
+        // clear LFN buffer after using
+        lfn_len = 0;
+        lfn_name[0] = 0;
+      }
+    }
+
+    // move to next cluster in directory chain
+    uint32 nxt = fat_next_clus(cl);
+    if(nxt >= 0x0FFFFFF8 || nxt == 0x0FFFFFFF)
+      break;
+    if(nxt < 2){
+      log_warn("fat32_getdents64: bad next cluster %x", nxt);
+      break;
+    }
+    cl = nxt;
+  }
+
+done:
+  if(offp)
+    *offp = count;
+  return written;
 }
 
 // Split path into components; returns count, fills arr with pointers within buf
@@ -964,83 +1110,3 @@ struct inode* fat32_create(char *path, short type, int major, int minor)
 }
 
 
-// FAT32目录遍历，仿Linux getdents64，返回写入的字节数
-// 参数：ip=目录inode，off=目录偏移（以字节为单位），dst=用户空间buf，len=buf大小
-// 返回：实际写入的字节数，或0表示结尾，-1表示错误
-int fat32_getdents64(struct inode *ip, uint off, uint64 dst, uint len) {
-  if (!ip || ip->major != FAT32_INODE_TAG || ip->type != T_DIR) return -1;
-  struct proc *p = myproc();
-  uint32 cl = ip->addrs[0];
-  uint32 bytes_per_cluster = fat.spc * fat.bps;
-  uint32 dir_off = off; // 当前目录偏移
-  uint written = 0;
-  char lfn_buf[256];
-  int lfn_len = 0;
-  int reclen;
-  while (written + sizeof(struct dirent) < len) {
-    // 计算当前偏移对应的cluster和sector
-    uint32 cur_cl = cl;
-    uint32 remain = dir_off;
-    while (remain >= bytes_per_cluster) {
-      cur_cl = fat_next_clus(cur_cl);
-      if (cur_cl >= 0x0FFFFFF8) return written; // 结尾
-      remain -= bytes_per_cluster;
-    }
-    uint32 sec = clus_to_sec(cur_cl);
-    uint32 sec_off = remain / 512;
-    uint32 ent_off = remain % 512;
-    uint8 secbuf[512];
-    read_sector512(fat.dev, sec + sec_off, secbuf);
-    if (ent_off + 32 > 512) {
-      // 跨扇区不处理
-      break;
-    }
-    uint8 *de = secbuf + ent_off;
-    // 目录项结束
-    if (de[0] == 0x00) break;
-    // 跳过无效项
-    if (de[0] == 0xE5) {
-      dir_off += 32;
-      continue;
-    }
-    // LFN项
-    if ((de[11] & 0x0F) == 0x0F) {
-      // 累积LFN片段
-      lfn_extract_append(de, lfn_buf, &lfn_len);
-      dir_off += 32;
-      continue;
-    }
-    // SFN项
-    struct dirent dent;
-    memset(&dent, 0, sizeof(dent));
-    // inode号用起始cluster
-    dent.d_ino = ((uint32)de[26] | ((uint32)de[27] << 8) | ((uint32)de[20] << 16) | ((uint32)de[21] << 24));
-    dent.d_off = dir_off + 32; // 下一个dirent偏移
-    dent.d_reclen = sizeof(struct dirent);
-    // 类型
-    if (de[11] & 0x10) dent.d_type = 4; // DT_DIR
-    else dent.d_type = 8; // DT_REG
-    // 文件名
-    if (lfn_len > 0) {
-      int n = lfn_len < sizeof(dent.d_name) - 1 ? lfn_len : sizeof(dent.d_name) - 1;
-      memmove(dent.d_name, lfn_buf, n);
-      dent.d_name[n] = 0;
-      lfn_len = 0;
-    } else {
-      // 8.3转字符串
-      int i = 0, j = 0;
-      while (i < 8 && de[i] != ' ') dent.d_name[j++] = de[i++];
-      if (de[8] != ' ') {
-        dent.d_name[j++] = '.';
-        int k = 8;
-        while (k < 11 && de[k] != ' ') dent.d_name[j++] = de[k++];
-      }
-      dent.d_name[j] = 0;
-    }
-    // 拷贝到用户空间
-    if (copyout(p->pagetable, dst + written, (char *)&dent, sizeof(dent)) < 0) return -1;
-    written += sizeof(dent);
-    dir_off += 32;
-  }
-  return written;
-}

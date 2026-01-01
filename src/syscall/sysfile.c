@@ -863,10 +863,18 @@ sys_getdents64(void)
   if(f->type != FD_INODE || f->ip->type != T_DIR)
     return -1;
   int n = 0;
-  if(fat32_mode && f->ip->major == FAT32_INODE_TAG) {
-    n = fat32_getdents64(f->ip, f->off, buf, len);
-    if(n > 0) f->off += n / sizeof(struct dirent) * 32; // 每个dirent对应32字节目录项
-  } 
+
+  // Currently only FAT32-backed directories are supported
+  if(fat32_mode && f->ip->major == FAT32_INODE_TAG){
+    uint off_entries = f->off; // logical directory entry index
+    n = fat32_getdents64(f->ip, &off_entries, buf, len);
+    if(n > 0)
+      f->off = off_entries;
+  } else {
+    // non-FAT32 directories not yet supported
+    return -1;
+  }
+
   return n;
 }
 

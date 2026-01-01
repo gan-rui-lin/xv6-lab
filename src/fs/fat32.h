@@ -19,5 +19,11 @@ int fat32_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n);
 struct inode* fat32_createat(struct inode *dp, char *name, short type, int major, int minor);
 struct inode* fat32_create(char *path, short type, int major, int minor);
 
+// Read directory entries in Linux getdents64 format from a FAT32 directory
+// off is the logical entry index (count of directory entries already returned)
+// returns number of bytes filled into the user buffer, or -1 on error
+int fat32_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen);
+
+
 // Tag to identify FAT32-backed inodes via ip->major
 #define FAT32_INODE_TAG 0xF32

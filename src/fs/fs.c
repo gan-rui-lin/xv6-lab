@@ -522,20 +522,36 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   uint tot, m;
   struct buf *bp;
 
+  log_info("[DEBUG readi] Reading %d bytes at offset %d from inode (major=%d, size=%d)\n",
+         n, off, ip->major, ip->size);
+
   if(off > ip->size || off + n < off)
     return -1;
   if(off + n > ip->size)
     n = ip->size - off;
 
   for(tot=0; tot<n; tot+=m, off+=m, dst+=m){
-    bp = bread(ip->dev, bmap(ip, off/BSIZE));
+    uint blockno = bmap(ip, off/BSIZE);
+    log_info("[DEBUG readi] Reading block %d (offset/BSIZE=%d)\n", blockno, off/BSIZE);
+    bp = bread(ip->dev, blockno);
     m = min(n - tot, BSIZE - off%BSIZE);
+    
+    // DEBUG: Print first few bytes
+    if(tot == 0 && m > 0) {
+      char debug_str[32];
+      int copy_len = m < 31 ? m : 31;
+      memmove(debug_str, bp->data + (off % BSIZE), copy_len);
+      debug_str[copy_len] = '\0';
+      log_info("[DEBUG readi] First bytes from buffer: '%s'\n", debug_str);
+    }
+    
     if(either_copyout(user_dst, dst, bp->data + (off % BSIZE), m) == -1) {
       brelse(bp);
       break;
     }
     brelse(bp);
   }
+  log_info("[DEBUG readi] Read completed, total=%d\n", tot);
   return n;
 }
 
@@ -546,6 +562,9 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
 int
 writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 {
+  if(fat32_mode && ip && ip->major == FAT32_INODE_TAG){
+    return fat32_writei(ip, user_src, src, off, n);
+  }
   uint tot, m;
   struct buf *bp;
 
@@ -554,12 +573,24 @@ writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
   if(off + n > MAXFILE*BSIZE)
     return -1;
 
+  log_info("[DEBUG writei] Writing %d bytes at offset %d to inode (major=%d)\n", n, off, ip->major);
+
   for(tot=0; tot<n; tot+=m, off+=m, src+=m){
-    bp = bread(ip->dev, bmap(ip, off/BSIZE));
+    uint blockno = bmap(ip, off/BSIZE);
+    log_info("[DEBUG writei] Writing to block %d (offset/BSIZE=%d)\n", blockno, off/BSIZE);
+    bp = bread(ip->dev, blockno);
     m = min(n - tot, BSIZE - off%BSIZE);
     if(either_copyin(bp->data + (off % BSIZE), user_src, src, m) == -1) {
       brelse(bp);
       break;
+    }
+    // DEBUG: Print first few bytes of written data
+    if(tot == 0 && m > 0) {
+      char debug_str[32];
+      int copy_len = m < 31 ? m : 31;
+      memmove(debug_str, bp->data + (off % BSIZE), copy_len);
+      debug_str[copy_len] = '\0';
+      log_info("[DEBUG writei] First bytes: '%s'\n", debug_str);
     }
     log_write(bp);
     brelse(bp);
@@ -574,6 +605,7 @@ writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
     iupdate(ip);
   }
 
+  log_info("[DEBUG writei] Write completed, new size=%d\n", ip->size);
   return n;
 }
 

@@ -5,6 +5,10 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "fcntl.h"
+#include "../sync/sleeplock.h"
+#include "../fs/fs.h"
+#include "../fs/file.h"
 
 uint64
 sys_exit(void)
@@ -323,91 +327,175 @@ sys_brk(void)
 uint64
 sys_mmap(void)
 {
-  // u64 addr;
-  //   size_t map_size;
-  //   int prot;
-  //   int flags;
-  //   int fd;
-  //   size_t offset;
-  //   if (_arg_addr(0, addr) < 0 || _arg_addr(1, map_size) < 0 || _arg_int(2, prot) < 0 ||
-  //       _arg_int(3, flags) < 0 || _arg_int(4, fd) < 0 || _arg_addr(5, offset) < 0)
-  //   {
-  //       printfRed("[SyscallHandler::sys_mmap] Error fetching mmap arguments\n");
-  //       return -syscall::SYS_EINVAL;
-  //   }
-  //   printfYellow("[SyscallHandler::sys_mmap] addr: %p, map_size: %u, prot: %d, flags: %d, fd: %d, offset: %u\n",
-  //                 (void *)addr, map_size, prot, flags, fd, offset);
-  //   fs::file *f = nullptr;
-  //   proc::Pcb *p = proc::k_pm.get_cur_pcb();
-  //   f = p->get_open_file(fd);
-  //   if (!(flags & MAP_ANONYMOUS))
-  //   {
-  //       if (f == nullptr)
-  //       {
-  //           printfRed("[SyscallHandler::sys_mmap] Invalid file descriptor: %d\n", fd);
-  //           return -EBADF; // 返回无效文件描述符错误
-  //       }
-  //       if (f->_attrs.u_read == 0)
-  //       {
-  //           printfRed("[SyscallHandler::sys_mmap] File descriptor %d is not open for reading\n", fd);
-  //           return -EACCES; // 返回权限错误
-  //       }
-  //   }
-  //   if (map_size == 0)
-  //   {
-  //       printfRed("[SyscallHandler::sys_mmap] Invalid map_size: %zu\n", map_size);
-  //       return -EINVAL; // 返回无效参数错误
-  //   }
-  //   if (!(flags & MAP_SHARED) && !(flags & MAP_PRIVATE) && !(flags & MAP_SHARED_VALIDATE))
-  //   {
-  //       printfRed("[SyscallHandler::sys_mmap] Invalid flags: %d\n", flags);
-  //       return -EINVAL; // 返回无效参数错误
-  //   }
-  //   // 处理 memfd 文件的特殊情况
-  //   if (!(flags & MAP_ANONYMOUS) && f != nullptr)
-  //   {
-  //       // 检查是否是 memfd 文件
-  //       if (f->_path_name.find("memfd:") == 0)
-  //       {
-  //           printfCyan("[SyscallHandler::sys_mmap] Handling memfd file: %s\n", f->_path_name.c_str());
+  uint64 addr;
+  uint64 length;
+  int prot;
+  int flags;
+  int fd;
+  uint64 offset;
+  
+  // 获取参数
+  if(argaddr(0, &addr) < 0 || argaddr(1, &length) < 0 || 
+     argint(2, &prot) < 0 || argint(3, &flags) < 0 || 
+     argint(4, &fd) < 0 || argaddr(5, &offset) < 0)
+    return -1;
+  
+  // 简化实现：只支持文件映射，不支持匿名映射
+  if(flags & MAP_ANONYMOUS) {
+    // 匿名映射暂不支持
+    return -1;
+  }
+  
+  struct proc *p = myproc();
+  struct file *f;
+  
+  // 获取文件描述符
+  if(fd < 0 || fd >= NOFILE || (f = p->ofile[fd]) == 0)
+    return -1;
+  
+  // 检查文件是否可读
+  if(!f->readable)
+    return -1;
+  
+  // 长度必须大于0
+  if(length == 0)
+    return -1;
+  
+  // 页面对齐长度
+  uint64 map_size = PGROUNDUP(length);
+  
+  // 分配新的虚拟地址空间（在进程当前大小之上）
+  uint64 old_sz = p->sz;
+  uint64 new_sz = old_sz + map_size;
+  
+  // 计算权限标志
+  int xperm = 0;
+  if(prot & PROT_WRITE)
+    xperm |= PTE_W;
+  // 注意：PROT_READ默认就有，xv6中PTE_R总是设置的
+  
+  // 分配虚拟内存
+  if((new_sz = uvmalloc(p->pagetable, old_sz, new_sz, xperm)) == 0)
+    return -1;
+  
+  // 更新进程大小
+  p->sz = new_sz;
+  
+  // 从文件读取数据到新分配的内存
+  if(f->type == FD_INODE) {
+    ilock(f->ip);
+    
+    // 读取文件内容
+    uint64 read_size = length;
+    uint64 file_size = f->ip->size;
+    
+    // DEBUG: 先读取文件内容到内核缓冲区验证文件是否真的有数据
+    log_info("[DEBUG mmap] file_size=%d, offset=%d, read_size=%d\n", file_size, offset, read_size);
+    char kernel_buf[64];
+    int test_read = readi(f->ip, 0, (uint64)kernel_buf, offset, read_size < 63 ? read_size : 63);
+    if(test_read > 0) {
+      kernel_buf[test_read] = '\0';
+      log_info("[DEBUG mmap] File content in kernel buffer: '%s'\n", kernel_buf);
+    } else {
+      log_info("[DEBUG mmap] Failed to read file content, test_read=%d\n", test_read);
+    }
+    
+    if(offset >= file_size) {
+      // 偏移量超过文件大小，返回空映射（已经分配并清零）
+      iunlock(f->ip);
+      return old_sz;
+    }
+    
+    if(offset + read_size > file_size)
+      read_size = file_size - offset;
+    
+    // 使用readi读取文件内容到用户空间
+    int bytes_read = readi(f->ip, 1, old_sz, offset, read_size);
+    
+    iunlock(f->ip);
+    
+    // DEBUG: 打印读取的前几个字节
+    log_info("[DEBUG mmap] bytes_read=%d, reading from mapped memory:\n", bytes_read);
+    if(bytes_read > 0) {
+      // 尝试从内核读取映射的内存来验证
+      char debug_buf[32];
+      int copy_len = bytes_read < 31 ? bytes_read : 31;
+      if(copyin(p->pagetable, debug_buf, old_sz, copy_len) == 0) {
+        debug_buf[copy_len] = '\0';
+        log_info("[DEBUG mmap] Content: '%s'\n", debug_buf);
+      } else {
+        log_info("[DEBUG mmap] Failed to copy from mapped memory\n");
+      }
+    }
+    
+    if(bytes_read < 0) {
+      // 读取失败，需要回收分配的内存
+      uvmdealloc(p->pagetable, new_sz, old_sz);
+      p->sz = old_sz;
+      return -1;
+    }
+    
+    // 注意：即使读取的字节少于请求的，也是成功的
+    // 剩余部分已经被uvmalloc清零了
+    
+  } else {
+    // 不支持非inode类型的文件
+    uvmdealloc(p->pagetable, new_sz, old_sz);
+    p->sz = old_sz;
+    return -1;
+  }
+  
+  // 返回映射的起始地址
+  return old_sz;
+}
 
-  //           // 检查 memfd 的 seals
-  //           if ((flags & MAP_SHARED) && (prot & PROT_WRITE) && (f->_seals & F_SEAL_WRITE))
-  //           {
-  //               printfRed("[SyscallHandler::sys_mmap] memfd文件被F_SEAL_WRITE密封，无法创建共享写映射\n");
-  //               return -EPERM;
-  //           }
-
-  //           // 对于 memfd 文件，我们需要直接处理内存映射，而不是通过文件系统路径
-  //           // 因为 memfd 文件的路径在文件系统中不存在
-
-  //           // 验证偏移量和大小
-  //           if (offset > f->lwext4_file_struct.fsize)
-  //           {
-  //               printfRed("[SyscallHandler::sys_mmap] offset %zu exceeds file size %llu\n",
-  //                         offset, f->lwext4_file_struct.fsize);
-  //               return -ENXIO;
-  //           }
-
-  //           if (offset + map_size > f->lwext4_file_struct.fsize)
-  //           {
-  //               printfYellow("[SyscallHandler::sys_mmap] mapping extends beyond file size, will be zero-filled\n");
-  //           }
-  //       }
-  //   }
-
-  //   int mmap_errno = 0;
-  //   void *result = proc::k_pm.mmap((void *)addr, map_size, prot, flags, fd, offset, &mmap_errno);
-
-  //   if (result == MAP_FAILED)
-  //   {
-  //       printfRed("[SyscallHandler::sys_mmap] mmap failed with errno: %d\n", mmap_errno);
-  //       return -mmap_errno; // 返回负的错误码
-  //   }
-  //   // if(addr==0&&map_size==1024&&prot==2&&flags==2&&fd==3&&offset==0)
-  //   // return -1;
-  //   return (uint64)result; // 调用进程管理器的 mmap 函数
-  return -1;
+uint64
+sys_munmap(void)
+{
+  uint64 addr;
+  uint64 length;
+  
+  // 获取参数
+  if(argaddr(0, &addr) < 0 || argaddr(1, &length) < 0)
+    return -1;
+  
+  // 长度必须大于0
+  if(length == 0)
+    return 0;  // 长度为0时，不做任何操作，返回成功
+  
+  struct proc *p = myproc();
+  
+  // 页面对齐
+  uint64 start = PGROUNDDOWN(addr);
+  uint64 end = PGROUNDUP(addr + length);
+  uint64 npages = (end - start) / PGSIZE;
+  
+  // 简化实现：检查地址是否在进程地址空间内
+  if(start >= p->sz) {
+    return -1;  // 地址超出进程空间
+  }
+  
+  // 调整end，不能超过进程大小
+  if(end > p->sz) {
+    end = p->sz;
+    npages = (end - start) / PGSIZE;
+  }
+  
+  // 如果没有页面需要解除映射，直接返回成功
+  if(npages == 0) {
+    return 0;
+  }
+  
+  // 使用uvmunmap解除映射
+  uvmunmap(p->pagetable, start, npages, 1);
+  
+  // 关键修复：如果解除映射的区域在进程末尾，需要调整进程大小
+  // 这样可以防止进程退出时再次尝试释放这些页面
+  if(end == p->sz) {
+    p->sz = start;
+  }
+  
+  return 0;
 }
 
 uint64

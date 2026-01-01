@@ -409,6 +409,13 @@ void fat32_init(int dev)
   fat.fat_start_sec = fat.rsvd_secs;
   fat.first_data_sec = fat.rsvd_secs + fat.nfats * fat.fatsz32;
   fat32_mode = 1;
+  
+  // Initialize log for FAT32 (use a dummy superblock)
+  struct superblock dummy_sb;
+  dummy_sb.logstart = 1;  // Start log at block 1 (arbitrary)
+  dummy_sb.nlog = 30;     // Match LOGSIZE
+  initlog(dev, &dummy_sb);
+  
   // log_info("FAT32: bps=%d spc=%d rsvd=%d nfats=%d fatsz=%d root=%x", bps, spc, rsvd, nf, fatsz32, rootclus);
 }
 
@@ -653,6 +660,94 @@ int fat32_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
   return tot;
 }
 
+int fat32_writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
+{
+  if(!ip || ip->major != FAT32_INODE_TAG){
+    log_warn("fat32_writei: non-fat inode");
+    return -1;
+  }
+  
+  // FAT32 files might need to extend beyond current size
+  uint32 start_clus = ip->addrs[0];
+  if(start_clus == 0) {
+    // Empty file, need to allocate first cluster
+    // For now, return error as cluster allocation is complex
+    log_warn("fat32_writei: empty file (no start cluster)");
+    return -1;
+  }
+  
+  // Walk cluster chain to reach 'off'
+  uint32 cl = start_clus;
+  uint32 remain_off = off;
+  uint32 bytes_per_cluster = fat.spc * fat.bps;
+  
+  while(remain_off >= bytes_per_cluster){
+    uint32 nxt = fat_next_clus(cl);
+    if(nxt >= 0x0FFFFFF8){ 
+      // End of chain, need to allocate more clusters
+      log_warn("fat32_writei: EOC before offset, need cluster allocation");
+      return -1;
+    }
+    cl = nxt;
+    remain_off -= bytes_per_cluster;
+  }
+  
+  // Start writing
+  uint tot = 0;
+  uint32 cur_off_in_cluster = remain_off;
+  
+  while(tot < n){
+    uint32 sec0 = clus_to_sec(cl);
+    // sector index within cluster
+    uint32 sec_idx = cur_off_in_cluster / fat.bps;
+    uint32 sec_off = cur_off_in_cluster % fat.bps;
+    uint8 secbuf[512];
+    
+    // Read existing sector data
+    read_sector512(fat.dev, sec0 + sec_idx, secbuf);
+    
+    // Modify the relevant part
+    uint m = MIN(n - tot, fat.bps - sec_off);
+    if(user_src){
+      if(either_copyin(secbuf + sec_off, 1, src + tot, m) == -1){
+        return -1;
+      }
+    } else {
+      memmove(secbuf + sec_off, (void *)(src + tot), m);
+    }
+    
+    // Write sector back
+    write_sector512(fat.dev, sec0 + sec_idx, secbuf);
+    
+    tot += m;
+    cur_off_in_cluster += m;
+    
+    if(cur_off_in_cluster >= bytes_per_cluster && tot < n){
+      // move to next cluster
+      uint32 nxt = fat_next_clus(cl);
+      if(nxt >= 0x0FFFFFF8){ 
+        // Need to allocate more clusters
+        log_warn("fat32_writei: need to allocate more clusters");
+        break;
+      }
+      cl = nxt;
+      cur_off_in_cluster = 0;
+    } else if((cur_off_in_cluster / fat.bps) >= fat.spc && tot < n){
+      // next cluster (safety)
+      uint32 nxt = fat_next_clus(cl);
+      if(nxt >= 0x0FFFFFF8){ break; }
+      cl = nxt; 
+      cur_off_in_cluster = 0;
+    }
+  }
+  
+  // Update file size if we extended it
+  if(off + tot > ip->size){
+    ip->size = off + tot;
+  }
+  
+  return tot;
+}
 struct inode* fat32_createat(struct inode *dp, char *name, short type, int major, int minor)
 {
   if(!dp || dp->major != FAT32_INODE_TAG || dp->type != T_DIR){

@@ -109,6 +109,7 @@ extern uint64 sys_wait4(void);
 extern uint64 sys_getppid(void);
 extern uint64 sys_brk(void);
 extern uint64 sys_mmap(void);
+extern uint64 sys_munmap(void);
 extern uint64 sys_openat(void);
 extern uint64 sys_sched_yield(void);
 extern uint64 sys_dup3(void);
@@ -166,6 +167,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_brk]         sys_brk,
 [SYS_fstat]       sys_fstat,
 [SYS_openat]      sys_openat,
+[SYS_munmap]      sys_munmap,
 [SYS_mmap]        sys_mmap,
 [SYS_sched_yield] sys_sched_yield,
 [SYS_chdir]       sys_chdir,

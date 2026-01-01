@@ -67,8 +67,8 @@ int main()
     // test_("read");
     // test_("brk");
 
-    test_("fstat");
-    // test_("mmap");
+    // test_("fstat");
+     test_("mmap");
 
     // test_("openat");
     // test_("getpid");

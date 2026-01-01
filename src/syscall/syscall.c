@@ -129,6 +129,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_times]       sys_times,
 [SYS_nanosleep]   sys_nanosleep,
 [SYS_dup]         sys_dup,
+[SYS_dup2]        sys_dup3,
 [SYS_dup3]        sys_dup3,
 [SYS_getdents64]  sys_getdents64,
 [SYS_mount]       sys_mount,

@@ -83,6 +83,10 @@ int main()
     test_("read");
     test_("brk");
 
+    //test_("fstat");
+
+    test_("getcwd");
+
     test_("openat");
     test_("getpid");
     test_("exit");
@@ -107,7 +111,10 @@ int main()
         test_("mmap");
     test_("munmap");
 
-    // test_busybox();
+         test_("mmap");
+     test_("munmap");
+ test_("fstat"); //! wrong
+test_("dup2");
     shutdown();
     return 0;
 }

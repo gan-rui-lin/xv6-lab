@@ -56,7 +56,7 @@ int main()
 
     test_("getppid");
 
-    // test_("chdir");
+    test_("getcwd");
     // test_shell();
     test_("times");
     test_("sleep");

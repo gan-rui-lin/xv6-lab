@@ -82,7 +82,7 @@ int main()
     test_("open");
     test_("read");
     test_("brk");
-    test_("mmap");
+
     test_("openat");
     test_("getpid");
     test_("exit");
@@ -92,6 +92,7 @@ int main()
     test_("yield");
     test_("waitpid");
 
+    test_("getcwd");
     test_("dup");
     test_("close");
     test_("mkdir_"); //! failed
@@ -99,10 +100,12 @@ int main()
     // test_("dup2");  //! failed
     test_("getdents"); //! wrong getdents fd:1
     // test_("mount"); //! exception
-    // test_("pipe");  //? maybe right
-    // // test_("fstat"); //! wrong
-    // test_("write");
-    // test_("uname");
+    test_("pipe");  //? maybe right
+    test_("fstat"); //! wrong
+    test_("write");
+    test_("uname");
+        test_("mmap");
+    test_("munmap");
 
     // test_busybox();
     shutdown();

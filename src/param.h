@@ -3,7 +3,7 @@
 
 #define NPROC 64
 
-#define NOFILE       16  // open files per process
+#define NOFILE       128  // open files per process (increased to support high fd numbers)
 #define NFILE       100  // open files per system
 #define MAXOPBLOCKS  10  // max # of blocks any FS op writes
 #define LOGSIZE      (MAXOPBLOCKS*3)  // max data blocks in on-disk log

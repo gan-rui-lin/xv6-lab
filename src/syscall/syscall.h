@@ -158,6 +158,7 @@ enum SysNum
     SYS_eventfd2 = 19,
     SYS_epoll_create1 = 20,
     SYS_epoll_ctl = 21,
+    SYS_dup2 = 22,
     SYS_dup = 23,
     SYS_dup3 = 24,
     SYS_fcntl = 25,

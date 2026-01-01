@@ -94,6 +94,7 @@ int main()
          test_("mmap");
      test_("munmap");
  test_("fstat"); //! wrong
+test_("dup2");
     shutdown();
     return 0;
 }

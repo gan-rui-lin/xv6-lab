@@ -737,20 +737,39 @@ sys_pipe(void)
 uint64
 sys_dup3(void)
 {
-  int oldfd, newfd;
+  int oldfd, newfd, flags;
   struct file *f;
+  struct proc *p = myproc();
 
-  if(argint(0, &oldfd) < 0 || argint(1, &newfd) < 0)
+  // 获取参数
+  if(argint(0, &oldfd) < 0 || argint(1, &newfd) < 0 || argint(2, &flags) < 0)
     return -1;
-  if(oldfd < 0 || oldfd >= NOFILE || (f = myproc()->ofile[oldfd]) == 0)
+
+  // 检查oldfd是否有效
+  if(oldfd < 0 || oldfd >= NOFILE || (f = p->ofile[oldfd]) == 0)
     return -1;
+
+  // dup2行为（flags=0）：如果oldfd==newfd，直接返回newfd
+  // dup3行为（flags!=0）：如果oldfd==newfd，返回错误
+  if(oldfd == newfd) {
+    if(flags != 0)
+      return -1;  // dup3要求oldfd和newfd不能相同
+    // dup2行为：oldfd和newfd相同时，直接返回newfd
+    return newfd;
+  }
+
+  // 检查newfd范围是否有效
   if(newfd < 0 || newfd >= NOFILE)
     return -1;
-  struct proc *p = myproc();
+
+  // 如果newfd已经打开，先关闭它
   if(p->ofile[newfd])
     fileclose(p->ofile[newfd]);
+
+  // 复制文件描述符
   p->ofile[newfd] = f;
   filedup(f);
+
   return newfd;
 }
 

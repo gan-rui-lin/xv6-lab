@@ -31,6 +31,96 @@ static int normalize_open_flags(int flags)
   return norm;
 }
 
+// 根据当前 cwd 路径和 chdir 传入的 path，
+// 计算新的逻辑 cwd 字符串（纯字符串处理，不访问文件系统）。
+static void
+build_cwd_path(const char *oldcwd, const char *path, char *out, int outlen)
+{
+  // 简单路径规范化：处理绝对/相对路径，以及 '.'、'..'
+  const char *src;
+  const char *parts[64];
+  int depth = 0;
+
+  if(path[0] == '/'){
+    // 从根开始
+    src = path;
+  } else {
+    // 先把 oldcwd 拆成组件
+    if(oldcwd[0] == '\0'){
+      parts[depth++] = ""; // root
+    } else if(oldcwd[0] == '/' && oldcwd[1] == '\0'){
+      // root, depth 从 0 开始即可
+    } else {
+      const char *p = oldcwd;
+      while(*p){
+        while(*p == '/') p++;
+        if(!*p) break;
+        const char *start = p;
+        while(*p && *p != '/') p++;
+        if(depth < 64){
+          // 这里仅存指针位置，不复制；重建时直接从 oldcwd 用
+          parts[depth++] = start;
+        }
+      }
+    }
+    src = path;
+  }
+
+  // 处理 path 的组件
+  while(*src){
+    while(*src == '/') src++;
+    if(!*src) break;
+    const char *start = src;
+    while(*src && *src != '/') src++;
+    int len = src - start;
+    if(len == 0) continue;
+
+    if(len == 1 && start[0] == '.'){
+      // 忽略 '.'
+      continue;
+    }
+    if(len == 2 && start[0] == '.' && start[1] == '.'){
+      // 处理 '..'
+      if(depth > 0)
+        depth--;
+      continue;
+    }
+
+    if(depth < 64)
+      parts[depth++] = start;
+  }
+
+  // 重建 out
+  int pos = 0;
+  if(depth == 0){
+    if(outlen > 1){
+      out[0] = '/';
+      out[1] = '\0';
+    } else if(outlen > 0){
+      out[0] = '\0';
+    }
+    return;
+  }
+
+  out[0] = '\0';
+  for(int i = 0; i < depth; i++){
+    if(pos + 1 >= outlen) break;
+    out[pos++] = '/';
+    const char *start = parts[i];
+    const char *end = start;
+    while(*end && *end != '/') end++;
+    while(start < end && pos + 1 < outlen){
+      out[pos++] = *start++;
+    }
+  }
+  if(pos < outlen)
+    out[pos] = '\0';
+  else if(outlen > 0)
+    out[outlen-1] = '\0';
+
+  log_debug("build_cwd_path: old='%s' path='%s' -> '%s'", oldcwd, path, out);
+}
+
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -554,7 +644,9 @@ sys_chdir(void)
   struct proc *p = myproc();
   
   begin_op(ROOTDEV);
-  if(argstr(0, path, MAXPATH) < 0 || (ip = namei(path)) == 0){
+  int r = argstr(0, path, MAXPATH);
+  log_info("sys_chdir: argstr ret=%d, path='%s'", r, path);
+  if(r < 0 || (ip = namei(path)) == 0){
     end_op(ROOTDEV);
     return -1;
   }
@@ -568,6 +660,9 @@ sys_chdir(void)
   iput(p->cwd);
   end_op(ROOTDEV);
   p->cwd = ip;
+  // 更新进程的 cwdpath，方便 sys_getcwd 使用
+  build_cwd_path(p->cwdpath, path, p->cwdpath, sizeof(p->cwdpath));
+  log_debug("sys_chdir: cwdpath now '%s'", p->cwdpath);
   return 0;
 }
 
@@ -610,7 +705,7 @@ sys_mkdirat(void)
     return -1;
   }
 
-  iunlockput(ip);
+  // iunlockput(ip);
   end_op(ROOTDEV);
   return 0;
 }
@@ -743,8 +838,7 @@ sys_getcwd(void)
   struct proc *p = myproc();
   if(p->cwd == 0)
     return -1;
-  // For simplicity, return "/"
-  char *cwd = "/";
+  const char *cwd = p->cwdpath[0] ? p->cwdpath : "/";
   int len = strlen(cwd) + 1;
   if(len > size)
     return -1;

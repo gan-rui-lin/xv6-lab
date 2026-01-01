@@ -67,6 +67,7 @@ struct proc
   // 文件系统相关
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
+  char cwdpath[MAXPATH];       // Current directory path string
 };
 
 

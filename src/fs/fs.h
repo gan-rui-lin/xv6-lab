@@ -56,6 +56,13 @@ struct dinode {
 struct dirent {
   ushort inum;
   char name[DIRSIZ];
+
+
+  uint64 d_ino;	// 索引结点号
+  int64 d_off;	// 到下一个dirent的偏移
+  unsigned short d_reclen;	// 当前dirent的长度
+  unsigned char d_type;	// 文件类型
+  char d_name[];	//文件名
 };
 
 // Function declarations

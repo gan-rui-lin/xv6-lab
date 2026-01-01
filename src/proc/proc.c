@@ -89,6 +89,7 @@ void userinit(void){
   p->trapframe->sp = alloc_size; // 用户栈指针初始化为一页大小
 
   p->cwd = namei("/");
+  safestrcpy(p->cwdpath, "/", sizeof(p->cwdpath));
 
   safestrcpy(p->name, "zeroproc", sizeof(p->name));
 
@@ -389,6 +390,7 @@ fork(void)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
+  safestrcpy(np->cwdpath, p->cwdpath, sizeof(np->cwdpath));
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
@@ -449,6 +451,7 @@ clone_fork(uint64 stack)
     if(p->ofile[i])
       np->ofile[i] = filedup(p->ofile[i]);
   np->cwd = idup(p->cwd);
+  safestrcpy(np->cwdpath, p->cwdpath, sizeof(np->cwdpath));
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 

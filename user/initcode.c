@@ -92,6 +92,7 @@ int main()
     test_("yield");
     test_("waitpid");
 
+    test_("getcwd");
     test_("dup");
     test_("close");
     test_("mkdir_"); //! failed

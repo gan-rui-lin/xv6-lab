@@ -932,7 +932,8 @@ sys_unlinkat(void)
     // 仅支持绝对路径，或相对当前工作目录 (dirfd == AT_FDCWD)
     if(path[0] != '/' && dirfd != AT_FDCWD)
       return -1;
-      log_info("sys_unlinkat: calling fat32_unlink");
+    log_info("sys_unlinkat: calling fat32_unlink");
+    
     int r = fat32_unlink(path, want_dir);
     log_info("sys_unlinkat: fat32_unlink returned %d", r);
     return (r == 0) ? 0 : -1;

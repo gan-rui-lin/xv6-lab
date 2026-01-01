@@ -78,7 +78,7 @@ int main()
     // test_("sleep");
     // test_("fork");
     // test_("gettimeofday");
-
+test_("unlink");
     test_("open");
     // test_("read");
     // test_("brk");
@@ -106,7 +106,7 @@ int main()
     // test_("uname");
     //     test_("mmap");
     // test_("munmap");
-    test_("unlink");
+    
 
     // test_busybox();
     shutdown();

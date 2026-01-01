@@ -255,10 +255,10 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
       read_sector512(fat.dev, sec + s, buf);
       
       // // 打印当前扇区前几个字节，确认读取正确
-      // log_info("dir_find: sector %d, first 8 bytes: %02x %02x %02x %02x %02x %02x %02x %02x", 
-      //          sec + s, 
-      //          buf[0], buf[1], buf[2], buf[3], 
-      //          buf[4], buf[5], buf[6], buf[7]);
+      log_info("dir_find: sector %d, first 8 bytes: %02x %02x %02x %02x %02x %02x %02x %02x", 
+               sec + s, 
+               buf[0], buf[1], buf[2], buf[3], 
+               buf[4], buf[5], buf[6], buf[7]);
       
       // iterate entries
       char lfn_name[260];
@@ -292,24 +292,24 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
         }
         
         // // 提取并打印SFN
-        // char sfn_name[13] = {0};
-        // for(int i=0; i<8 && de[i]!=' '; i++){
-        //   sfn_name[i] = de[i];
-        // }
-        // if(de[8] != ' '){
-        //   int len = strlen(sfn_name);
-        //   sfn_name[len] = '.';
-        //   for(int i=0; i<3 && de[8+i]!=' '; i++){
-        //     sfn_name[len+1+i] = de[8+i];
-        //   }
-        // }
+        char sfn_name[13] = {0};
+        for(int i=0; i<8 && de[i]!=' '; i++){
+          sfn_name[i] = de[i];
+        }
+        if(de[8] != ' '){
+          int len = strlen(sfn_name);
+          sfn_name[len] = '.';
+          for(int i=0; i<3 && de[8+i]!=' '; i++){
+            sfn_name[len+1+i] = de[8+i];
+          }
+        }
         
         uint16 cl_hi = *(uint16 *)(de + 20);
         uint16 cl_lo = *(uint16 *)(de + 26);
         uint32 startc = ((uint32)cl_hi << 16) | cl_lo;
         
-        // log_info("dir_find: SFN='%s', LFN='%s', start cluster=%d, size=%d", 
-        //          sfn_name, lfn_name, startc, *(uint32 *)(de + 28));
+        log_info("dir_find: SFN='%s', LFN='%s', start cluster=%d, size=%d", 
+                 sfn_name, lfn_name, startc, *(uint32 *)(de + 28));
         
         // match name: prefer LFN if accumulated; else match SFN
         int matched = 0;
@@ -322,7 +322,7 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
           }
         }
         if(!matched){
-          // log_info("dir_find: comparing '%s' with SFN '%s'", comp, sfn_name);
+          log_info("dir_find: comparing '%s' with SFN '%s'", comp, sfn_name);
           if(match_sfn(comp, de)){
             matched = 1;
             // log_info("dir_find: matched with SFN!");
@@ -356,7 +356,7 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
       break;
     }
     cl = nxt;
-    // log_info("dir_find: moving to next cluster %d", cl);
+    log_info("dir_find: moving to next cluster %d", cl);
   }
   
   // log_info("dir_find: file not found");
@@ -612,6 +612,9 @@ struct inode* fat32_namei(char *path)
     log_warn("fat32_namei: fat32 disabled");
     return 0;
   }
+  struct proc *p = myproc();
+  log_info("fat32_namei: path='%s', cwd: dev=%d inum=%d major=%d addrs0=%d",
+         path, p->cwd->dev, p->cwd->inum, p->cwd->major, p->cwd->addrs[0]);
   // Split path
   char workbuf[MAXPATH];
   char *comps[32];
@@ -695,6 +698,9 @@ struct inode* fat32_nameiat(struct inode *base, char *path)
   }else{
     log_info("fat32_nameiat: base is NULL");
   }
+  struct proc *p = myproc();
+    log_info("fat32_namei: path='%s', cwd: dev=%d inum=%d major=%d addrs0=%d",
+           path, p->cwd->dev, p->cwd->inum, p->cwd->major, p->cwd->addrs[0]);
   
   if(path[0] == '/'){
     log_info("fat32_nameiat: absolute path, use fat32_namei");
@@ -940,7 +946,7 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
   if(need_lfn){
     log_info("fat32_createat: will write %d LFN entries for '%s'", lfn_entries, name);
   }
-  // Find free directory entry
+  // Find free directory entry; extend directory cluster chain when full
   uint32 cl = dir_clus;
   for(;;){
     uint32 sec = clus_to_sec(cl);
@@ -1058,9 +1064,37 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
         }
       }
     }
-    // Next cluster
+    // Next cluster: if we're at end of chain, allocate and link a new
+    // directory cluster so the directory can grow, then continue search.
     uint32 nxt = fat_next_clus(cl);
-    if(nxt >= 0x0FFFFFF8) break;
+    if(nxt >= 0x0FFFFFF8){
+      uint32 new_dir_clus = fat_alloc_clus();
+      if(new_dir_clus == 0){
+        log_warn("fat32_createat: no free directory entry (dir full, cannot extend)");
+        break;
+      }
+
+      // Link current last cluster to the new directory cluster in FAT
+      uint32 offset_bytes = cl * 4;
+      uint32 fat_sec = fat.fat_start_sec + (offset_bytes / fat.bps);
+      uint32 sec_off = offset_bytes % fat.bps;
+      uint8 secbuf[512];
+      read_sector512(fat.dev, fat_sec, secbuf);
+      *(uint32 *)(secbuf + sec_off) = (new_dir_clus & 0x0FFFFFFF);
+      write_sector512(fat.dev, fat_sec, secbuf);
+
+      // Clear the new directory cluster so all entries start as free (0x00)
+      uint32 new_sec = clus_to_sec(new_dir_clus);
+      uint8 zero[512];
+      memset(zero, 0, sizeof(zero));
+      for(uint s = 0; s < fat.spc; s++){
+        write_sector512(fat.dev, new_sec + s, zero);
+      }
+
+      log_info("fat32_createat: extended dir chain: %u -> %u", cl, new_dir_clus);
+      cl = new_dir_clus;
+      continue;
+    }
     cl = nxt;
   }
   log_warn("fat32_createat: no free directory entry");
@@ -1138,10 +1172,29 @@ int fat32_unlink(char *path, int want_dir)
     return -1;
   }
 
-  // Walk to parent directory (similar to fat32_create)
-  uint32 cur = fat.root_clus;
+  for(int i=0;i<n;i++){
+    log_info("fat32_unlink: comps[%d]='%s'\n", i, comps[i]);
+  }
+
+  // Walk to parent directory (similar to fat32_namei / fat32_create)
+  // Absolute paths start from root, relative paths start from cwd if FAT32.
+  uint32 cur;
+  if(path[0] == '/'){
+    cur = fat.root_clus;
+  } else {
+    cur = fat.root_clus;
+    struct proc *p = myproc();
+    log_info("p->cwd=%p\n", p->cwd);
+    if(p && p->cwd && 1){
+      uint32 cwdclus = p->cwd->addrs[0];
+      if(cwdclus != 0)
+        cur = cwdclus;
+    }
+  }
+
+  // 找父目录：只遍历到 n-1，最后一个组件是要删除的目标名
   for(int i = 0; i < n - 1; i++){
-    // skip '.' components
+    // 跳过单独的 "." 组件
     if(comps[i][0] == '.' && comps[i][1] == 0)
       continue;
     short typ; uint32 sz; uint32 st;
@@ -1159,7 +1212,8 @@ int fat32_unlink(char *path, int want_dir)
   // Scan parent directory entries and mark matching entry deleted
   uint32 dir_clus = cur;
   uint32 cl = dir_clus;
-
+  short typ; uint32 sz; uint32 st;
+  int x = dir_find(cl, target, &typ, &sz, &st); // for logging
   for(;;){
     uint32 sec = clus_to_sec(cl);
     for(uint s = 0; s < fat.spc; s++){

@@ -310,7 +310,7 @@ static void lfn_extract_append(uint8 *de, char *buf, int *len)
     }
     
     // 比较重要的 log_info 输出
-    // log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
+    log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
   }
 }
 

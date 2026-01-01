@@ -58,6 +58,8 @@ int main()
 
     // // test_("chdir");
     // // test_shell();
+    test_("times");
+    test_("sleep");
     // test_("fork");
     // test_("gettimeofday");
 
@@ -74,17 +76,17 @@ int main()
     // test_("yield");
     // test_("waitpid");
 
-    // test_("dup");
-    // test_("close");
+    test_("dup");
+    test_("close");
     // test_("mkdir_"); //! failed
-    test_("chdir"); //! another syscall called, not completed
-    // test_("dup2");  //! failed
-    // test_("getdents"); //! wrong getdents fd:1
-    // // test_("mount"); //! exception
-    // test_("pipe");  //? maybe right
-    // test_("fstat"); //! wrong
-    // test_("write");
-    // test_("uname");
+    // test_("chdir"); //! another syscall called, not completed
+    test_("dup2");  //! failed
+    test_("getdents"); //! wrong getdents fd:1
+    // test_("mount"); //! exception
+    test_("pipe");  //? maybe right
+    test_("fstat"); //! wrong
+    test_("write");
+    test_("uname");
     shutdown();
     return 0;
 }

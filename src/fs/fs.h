@@ -51,18 +51,25 @@ struct dinode {
 #define BBLOCK(b, sb) ((b)/BPB + sb.bmapstart)
 
 // Directory is a file containing a sequence of dirent structures.
-#define DIRSIZ 14
+#define DIRSIZ 256
+
+
+struct linux_dirent64 {
+    uint64        d_ino;
+    int64         d_off;
+    unsigned short  d_reclen;
+    unsigned char   d_type;
+    char            d_name[DIRSIZ];
+};
 
 struct dirent {
   ushort inum;
   char name[DIRSIZ];
-
-
   uint64 d_ino;	// 索引结点号
   int64 d_off;	// 到下一个dirent的偏移
   unsigned short d_reclen;	// 当前dirent的长度
   unsigned char d_type;	// 文件类型
-  char d_name[256];	//文件名
+  char d_name[DIRSIZ];	//文件名
 };
 
 // Function declarations

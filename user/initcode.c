@@ -54,10 +54,10 @@ int main()
     dup(0); // stdout
     dup(0); // stderr
 
-    test_("getppid");
+    // test_("getppid");
 
     // test_("chdir");
-    // test_shell();
+    // // test_shell();
     // test_("times");
     // test_("sleep");
     // test_("fork");
@@ -66,7 +66,7 @@ int main()
     // test_("open");
     // test_("read");
     // test_("brk");
-    // //test_("mmap");
+    // test_("mmap");
     // test_("openat");
     // test_("getpid");
     // test_("exit");

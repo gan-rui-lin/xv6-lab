@@ -68,6 +68,8 @@ int main()
 
     //test_("fstat");
 
+    test_("getcwd");
+
     test_("openat");
     test_("getpid");
     test_("exit");

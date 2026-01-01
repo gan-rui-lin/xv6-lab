@@ -610,7 +610,7 @@ sys_mkdirat(void)
     return -1;
   }
 
-  iunlockput(ip);
+  // iunlockput(ip);
   end_op(ROOTDEV);
   return 0;
 }

@@ -226,7 +226,7 @@ static void lfn_extract_append(uint8 *de, char *buf, int *len)
     }
     
     // 比较重要的 log_info 输出
-    // log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
+    log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
   }
 }
 
@@ -659,11 +659,41 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
     log_warn("fat32_createat: invalid dp");
     return NULL;
   }
+  log_info("fat32_createat: name='%s', type=%d", name, type);
   uint32 dir_clus = dp->addrs[0];
   uint32 new_clus = fat_alloc_clus();
   if(new_clus == 0){
     log_warn("fat32_createat: no free cluster");
     return NULL;
+  }
+   log_info("fat32_createat: allocated cluster %u", new_clus);
+
+  // decide whether we need LFN entries (name not pure 8.3)
+  int namelen = strlen(name);
+  int dot = -1;
+  for(int i = 0; i < namelen; i++){
+    if(name[i] == '.') dot = i;
+  }
+  int base_len = (dot >= 0) ? dot : namelen;
+  int ext_len  = (dot >= 0) ? (namelen - dot - 1) : 0;
+  int need_lfn = 0;
+  if(base_len > 8 || ext_len > 3){
+    need_lfn = 1;
+  } else {
+    // check for lowercase or other chars that would be mangled in SFN
+    for(int i = 0; i < namelen; i++){
+      char c = name[i];
+      if(c == '.') continue;
+      if(c >= 'a' && c <= 'z') { need_lfn = 1; break; }
+      // very simple check; ignore full FAT charset here
+    }
+  }
+  int lfn_len = namelen;
+  if(lfn_len > 255) lfn_len = 255;
+  int lfn_entries = need_lfn ? ((lfn_len + 12) / 13) : 0;
+  int needed_slots = (need_lfn ? (lfn_entries + 1) : 1); // LFN + SFN
+  if(need_lfn){
+    log_info("fat32_createat: will write %d LFN entries for '%s'", lfn_entries, name);
   }
   // Find free directory entry
   uint32 cl = dir_clus;
@@ -672,63 +702,114 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
     for(uint s = 0; s < fat.spc; ++s){
       uint8 buf[512];
       read_sector512(fat.dev, sec + s, buf);
+      int run_len = 0;
+      int run_start_off = -1;
       for(int off = 0; off < 512; off += 32){
         uint8 *de = buf + off;
-        if(de[0] == 0x00 || de[0] == 0xE5){
-          // Free slot, write SFN
-          memset(de, 0, 32);
-          // Assume name is 8.3, uppercase
-          char sfn[11];
-          memset(sfn, ' ', 11);
-          int len = strlen(name);
-          int dot = -1;
-          for(int i = 0; i < len; i++){
-            if(name[i] == '.') dot = i;
+        int free = (de[0] == 0x00 || de[0] == 0xE5);
+        if(free){
+          if(run_len == 0) run_start_off = off;
+          run_len++;
+          if(run_len >= needed_slots){
+            // We found enough consecutive free entries starting at run_start_off
+            uint8 *base = buf + run_start_off;
+
+            // First, prepare SFN from name (8.3 upper)
+            char sfn[11];
+            memset(sfn, ' ', 11);
+            int len = namelen;
+            int dot2 = dot;
+            int name_len = base_len;
+            int ext_len2 = ext_len;
+            for(int i2 = 0; i2 < 8 && i2 < name_len; i2++){
+              char c = name[i2];
+              if(c >= 'a' && c <= 'z') c -= 32;
+              sfn[i2] = c;
+            }
+            for(int i2 = 0; i2 < 3 && i2 < ext_len2; i2++){
+              char c = name[dot2 + 1 + i2];
+              if(c >= 'a' && c <= 'z') c -= 32;
+              sfn[8 + i2] = c;
+            }
+
+            // Optionally write LFN entries before SFN
+            if(need_lfn){
+              for(int e = 0; e < lfn_entries; e++){
+                uint8 *lde = base + e * 32;
+                memset(lde, 0, 32);
+                uint8 seq = (uint8)(lfn_entries - e); // highest seq first
+                if(e == 0) seq |= 0x40; // last logical entry flag
+                lde[0] = seq;
+                lde[11] = 0x0F; // LFN attribute
+                lde[12] = 0x00; // type
+                lde[13] = 0x00; // checksum; our reader ignores it
+                // lde[26-27] cluster low = 0
+
+                // Fill 13 UTF-16 chars for this fragment
+                int seq_no = seq & 0x1F;
+                int base_index = (seq_no - 1) * 13;
+                int char_pos[13] = {1,3,5,7,9, 14,16,18,20,22,24, 28,30};
+                for(int i2 = 0; i2 < 13; i2++){
+                  int gi = base_index + i2;
+                  uint16 ch;
+                  if(gi < lfn_len){
+                    ch = (uint8)name[gi];
+                  } else if(gi == lfn_len){
+                    ch = 0x0000; // terminator
+                  } else {
+                    ch = 0xFFFF; // padding
+                  }
+                  lde[char_pos[i2]]     = (uint8)(ch & 0xFF);
+                  lde[char_pos[i2] + 1] = (uint8)(ch >> 8);
+                }
+              }
+            }
+
+            // Now write SFN at the last slot in this run
+            uint8 *sde = base + (needed_slots - 1) * 32;
+            memset(sde, 0, 32);
+            memmove(sde, sfn, 11);
+            sde[11] = (type == T_DIR) ? 0x10 : 0x00;
+            *(uint16 *)(sde + 20) = new_clus >> 16;
+            *(uint16 *)(sde + 26) = new_clus & 0xFFFF;
+            *(uint32 *)(sde + 28) = 0; // size
+
+            write_sector512(fat.dev, sec + s, buf);
+            log_info("fat32_createat: wrote %s entry at cluster %u sector %u offset %d (LFN=%d)",
+                     (type == T_DIR) ? "DIR" : "FILE", cl, sec + s, run_start_off, need_lfn);
+
+            // For directory, initialize . and ..
+            if(type == T_DIR){
+              uint32 data_sec = clus_to_sec(new_clus);
+              uint8 data_buf[512] = {0};
+              // .
+              uint8 *de_dot = data_buf;
+              memset(de_dot, 0, 32);
+              de_dot[0] = '.';
+              memset(de_dot + 1, ' ', 10);
+              de_dot[11] = 0x10;
+              *(uint16 *)(de_dot + 20) = new_clus >> 16;
+              *(uint16 *)(de_dot + 26) = new_clus & 0xFFFF;
+              // ..
+              uint8 *de_dotdot = data_buf + 32;
+              memset(de_dotdot, 0, 32);
+              de_dotdot[0] = '.';
+              de_dotdot[1] = '.';
+              memset(de_dotdot + 2, ' ', 9);
+              de_dotdot[11] = 0x10;
+              *(uint16 *)(de_dotdot + 20) = dir_clus >> 16;
+              *(uint16 *)(de_dotdot + 26) = dir_clus & 0xFFFF;
+              write_sector512(fat.dev, data_sec, data_buf);
+              log_info("fat32_createat: initialized '.' and '..' for new dir cluster %u", new_clus);
+            }
+
+            struct inode *ip = make_inode(fat.dev, type, 0, new_clus);
+            log_info("fat32_createat: created inode for cluster %u", new_clus);
+            return ip;
           }
-          int name_len = (dot >= 0) ? dot : len;
-          int ext_len = (dot >= 0) ? len - dot - 1 : 0;
-          for(int i = 0; i < 8 && i < name_len; i++){
-            char c = name[i];
-            if(c >= 'a' && c <= 'z') c -= 32;
-            sfn[i] = c;
-          }
-          for(int i = 0; i < 3 && i < ext_len; i++){
-            char c = name[dot + 1 + i];
-            if(c >= 'a' && c <= 'z') c -= 32;
-            sfn[8 + i] = c;
-          }
-          memmove(de, sfn, 11);
-          de[11] = (type == T_DIR) ? 0x10 : 0x00;
-          *(uint16 *)(de + 20) = new_clus >> 16;
-          *(uint16 *)(de + 26) = new_clus & 0xFFFF;
-          *(uint32 *)(de + 28) = 0; // size
-          write_sector512(fat.dev, sec + s, buf);
-          // For directory, initialize . and ..
-          if(type == T_DIR){
-            uint32 data_sec = clus_to_sec(new_clus);
-            uint8 data_buf[512] = {0};
-            // .
-            uint8 *de_dot = data_buf;
-            memset(de_dot, 0, 32);
-            de_dot[0] = '.';
-            memset(de_dot + 1, ' ', 10);
-            de_dot[11] = 0x10;
-            *(uint16 *)(de_dot + 20) = new_clus >> 16;
-            *(uint16 *)(de_dot + 26) = new_clus & 0xFFFF;
-            // ..
-            uint8 *de_dotdot = data_buf + 32;
-            memset(de_dotdot, 0, 32);
-            de_dotdot[0] = '.';
-            de_dotdot[1] = '.';
-            memset(de_dotdot + 2, ' ', 9);
-            de_dotdot[11] = 0x10;
-            *(uint16 *)(de_dotdot + 20) = dir_clus >> 16;
-            *(uint16 *)(de_dotdot + 26) = dir_clus & 0xFFFF;
-            write_sector512(fat.dev, data_sec, data_buf);
-          }
-          struct inode *ip = make_inode(fat.dev, type, 0, new_clus);
-          // ilock(ip);
-          return ip;
+        } else {
+          run_len = 0;
+          run_start_off = -1;
         }
       }
     }

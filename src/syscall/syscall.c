@@ -115,6 +115,7 @@ extern uint64 sys_sched_yield(void);
 extern uint64 sys_dup3(void);
 extern uint64 sys_getdents64(void);
 extern uint64 sys_mount(void);
+extern uint64 sys_umount2(void);
 extern uint64 sys_getcwd(void);
 extern uint64 sys_chdir(void);
 extern uint64 sys_pipe2(void);
@@ -126,6 +127,7 @@ extern uint64 sys_times(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
+[SYS_umount2]    sys_umount2,
 [SYS_times]       sys_times,
 [SYS_nanosleep]   sys_nanosleep,
 [SYS_dup]         sys_dup,

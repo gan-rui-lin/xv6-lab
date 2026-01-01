@@ -115,6 +115,9 @@ int main()
      test_("munmap");
  test_("fstat"); //! wrong
 test_("dup2");
+
+    test_("mount");
+    test_("umount");
     shutdown();
     return 0;
 }

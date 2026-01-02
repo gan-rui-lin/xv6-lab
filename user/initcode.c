@@ -80,7 +80,7 @@ int main()
     test_("getppid");
 
     test_("chdir");
-    // test_shell();
+;
     test_("times");
     test_("sleep");
     test_("fork");
@@ -90,7 +90,7 @@ int main()
     test_("read");
     test_("brk");
 
-    // test_("fstat");
+
 
     test_("getcwd");
 
@@ -106,21 +106,18 @@ int main()
     test_("getcwd");
     test_("dup");
     test_("close");
-    test_("mkdir_"); //! failed
-    // // test_("chdir"); //! another syscall called, not completed
-    // test_("dup2");  //! failed
-    test_("getdents"); //! wrong getdents fd:1
-    // test_("mount"); //! exception
-    test_("pipe");  //? maybe right
-    test_("fstat"); //! wrong
+    test_("mkdir_"); 
+
+    test_("getdents"); 
+    test_("pipe"); 
+    test_("fstat"); 
     test_("write");
     test_("uname");
     test_("mmap");
     test_("munmap");
 
-    test_("mmap");
-    test_("munmap");
-    test_("fstat"); //! wrong
+    test_("unlink");
+    test_("fstat");
     test_("dup2");
 
     test_("mount");

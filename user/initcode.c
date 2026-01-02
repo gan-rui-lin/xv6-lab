@@ -4,7 +4,7 @@
 #define TEST_SYSCALLS
 #include "../src/syscall/syscall.h"
 
-//void test_fork();
+// void test_fork();
 
 // void test_sbrk();
 
@@ -16,7 +16,8 @@
 
 // void test_shell();
 
-void test_(char* name){
+void test_(char *name)
+{
 
     char *argv[] = {name, 0};
 
@@ -30,7 +31,7 @@ void test_(char* name){
     {
         // Child process
         // exec("wait", argv);
-        // exec("fork", argv); 
+        // exec("fork", argv);
         exec(name, argv);
         // exec("waitpid", argv);
         printf("Exec failed!\n");
@@ -44,18 +45,24 @@ void test_(char* name){
     }
 }
 
-void test_busybox(){
+void test_busybox()
+{
     printf("=== Testing busybox ===\n");
     int pid = fork();
-    if(pid == 0){
+    if (pid == 0)
+    {
         char *argv[] = {"busybox", "echo", "Hello from busybox!", 0};
         exec("busybox", argv);
         printf("Exec busybox failed!\n");
         syscall(SYS_exit, -1);
-    } else if(pid > 0){
+    }
+    else if (pid > 0)
+    {
         int status;
         wait(&status);
-    } else {
+    }
+    else
+    {
         printf("Fork failed!\n");
     }
 }
@@ -83,7 +90,7 @@ int main()
     test_("read");
     test_("brk");
 
-    //test_("fstat");
+    // test_("fstat");
 
     test_("getcwd");
 
@@ -108,13 +115,13 @@ int main()
     test_("fstat"); //! wrong
     test_("write");
     test_("uname");
-        test_("mmap");
+    test_("mmap");
     test_("munmap");
 
-         test_("mmap");
-     test_("munmap");
- test_("fstat"); //! wrong
-test_("dup2");
+    test_("mmap");
+    test_("munmap");
+    test_("fstat"); //! wrong
+    test_("dup2");
 
     test_("mount");
     test_("umount");

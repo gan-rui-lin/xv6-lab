@@ -16,6 +16,7 @@ struct inode;
 struct inode* fat32_namei(char *path);
 struct inode* fat32_nameiat(struct inode *base, char *path);
 int fat32_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n);
+int fat32_writei(struct inode *ip, int user_src, uint64 src, uint off, uint n);
 struct inode* fat32_createat(struct inode *dp, char *name, short type, int major, int minor);
 struct inode* fat32_create(char *path, short type, int major, int minor);
 
@@ -27,3 +28,7 @@ int fat32_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen);
 
 // Tag to identify FAT32-backed inodes via ip->major
 #define FAT32_INODE_TAG 0xF32
+
+// Remove a directory entry under given directory inode.
+// flags may be AT_REMOVEDIR (remove directory) or 0 (remove file).
+int fat32_unlinkat(struct inode *dir, const char *name, unsigned int flags);

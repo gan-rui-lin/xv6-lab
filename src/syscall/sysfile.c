@@ -530,6 +530,8 @@ uint64
 sys_openat(void)
 {
   char path[MAXPATH];
+  // normalized pointer skipping leading './'
+  char *npath;
   int dirfd, flags;
   int fd;
   struct file *f;
@@ -542,12 +544,15 @@ sys_openat(void)
     return -1;
 
   int kflags = normalize_open_flags(flags);
+  // Normalize path: strip leading './' segments
+  npath = path;
+  while(npath[0] == '.' && npath[1] == '/') npath += 2;
   // log_info("sys_openat: dirfd=%d path='%s' flags=0x%x kflags=0x%x", dirfd, path, flags, kflags);
 
   begin_op(ROOTDEV);
 
   struct file *dirf = 0;
-  if(path[0] != '/' && dirfd != AT_FDCWD && dirfd >= 0){
+  if(npath[0] != '/' && dirfd != AT_FDCWD && dirfd >= 0){
     struct proc *p = myproc();
     if(dirfd >= NOFILE){
       log_warn("sys_openat: dirfd out of range %d", dirfd);
@@ -563,34 +568,47 @@ sys_openat(void)
   }
 
   // First resolve the target according to dirfd semantics
-  if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
-    // if(path[0] == '/') log_info("sys_openat: absolute path");
-    // else log_info("sys_openat: relative to cwd");
-    ip = namei(path);
+  if(npath[0] == '/'){
+    ip = namei(npath);
+  } else if(dirfd != AT_FDCWD && dirfd >= 0){
+    ip = nameiat(dirf->ip, npath);
   } else {
-    // log_info("sys_openat: relative to dirfd=%d", dirfd);
-    ip = nameiat(dirf->ip, path);
+    // AT_FDCWD relative: in FAT32 mode, resolve relative to root to avoid non-FAT32 cwd
+    if(fat32_mode){
+      ip = namei(npath); // fat32_namei will start at root for relative
+    } else {
+      ip = namei(npath);
+    }
   }
 
   if(ip == 0){
     // Not found; if O_CREATE is set, attempt to create when possible
     if(kflags & O_CREATE){
-      if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
-        ip = create(path, T_FILE, 0, 0);
+      if(npath[0] == '/' ){
+        ip = create(npath, T_FILE, 0, 0);
         if(ip == 0){
           end_op(ROOTDEV);
           return -1;
         }
-      } else {
-        ip = createat(dirf->ip, path, T_FILE, 0, 0);
+      } else if(dirfd != AT_FDCWD && dirfd >= 0){
+        // create relative to dirfd
+        // split off leaf name from npath; for simplicity, if npath contains '/', fallback to absolute create
+        ip = createat(dirf->ip, npath, T_FILE, 0, 0);
         if(ip == 0){
-          log_warn("sys_openat: createat failed for '%s'", path);
+          log_warn("sys_openat: createat failed for '%s'", npath);
+          end_op(ROOTDEV);
+          return -1;
+        }
+      } else {
+        // AT_FDCWD relative: use create with normalized path (relative to root in FAT32)
+        ip = create(npath, T_FILE, 0, 0);
+        if(ip == 0){
           end_op(ROOTDEV);
           return -1;
         }
       }
     } else {
-      log_warn("sys_openat: resolve failed for '%s'", path);
+      log_warn("sys_openat: resolve failed for '%s'", npath);
       end_op(ROOTDEV);
       return -1;
     }
@@ -922,7 +940,7 @@ sys_mount(void)
   if(ip == 0 || ip->type != T_DIR){
     return -1;
   }
-  // No VFS layering; return success to satisfy tests
+  // ! No VFS layering; return success to satisfy tests
   return 0;
 }
 
@@ -934,7 +952,7 @@ sys_umount2(void)
   if(argstr(0, target, sizeof(target)) < 0)
     return -1;
   argint(1, &flags);
-  // Minimal implementation: accept and return success
+  // !Minimal implementation: accept and return success
   return 0;
 }
 
@@ -961,4 +979,154 @@ sys_pipe2(void)
 {
   // For simplicity, same as sys_pipe
   return sys_pipe();
+}
+
+uint64
+sys_unlinkat(void)
+{
+  int dirfd;
+  unsigned int flags;
+  char path[MAXPATH];
+  struct proc *p = myproc();
+
+  if(argint(0, &dirfd) < 0){
+    log_warn("sys_unlinkat: argint dirfd failed");
+    return -1;
+  }
+    
+  if(argstr(1, path, MAXPATH) < 0)
+    return -1;
+  if(argint(2, (int*)&flags) < 0)
+    return -1;
+
+  // Normalize path: skip leading "./" segments for FAT32-relative handling
+  char *npath = path;
+  while(npath[0] == '.' && npath[1] == '/')
+    npath += 2;
+
+  // If FAT32 mode, perform FAT32 unlink semantics
+  if(fat32_mode){
+    // Determine parent directory and leaf name
+    char parent[MAXPATH];
+    char *leaf = 0;
+    int L = strlen(npath);
+    int last = -1;
+    for(int i=0;i<L;i++){
+      if(npath[i] == '/') last = i;
+    }
+    log_info("sys_unlinkat: npath='%s' last_slash=%d dirfd=%d\n", npath, last, dirfd);
+    if(last < 0){
+      // No slash; use provided dirfd or CWD as base
+      leaf = npath;
+      struct inode *base = 0;
+      if(dirfd != AT_FDCWD && dirfd >= 0){
+        if(dirfd >= NOFILE) return -1;
+        struct file *dirf = p->ofile[dirfd];
+        if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR){
+          log_warn("sys_unlinkat: invalid dirfd %d, dir->ip->type = %d\n", dirfd, dirf ? dirf->ip->type : -1);
+          return -1;
+        }
+          
+        base = dirf->ip;
+      } else {
+        // Use FAT32 root as base
+        log_warn("sys_unlinkat: using FAT32 root as base for relative path '%s'\n", npath);
+        base = fat32_namei("/");
+      }
+      if(base == 0 || base->major != FAT32_INODE_TAG || base->type != T_DIR){
+        log_warn("sys_unlinkat: base inode invalid for dirfd %d\n", dirfd);
+        return -1;
+      }
+      int ret = fat32_unlinkat(base, leaf, flags);
+      log_debug("sys_unlinkat: unlinkat base inum=%d leaf='%s' ret=%d\n", base->inum, leaf, ret);
+      return ret == 0 ? 0 : -1;
+    } else {
+      // Split parent path and leaf
+      if(last == 0){
+        parent[0] = '/'; parent[1] = 0;
+      } else {
+        int n = (last < MAXPATH-1) ? last : (MAXPATH-1);
+        memmove(parent, npath, n);
+        parent[n] = 0;
+      }
+      leaf = npath + last + 1;
+      struct inode *base = 0;
+      if(npath[0] == '/'){
+        base = fat32_namei(parent);
+      } else {
+        struct inode *anchor = 0;
+        if(dirfd != AT_FDCWD && dirfd >= 0){
+          if(dirfd >= NOFILE) return -1;
+          struct file *dirf = p->ofile[dirfd];
+          if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR)
+            return -1;
+          anchor = dirf->ip;
+        } else {
+          anchor = 0; // resolve relative to FAT32 root
+        }
+        base = fat32_nameiat(anchor, parent);
+      }
+      if(base == 0 || base->major != FAT32_INODE_TAG || base->type != T_DIR)
+        return -1;
+      int ret = fat32_unlinkat(base, leaf, flags);
+      // base was obtained via lookup; release if necessary
+      // iput(base); // avoid releasing cwd/dirfd
+      return ret == 0 ? 0 : -1;
+    }
+  }
+
+  // Non-FAT32: fallback to legacy unlink using absolute resolution
+  // Construct behavior similar to sys_unlink (absolute or cwd-relative)
+  char name[DIRSIZ];
+  struct inode *dp, *ip;
+  uint off;
+
+  begin_op(ROOTDEV);
+  if(path[0] == '/'){
+    if((dp = nameiparent(path, name)) == 0){
+      end_op(ROOTDEV); return -1;
+    }
+  } else {
+    // relative to cwd
+    if((dp = nameiparent(path, name)) == 0){
+      end_op(ROOTDEV); return -1;
+    }
+  }
+
+  ilock(dp);
+  if(namecmp(name, ".") == 0 || namecmp(name, "..") == 0){
+    iunlockput(dp);
+    end_op(ROOTDEV);
+    return -1;
+  }
+  if((ip = dirlookup(dp, name, &off)) == 0){
+    iunlockput(dp);
+    end_op(ROOTDEV);
+    return -1;
+  }
+  ilock(ip);
+  if(ip->nlink < 1)
+    panic("unlinkat: nlink < 1");
+  if((flags & 0x200) && ip->type != T_DIR){ // AT_REMOVEDIR
+    iunlockput(ip);
+    iunlockput(dp);
+    end_op(ROOTDEV);
+    return -1;
+  }
+  struct dirent de;
+  memset(&de, 0, sizeof(de));
+  if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
+    panic("unlinkat: writei");
+  if(ip->type == T_DIR){
+    dp->nlink--;
+    iupdate(dp);
+  }
+  iunlockput(dp);
+
+  ip->nlink--;
+  iupdate(ip);
+  iunlockput(ip);
+
+  end_op(ROOTDEV);
+  return 0;
 }

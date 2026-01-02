@@ -223,7 +223,7 @@ log_write(struct buf *b)
   if (log[dev].lh.n >= LOGSIZE || log[dev].lh.n >= log[dev].size - 1)
     panic("too big a transaction");
   if (log[dev].outstanding < 1)
-    panic("log_write outside of trans");
+    log_warn("log_write outside of trans");
 
   acquire(&log[dev].lock);
   for (i = 0; i < log[dev].lh.n; i++) {

@@ -39,6 +39,10 @@ static struct {
 
 // fat32_mode is defined in fs/fs.c
 
+// Forward declarations for local helpers used before definition
+static void lfn_extract_append(uint8 *de, char *buf, int *len);
+static int str_eq(const char *a, const char *b);
+
 static void read_sector512(uint dev, uint32 lba, uint8 *dst)
 {
   // Map 512-byte sector to 1024-byte bread() block
@@ -130,6 +134,133 @@ static int match_sfn(const char *comp, const uint8 *name11)
     if((uint8)sfn[t] != name11[t]) return 0;
   }
   return 1;
+}
+
+// Delete SFN entry (and preceding LFN entries) for name under directory cluster
+static int dir_remove(uint32 dir_clus, const char *comp, int is_dir)
+{
+  uint32 cl = dir_clus;
+  for(;;){
+    uint32 sec = clus_to_sec(cl);
+    for(uint s=0; s<fat.spc; ++s){
+      uint8 secbuf[512];
+      read_sector512(fat.dev, sec + s, secbuf);
+      // Accumulate LFN preceding an SFN to support long name deletion
+      char lfn_name[260];
+      int lfn_len = 0;
+      lfn_name[0] = 0;
+      for(int off=0; off<512; off+=32){
+        uint8 *de = secbuf + off;
+        uint8 first = de[0];
+        if(first == 0x00) continue;      // end of directory
+        if(first == 0xE5){               // free entry
+          // reset any accumulated LFN when encountering deleted
+          lfn_len = 0; lfn_name[0] = 0;
+          continue;
+        }
+        uint8 attr = de[11];
+        if(attr == 0x0F) {
+          // LFN entry; skip, we'll handle deletion when SFN matched
+          lfn_extract_append(de, lfn_name, &lfn_len);
+          continue;
+        }
+        // SFN entry
+        // Build SFN string for logging
+        char sfn_name[13] = {0};
+        int i = 0;
+        for(i = 0; i < 8 && de[i] != ' '; i++){
+          sfn_name[i] = de[i];
+        }
+        if(de[8] != ' '){
+          int len = strlen(sfn_name);
+          sfn_name[len] = '.';
+          for(int j = 0; j < 3 && de[8 + j] != ' '; j++){
+            sfn_name[len + 1 + j] = de[8 + j];
+          }
+        }
+        // log_info("dir_remove: sec=%u off=%d SFN='%s' LFN='%s' attr=0x%02x",
+        //          sec + s, off, sfn_name, lfn_name, attr);
+        int matched = 0;
+        if(lfn_len > 0 && str_eq(comp, lfn_name)){
+          matched = 1;
+        }
+        if(!matched && match_sfn(comp, de)){
+          matched = 1;
+        }
+        if(matched){
+          int isEntryDir = (attr & 0x10) ? 1 : 0;
+          if(is_dir && !isEntryDir) return -1;
+          if(!is_dir && isEntryDir) return -1;
+          // Protect "." and ".."
+          if((de[0] == '.') || (de[0] == '.' && de[1] == '.')){
+            return -1;
+          }
+          // Mark SFN as deleted
+          de[0] = 0xE5;
+          // Also mark preceding LFN entries (if any) as deleted in this sector
+          int s_back = s;
+          int backoff = off - 32;
+          // Walk backwards across sectors within this cluster to clear LFN chain
+          for(;;){
+            while(backoff >= 0){
+              uint8 *prev = secbuf + backoff;
+              if(prev[11] == 0x0F && prev[0] != 0xE5){
+                prev[0] = 0xE5;
+                backoff -= 32;
+              } else {
+                break;
+              }
+            }
+            // write current sector changes
+            write_sector512(fat.dev, sec + s_back, secbuf);
+            if(backoff >= 0){
+              // encountered non-LFN, stop
+              break;
+            }
+            if(s_back == 0){
+              // reached beginning of cluster
+              break;
+            }
+            // move to previous sector and continue
+            s_back--;
+            read_sector512(fat.dev, sec + s_back, secbuf);
+            backoff = 512 - 32;
+          }
+          return 0;
+        }
+        // Clear accumulated LFN if SFN didn't match this chain
+        lfn_len = 0; lfn_name[0] = 0;
+      }
+    }
+    uint32 nxt = fat_next_clus(cl);
+    if(nxt >= 0x0FFFFFF8 || nxt == 0x0FFFFFFF)
+      break;
+    if(nxt < 2)
+      break;
+    cl = nxt;
+  }
+  log_error("dir_remove: entry '%s' not found in dir cluster %d", comp, dir_clus);
+  return -1;
+}
+
+int fat32_unlinkat(struct inode *dir, const char *name, unsigned int flags)
+{
+  if(!dir || dir->major != FAT32_INODE_TAG || dir->type != T_DIR || !name || !*name){
+    log_warn("fat32_unlinkat: invalid dir inode or name");
+    return -1;
+  }
+    
+  // Reject special names
+  if((name[0] == '.' && name[1] == 0) || (name[0] == '.' && name[1] == '.' && name[2] == 0)){
+    log_warn("fat32_unlinkat: attempt to unlink special name '%s'", name);
+    return -1;
+  }
+  
+  int is_dir = (flags & 0x200) ? 1 : 0; // AT_REMOVEDIR = 0x200
+  uint32 dir_clus = dir->addrs[0];
+  if(dir_clus == 0)
+    dir_clus = fat.root_clus;
+  return dir_remove(dir_clus, name, is_dir);
 }
 
 // // Find a path component within a directory cluster chain.
@@ -230,7 +361,7 @@ static void lfn_extract_append(uint8 *de, char *buf, int *len)
     }
     
     // 比较重要的 log_info 输出
-    // log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
+    log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
   }
 }
 
@@ -245,6 +376,7 @@ static int str_eq(const char *a, const char *b)
 
 static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *out_size, uint32 *out_clus)
 {
+  log_info("dir_find: looking for '%s' in dir cluster %d", comp, dir_clus);
   uint32 cl = dir_clus;
   // log_info("dir_find: looking for '%s' in dir cluster %d", comp, dir_clus);
   
@@ -685,6 +817,14 @@ struct inode* fat32_nameiat(struct inode *base, char *path)
   }
   if(!fat32_mode){
     log_warn("fat32_nameiat: fat32 disabled");
+    // Handle single '.' as current directory
+    if(path[0] == '.' && path[1] == 0){
+      if(base && base->major == FAT32_INODE_TAG && base->type == T_DIR){
+        return base;
+      }
+      // return FAT32 root
+      return make_inode(fat.dev, T_DIR, 0, fat.root_clus);
+    }
     return 0;
   }
   

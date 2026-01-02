@@ -78,8 +78,9 @@ int main()
     // test_("sleep");
     // test_("fork");
     // test_("gettimeofday");
-test_("unlink");
-    test_("open");
+    
+// test_("unlink");
+//     test_("open");
     // test_("read");
     // test_("brk");
 

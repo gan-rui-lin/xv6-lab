@@ -237,6 +237,7 @@ log_info(char *fmt, ...)
     printf_color(COLOR_GREEN, "[INFO] ");
     vprintf_internal(fmt, ap);
     printf_color(COLOR_RESET, "");
+    printf("\n");
     va_end(ap);
 
   #else

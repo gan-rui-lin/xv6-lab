@@ -235,6 +235,10 @@ int             fileread(struct file*, uint64, int n);
 int             filestat(struct file*, uint64 addr);
 int             filewrite(struct file*, uint64, int n);
 
+// sbi.c
+void           sbi_shutdown(void);
+void           sbi_set_timer(uint64_t stime);
+
 //thinfat32.c
 int tf_attach_image(const char *path);
 int tf_detach_image(void);

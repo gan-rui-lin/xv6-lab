@@ -12,14 +12,6 @@ volatile static int ticker = 1; // 用于调试的 ticker 变量
 
 struct spinlock tickslock;
 uint ticks;
-// Simple SBI legacy call wrapper for setting next timer interrupt.
-// Many OpenSBI builds support the legacy set_timer (a7=0).
-static inline void sbi_set_timer(uint64 stime)
-{
-  register uint64 a0 asm("a0") = stime;
-  register uint64 a7 asm("a7") = 0; // legacy SBI set_timer
-  asm volatile("ecall" : "+r"(a0) : "r"(a7) : "memory");
-}
 
 // Choose a tick interval in cycles. From OpenSBI info: mtimer @ 10MHz.
 // 1ms tick -> 10,000 cycles.

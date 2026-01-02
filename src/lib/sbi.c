@@ -22,3 +22,15 @@ void sbi_shutdown(void)
                  : "memory");
     __builtin_unreachable();
 }
+
+void sbi_set_timer(uint64_t stime)
+{
+    register uint64_t a0 asm("a0") = stime;
+    register uint64_t a6 asm("a6") = 0;          // FID = 0 (SBI_EXT_TIME_SET_TIMER)
+    register uint64_t a7 asm("a7") = 0x54494D45; // EID = 0x54494D45 (SBI_EXT_TIME)
+    
+    asm volatile("ecall"
+                 : "+r"(a0) 
+                 : "r"(a6), "r"(a7)
+                 : "memory");
+}

@@ -11,6 +11,13 @@ typedef unsigned long uint64;
 
 typedef long long int64;
 
+// POSIX 类型定义
+typedef int pid_t;
+typedef long ssize_t;
+typedef unsigned int mode_t;
+typedef long clock_t;
+typedef unsigned long size_t;
+
 typedef char uint8_t;
 typedef unsigned short uint16_t;
 typedef unsigned int uint32_t;

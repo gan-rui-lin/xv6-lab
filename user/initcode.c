@@ -4,17 +4,6 @@
 #define TEST_SYSCALLS
 #include "../src/syscall/syscall.h"
 
-// void test_fork();
-
-// void test_sbrk();
-
-// void test_uptime();
-
-// void test_gettimeofday();
-
-// void test_read();
-
-// void test_shell();
 
 void test_(char *name)
 {

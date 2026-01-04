@@ -118,14 +118,6 @@ $K/kernel: dirs $(ENTRY_OBJ) $(OBJS_NO_ENTRY) $(SRC)/linker/kernel.ld $U/initcod
 	$(OBJDUMP) -S $K/kernel > $K/kernel.asm
 	$(OBJDUMP) -t $K/kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $K/kernel.sym
 
-# ===== User 程序编译规则 =====
-# 生成系统调用汇编文件
-$U/usys.S: $U/usys.pl
-	perl $U/usys.pl > $U/usys.S
-
-# 编译系统调用汇编文件
-$U/usys.o: $U/usys.S
-	$(CC) $(CFLAGS) -I. -I$(SRC) -MMD -MP -c -o $U/usys.o $U/usys.S
 
 # 编译 initcode.c 为 ELF 文件
 $U/initcode.o: $U/initcode.c $U/user.h
@@ -147,9 +139,9 @@ $U/%.o: $U/%.S
 	$(CC) $(CFLAGS) -I. -I$(SRC) -MMD -MP -c $< -o $@
 
 # 修改链接顺序
-$U/initcode: $U/entry.o $U/initcode.o $U/usys.o $U/printf.o $U/user-riscv.ld
+$U/initcode: $U/entry.o $U/initcode.o $U/printf.o $U/ulib.o $U/umalloc.o $U/user-riscv.ld
 	$(LD) $(LDFLAGS) -T $U/user-riscv.ld -o $@ \
-	    $U/entry.o $U/initcode.o $U/usys.o $U/printf.o
+	    $U/entry.o $U/initcode.o $U/printf.o $U/ulib.o $U/umalloc.o
 	$(OBJDUMP) -S $@ > $U/initcode.asm
 
 # 从 ELF 文件生成二进制文件
@@ -170,7 +162,7 @@ $(SRC)/mkfs/mkfs: $(SRC)/mkfs/mkfs.c $(SRC)/fs/fs.h $(SRC)/param.h
 # http://www.gnu.org/software/make/manual/html_node/Chained-Rules.html
 .PRECIOUS: %.o
 
-ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
+ULIB = $U/ulib.o $U/printf.o $U/umalloc.o
 # ULIB = $U/ulib.o $U/usys.o $U/printf.o
 
 _%: %.o $(ULIB)

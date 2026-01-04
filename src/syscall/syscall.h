@@ -359,29 +359,9 @@ enum SysNum
 
     // xv6 兼容的调用号，从 1000 开始
     // 当对应 linux 对应 sys_func 实现好了后，就会从 1000 撤下，不再使用 xv6 兼容调用号
-    SYS_xv6_fork = 1 + 1000,
-    SYS_xv6_exit = 2 + 1000,
-    SYS_xv6_wait = 3 + 1000,
-    SYS_xv6_pipe = 4 + 1000,
-    SYS_xv6_read = 5 + 1000,
-    SYS_xv6_write = 6 + 1000,
-    SYS_xv6_close = 7 + 1000,
-    SYS_xv6_kill = 8 + 1000,
-    SYS_xv6_exec = 9 + 1000,
-    SYS_xv6_open = 10 + 1000,
-    SYS_xv6_mknod = 11 + 1000,
-    SYS_xv6_unlink = 12 + 1000,
-    SYS_xv6_fstat = 13 + 1000,
-    SYS_xv6_link = 14 + 1000,
-    SYS_xv6_mkdir = 15 + 1000,
-    SYS_xv6_chdir = 16 + 1000,
-    SYS_xv6_dup = 17 + 1000,
-    SYS_xv6_getpid = 18 + 1000,
-    SYS_xv6_sbrk = 19 + 1000,
-    SYS_xv6_sleep = 20 + 1000,
-    SYS_xv6_uptime = 21 + 1000,
-    SYS_xv6_shutdown = 22 + 1000,
-    SYS_xv6_gettimeofday = 23 + 1000,
+    SYS_xv6_mknod = 1 + 1000,
+
+    SYS_xv6_shutdown = 2 + 1000,
 };
 
 #endif // __ASSEMBLER__/__ASSEMBLY__

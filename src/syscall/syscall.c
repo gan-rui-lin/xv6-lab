@@ -150,25 +150,11 @@ static uint64 (*syscalls[])(void) = {
 [SYS_getppid]     sys_getppid,
 [SYS_gettimeofday] sys_gettimeofday,
 [SYS_openat]      sys_openat,
-[SYS_xv6_fork]    sys_fork,
-[SYS_xv6_exit]    sys_exit,
-[SYS_xv6_wait]    sys_wait,
-[SYS_xv6_read]    sys_read,
-[SYS_xv6_write]   sys_write,
-[SYS_xv6_kill]    sys_kill,
-[SYS_xv6_getpid]  sys_getpid,
-[SYS_xv6_sbrk]    sys_sbrk,
-[SYS_xv6_sleep]   sys_sleep,
-[SYS_xv6_uptime]  sys_uptime,
+
 [SYS_xv6_shutdown] sys_shutdown,
-[SYS_xv6_gettimeofday] sys_gettimeofday,
-[SYS_xv6_open]    sys_open,
+
 [SYS_xv6_mknod]   sys_mknod,
-[SYS_xv6_close]   sys_close,
-[SYS_xv6_dup]     sys_dup,
-[SYS_xv6_exec]    sys_exec,
-[SYS_xv6_fstat]   sys_fstat,
-[SYS_xv6_mkdir]   sys_mkdir,
+
 [SYS_brk]         sys_brk,
 [SYS_fstat]       sys_fstat,
 [SYS_openat]      sys_openat,
@@ -186,35 +172,232 @@ static uint64 (*syscalls[])(void) = {
 char*
 sysname(int num)
 {
-  switch(num){
-  
-  case SYS_xv6_fork:    return "fork";
-  case SYS_xv6_exit:    return "exit";
-  case SYS_xv6_wait:    return "wait";
-  case SYS_xv6_read:    return "read";
-  case SYS_xv6_write:   return "write";
-  case SYS_xv6_kill:    return "kill";
-  case SYS_xv6_getpid:  return "getpid";
-  case SYS_xv6_sbrk:    return "sbrk";
-  case SYS_xv6_sleep:   return "sleep";
-  case SYS_xv6_uptime:  return "uptime";
-  case SYS_xv6_shutdown: return "shutdown";
-  case SYS_xv6_gettimeofday: return "gettimeofday";
-  case SYS_xv6_open:    return "open";
-  case SYS_xv6_mknod:   return "mknod";
-  case SYS_xv6_close:   return "close";
-  case SYS_xv6_dup:     return "dup";
-  case SYS_xv6_exec:    return "exec";
-  case SYS_xv6_fstat:   return "fstat";
-  case SYS_xv6_mkdir:   return "mkdir";
-  // case SYS_brk:    return "brk";
-  // case SYS_mmap:    return "mmap";
-  // case SYS_openat:    return "openat";
-  // case SYS_getpid:    return "getpid";
-  // case SYS_getppid:   return "getppid";
-  default:          return "unknown";
+  switch(num) {
+  case SYS_fork: return "SYS_fork";
+  case SYS_wait: return "SYS_wait";
+  case SYS_setxattr: return "SYS_setxattr";
+  case SYS_kill: return "SYS_kill";
+  // case SYS_lsetxattr: return "SYS_lsetxattr";
+  case SYS_fsetxattr: return "SYS_fsetxattr";
+  case SYS_getxattr: return "SYS_getxattr";
+  case SYS_lgetxattr: return "SYS_lgetxattr";
+  case SYS_fgetxattr: return "SYS_fgetxattr";
+  case SYS_listxattr: return "SYS_listxattr";
+  case SYS_llistxattr: return "SYS_llistxattr";
+  // case SYS_flistxattr: return "SYS_flistxattr";
+  case SYS_sleep: return "SYS_sleep";
+  // case SYS_removexattr: return "SYS_removexattr";
+  case SYS_uptime: return "SYS_uptime";
+  case SYS_lremovexattr: return "SYS_lremovexattr";
+  // case SYS_fremovexattr: return "SYS_fremovexattr";
+  case SYS_mknod: return "SYS_mknod";
+  case SYS_getcwd: return "SYS_getcwd";
+  case SYS_eventfd2: return "SYS_eventfd2";
+  case SYS_epoll_create1: return "SYS_epoll_create1";
+  case SYS_epoll_ctl: return "SYS_epoll_ctl";
+  case SYS_dup2: return "SYS_dup2";
+  case SYS_dup: return "SYS_dup";
+  case SYS_dup3: return "SYS_dup3";
+  case SYS_fcntl: return "SYS_fcntl";
+  case SYS_inotify_init1: return "SYS_inotify_init1";
+  case SYS_ioctl: return "SYS_ioctl";
+  case SYS_flock: return "SYS_flock";
+  case SYS_mknodat: return "SYS_mknodat";
+  case SYS_mkdirat: return "SYS_mkdirat";
+  case SYS_unlinkat: return "SYS_unlinkat";
+  case SYS_symlinkat: return "SYS_symlinkat";
+  case SYS_linkat: return "SYS_linkat";
+  case SYS_umount2: return "SYS_umount2";
+  case SYS_mount: return "SYS_mount";
+  case SYS_statfs: return "SYS_statfs";
+  case SYS_fstatfs: return "SYS_fstatfs";
+  case SYS_truncate: return "SYS_truncate";
+  case SYS_ftruncate: return "SYS_ftruncate";
+  case SYS_fallocate: return "SYS_fallocate";
+  case SYS_faccessat: return "SYS_faccessat";
+  case SYS_chdir: return "SYS_chdir";
+  case SYS_fchdir: return "SYS_fchdir";
+  case SYS_chroot: return "SYS_chroot";
+  case SYS_fchmod: return "SYS_fchmod";
+  case SYS_fchmodat: return "SYS_fchmodat";
+  case SYS_fchownat: return "SYS_fchownat";
+  // case SYS_fchown: return "SYS_fchown";
+  case SYS_exec: return "SYS_exec";
+  case SYS_openat: return "SYS_openat";
+  case SYS_close: return "SYS_close";
+  case SYS_pipe2: return "SYS_pipe2";
+  case SYS_getdents64: return "SYS_getdents64";
+  case SYS_lseek: return "SYS_lseek";
+  case SYS_read: return "SYS_read";
+  case SYS_write: return "SYS_write";
+  case SYS_readv: return "SYS_readv";
+  case SYS_writev: return "SYS_writev";
+  case SYS_pread64: return "SYS_pread64";
+  case SYS_pwrite64: return "SYS_pwrite64";
+  case SYS_preadv: return "SYS_preadv";
+  case SYS_pwritev: return "SYS_pwritev";
+  case SYS_sendfile: return "SYS_sendfile";
+  case SYS_pselect6: return "SYS_pselect6";
+  case SYS_ppoll: return "SYS_ppoll";
+  case SYS_signalfd4: return "SYS_signalfd4";
+  case SYS_vmsplice: return "SYS_vmsplice";
+  case SYS_splice: return "SYS_splice";
+  case SYS_readlinkat: return "SYS_readlinkat";
+  case SYS_fstatat: return "SYS_fstatat";
+  case SYS_fstat: return "SYS_fstat";
+  case SYS_sync: return "SYS_sync";
+  case SYS_fsync: return "SYS_fsync";
+  case SYS_fdatasync: return "SYS_fdatasync";
+  case SYS_sync_file_range: return "SYS_sync_file_range";
+  case SYS_timerfd_create: return "SYS_timerfd_create";
+  case SYS_symlink: return "SYS_symlink";
+  // case SYS_utimensat: return "SYS_utimensat";
+  case SYS_acct: return "SYS_acct";
+  case SYS_exit: return "SYS_exit";
+  case SYS_exit_group: return "SYS_exit_group";
+  case SYS_waitid: return "SYS_waitid";
+  case SYS_set_tid_address: return "SYS_set_tid_address";
+  case SYS_futex: return "SYS_futex";
+  case SYS_set_robust_list: return "SYS_set_robust_list";
+  case SYS_get_robust_list: return "SYS_get_robust_list";
+  case SYS_nanosleep: return "SYS_nanosleep";
+  case SYS_getitimer: return "SYS_getitimer";
+  case SYS_setitimer: return "SYS_setitimer";
+  case SYS_timer_create: return "SYS_timer_create";
+  case SYS_timer_gettime: return "SYS_timer_gettime";
+  case SYS_timer_settime: return "SYS_timer_settime";
+  case SYS_timer_delete: return "SYS_timer_delete";
+  case SYS_clock_settime: return "SYS_clock_settime";
+  case SYS_clock_gettime: return "SYS_clock_gettime";
+  case SYS_clock_getres: return "SYS_clock_getres";
+  case SYS_clock_nanosleep: return "SYS_clock_nanosleep";
+  case SYS_syslog: return "SYS_syslog";
+  case SYS_ptrace: return "SYS_ptrace";
+  case SYS_sched_setscheduler: return "SYS_sched_setscheduler";
+  case SYS_sched_getscheduler: return "SYS_sched_getscheduler";
+  case SYS_sched_getparam: return "SYS_sched_getparam";
+  case SYS_sched_setaffinity: return "SYS_sched_setaffinity";
+  case SYS_sched_getaffinity: return "SYS_sched_getaffinity";
+  case SYS_sched_yield: return "SYS_sched_yield";
+  case SYS_kill_signal: return "SYS_kill_signal";
+  case SYS_tkill: return "SYS_tkill";
+  case SYS_tgkill: return "SYS_tgkill";
+  case SYS_sigaltstack: return "SYS_sigaltstack";
+  case SYS_rt_sigsuspend: return "SYS_rt_sigsuspend";
+  case SYS_rt_sigaction: return "SYS_rt_sigaction";
+  case SYS_rt_sigprocmask: return "SYS_rt_sigprocmask";
+  case SYS_rt_sigpending: return "SYS_rt_sigpending";
+  case SYS_rt_sigtimedwait: return "SYS_rt_sigtimedwait";
+  case SYS_rt_sigqueueinfo: return "SYS_rt_sigqueueinfo";
+  case SYS_rt_sigreturn: return "SYS_rt_sigreturn";
+  case SYS_setpriority: return "SYS_setpriority";
+  case SYS_getpriority: return "SYS_getpriority";
+  case SYS_reboot: return "SYS_reboot";
+  case SYS_setregrid: return "SYS_setregrid";
+  case SYS_setgid: return "SYS_setgid";
+  case SYS_setreuid: return "SYS_setreuid";
+  case SYS_setuid: return "SYS_setuid";
+  case SYS_setresuid: return "SYS_setresuid";
+  case SYS_getresuid: return "SYS_getresuid";
+  case SYS_setresgid: return "SYS_setresgid";
+  case SYS_getresgid: return "SYS_getresgid";
+  case SYS_setfsuid: return "SYS_setfsuid";
+  case SYS_setfsgid: return "SYS_setfsgid";
+  case SYS_times: return "SYS_times";
+  case SYS_setpgid: return "SYS_setpgid";
+  case SYS_getpgid: return "SYS_getpgid";
+  case SYS_getsid: return "SYS_getsid";
+  case SYS_setsid: return "SYS_setsid";
+  case SYS_getgroups: return "SYS_getgroups";
+  case SYS_setgroups: return "SYS_setgroups";
+  case SYS_uname: return "SYS_uname";
+  case SYS_sethostname: return "SYS_sethostname";
+  case SYS_setdomainname: return "SYS_setdomainname";
+  case SYS_getrusage: return "SYS_getrusage";
+  case SYS_umask: return "SYS_umask";
+  case SYS_prctl: return "SYS_prctl";
+  case SYS_gettimeofday: return "SYS_gettimeofday";
+  case SYS_adjtimex: return "SYS_adjtimex";
+  case SYS_getpid: return "SYS_getpid";
+  case SYS_getppid: return "SYS_getppid";
+  case SYS_getuid: return "SYS_getuid";
+  case SYS_geteuid: return "SYS_geteuid";
+  case SYS_getgid: return "SYS_getgid";
+  case SYS_getegid: return "SYS_getegid";
+  case SYS_gettid: return "SYS_gettid";
+  case SYS_sysinfo: return "SYS_sysinfo";
+  case SYS_semget: return "SYS_semget";
+  case SYS_semctl: return "SYS_semctl";
+  case SYS_semtimedop: return "SYS_semtimedop";
+  case SYS_semop: return "SYS_semop";
+  case SYS_shmget: return "SYS_shmget";
+  case SYS_shmctl: return "SYS_shmctl";
+  case SYS_shmat: return "SYS_shmat";
+  case SYS_shmdt: return "SYS_shmdt";
+  case SYS_socket: return "SYS_socket";
+  case SYS_socketpair: return "SYS_socketpair";
+  case SYS_bind: return "SYS_bind";
+  case SYS_listen: return "SYS_listen";
+  case SYS_accept: return "SYS_accept";
+  case SYS_connect: return "SYS_connect";
+  case SYS_getsockname: return "SYS_getsockname";
+  case SYS_getpeername: return "SYS_getpeername";
+  case SYS_sendto: return "SYS_sendto";
+  case SYS_recvfrom: return "SYS_recvfrom";
+  case SYS_setsockopt: return "SYS_setsockopt";
+  case SYS_getsockopt: return "SYS_getsockopt";
+  case SYS_shutdown_socket: return "SYS_shutdown_socket";
+  case SYS_sendmsg: return "SYS_sendmsg";
+  case SYS_recvmsg: return "SYS_recvmsg";
+  case SYS_readahead: return "SYS_readahead";
+  case SYS_brk: return "SYS_brk";
+  case SYS_munmap: return "SYS_munmap";
+  case SYS_mremap: return "SYS_mremap";
+  case SYS_add_key: return "SYS_add_key";
+  case SYS_keyctl: return "SYS_keyctl";
+  case SYS_clone: return "SYS_clone";
+  case SYS_execve: return "SYS_execve";
+  case SYS_mmap: return "SYS_mmap";
+  case SYS_fadvise64: return "SYS_fadvise64";
+  case SYS_mprotect: return "SYS_mprotect";
+  case SYS_msync: return "SYS_msync";
+  case SYS_mlock: return "SYS_mlock";
+  case SYS_madvise: return "SYS_madvise";
+  case SYS_remap_file_pages: return "SYS_remap_file_pages";
+  case SYS_get_mempolicy: return "SYS_get_mempolicy";
+  case SYS_perf_event_open: return "SYS_perf_event_open";
+  case SYS_accept4: return "SYS_accept4";
+  case SYS_wait4: return "SYS_wait4";
+  case SYS_prlimit64: return "SYS_prlimit64";
+  case SYS_fanotify_init: return "SYS_fanotify_init";
+  case SYS_clockadjtime: return "SYS_clockadjtime";
+  case SYS_setns: return "SYS_setns";
+  case SYS_renameat2: return "SYS_renameat2";
+  case SYS_getrandom: return "SYS_getrandom";
+  case SYS_memfd_create: return "SYS_memfd_create";
+  case SYS_bpf: return "SYS_bpf";
+  case SYS_userfaultfd: return "SYS_userfaultfd";
+  case SYS_membarrier: return "SYS_membarrier";
+  case SYS_copy_file_range: return "SYS_copy_file_range";
+  case SYS_statx: return "SYS_statx";
+  case SYS_strerror: return "SYS_strerror";
+  case SYS_perror: return "SYS_perror";
+  case SYS_io_uring_setup: return "SYS_io_uring_setup";
+  case SYS_open_tree: return "SYS_open_tree";
+  case SYS_fsopen: return "SYS_fsopen";
+  case SYS_fspick: return "SYS_fspick";
+  case SYS_pidfd_open: return "SYS_pidfd_open";
+  case SYS_clone3: return "SYS_clone3";
+  case SYS_close_range: return "SYS_close_range";
+  case SYS_openat2: return "SYS_openat2";
+  case SYS_faccessat2: return "SYS_faccessat2";
+  case SYS_memfd_secret: return "SYS_memfd_secret";
+  case SYS_fchmodat2: return "SYS_fchmodat2";
+  default: return "unknown";
   }
 }
+
+
 
 void
 syscall_handler(void)
@@ -243,8 +426,8 @@ syscall_handler(void)
       printf("[syscall] pid=%d name=%s num=%d ret=%ld\n", p->pid, p->name, num, (long)ret);
     }
   } else {
-    printf("%d %s: unknown sys call %d\n",
-            p->pid, p->name, num);
+    printf("%d %s: unimplemented sys call %s\n",
+            p->pid, p->name, sysname(num));
     p->trapframe->a0 = -1;
   }
 }

@@ -1,0 +1,51 @@
+// 进程状态转换图 - 优先级队列调度
+// 使用 Graphviz DOT 语言
+// 编译命令: dot -Tpng process_state.dot -o process_state.png
+
+digraph process_state {
+    rankdir=LR;
+    fontname="SimHei";
+    node [fontname="SimHei", shape=ellipse, style="filled"];
+    edge [fontname="SimHei"];
+    
+    // 标题
+    labelloc="t";
+    label="进程状态转换图（优先级队列调度）";
+    fontsize=18;
+    
+    // 状态节点
+    UNUSED [label="UNUSED\n(未使用)", fillcolor=lightgray];
+    USED [label="USED\n(已分配)", fillcolor=lightyellow];
+    RUNNABLE [label="RUNNABLE\n(就绪)", fillcolor=lightgreen];
+    RUNNING [label="RUNNING\n(运行中)", fillcolor=lightpink];
+    SLEEPING [label="SLEEPING\n(睡眠)", fillcolor=lightblue];
+    ZOMBIE [label="ZOMBIE\n(僵尸)", fillcolor=orange];
+    
+    // 优先级队列（用虚线框表示）
+    subgraph cluster_queue {
+        label="优先级队列\n(runqueue)";
+        style=dashed;
+        color=green;
+        
+        queue [label="prio[0]: P1→P5\nprio[1]: P2\n...\nprio[39]: P3", shape=box, fillcolor=white];
+    }
+    
+    // 状态转换边
+    UNUSED -> USED [label="allocproc()"];
+    USED -> RUNNABLE [label="fork()/userinit()\n+ enqueue()"];
+    
+    RUNNABLE -> RUNNING [label="scheduler()\ndequeue()"];
+    
+    RUNNING -> RUNNABLE [label="yield()\n+ enqueue()"];
+    RUNNING -> SLEEPING [label="sleep()"];
+    RUNNING -> ZOMBIE [label="exit()"];
+    
+    SLEEPING -> RUNNABLE [label="wakeup()\n+ enqueue()"];
+    
+    ZOMBIE -> UNUSED [label="wait()\nfreeproc()"];
+    
+    // 队列与状态的关系
+    edge [style=dashed, color=green];
+    RUNNABLE -> queue [label="enqueue()", dir=both];
+    queue -> RUNNING [label="dequeue()"];
+}

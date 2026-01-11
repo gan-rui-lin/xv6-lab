@@ -41,6 +41,11 @@ struct cpu {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+// 优先级定义（数值越小，优先级越高）
+#define PRIO_MIN      1     // 最高优先级
+#define PRIO_MAX      40    // 最低优先级
+#define PRIO_DEFAULT  20    // 默认优先级
+
 struct proc
 {
   // 调度器或者其他进程会并发访问这些字段
@@ -50,6 +55,7 @@ struct proc
   enum procstate state;        // Process state
   void *chan;                  // If non-zero, sleeping on chan
   int xstate;                  // Exit status to be returned to parent's wait
+  int priority;                // 进程优先级（1-40，数值越小优先级越高）
 
   // 持有 wait_lock
   struct proc *parent;         // Parent process

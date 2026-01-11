@@ -618,3 +618,34 @@ sys_nanosleep(void)
   }
   return ret;
 }
+
+// 设置当前进程的优先级
+// 参数：priority (1-40, 数值越小优先级越高)
+// 返回：成功返回0，失败返回-1
+uint64
+sys_setpriority(void)
+{
+  int priority;
+  argint(0, &priority);
+  
+  // 检查优先级范围
+  if (priority < PRIO_MIN || priority > PRIO_MAX) {
+    return -1;
+  }
+  
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->priority = priority;
+  release(&p->lock);
+  
+  return 0;
+}
+
+// 获取当前进程的优先级
+// 返回：当前进程的优先级值
+uint64
+sys_getpriority(void)
+{
+  struct proc *p = myproc();
+  return p->priority;
+}

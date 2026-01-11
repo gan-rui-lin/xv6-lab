@@ -123,11 +123,15 @@ extern uint64 sys_mkdirat(void);
 extern uint64 sys_uname(void);
 extern uint64 sys_nanosleep(void);
 extern uint64 sys_times(void);
+extern uint64 sys_setpriority(void);
+extern uint64 sys_getpriority(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
 [SYS_times]       sys_times,
 [SYS_nanosleep]   sys_nanosleep,
+[SYS_setpriority] sys_setpriority,
+[SYS_getpriority] sys_getpriority,
 [SYS_dup]         sys_dup,
 [SYS_dup2]        sys_dup3,
 [SYS_dup3]        sys_dup3,

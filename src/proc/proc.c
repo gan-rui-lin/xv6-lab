@@ -135,6 +135,7 @@ found:
 
   p->pid = allocpid();
   p->state = USED; //TODO 有必要吗？
+  p->priority = PRIO_DEFAULT;  // 设置默认优先级
 
 
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -278,6 +279,7 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  p->priority = PRIO_DEFAULT;  // 重置优先级
   p->state = UNUSED;
 }
 
@@ -293,11 +295,13 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
   uvmfree(pagetable, sz);
 }
 
-// 进行进程调度
+// 进行进程调度 - 优先级调度
+// 选择优先级最高（priority值最小）的RUNNABLE进程运行
 void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *highest_prio_proc;
   struct cpu *c = mycpu();
   
   // myproc() 暂时返回 NULL
@@ -306,23 +310,45 @@ scheduler(void)
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
+    // 优先级调度：遍历所有进程，找到优先级最高的RUNNABLE进程
+    highest_prio_proc = 0;
+    int highest_prio = PRIO_MAX + 1;  // 初始化为比最低优先级还低
+
+    // 第一遍扫描：找到优先级最高的进程
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        // myproc() 返回当前运行的进程
-        c->proc = p;
-        // 保存调度器上下文，切换到进程上下文
-        // 之后通过 mycpu()->context 切换回调度器
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
+        if(p->priority < highest_prio) {
+          // 释放之前选中进程的锁（如果有）
+          if(highest_prio_proc != 0) {
+            release(&highest_prio_proc->lock);
+          }
+          highest_prio = p->priority;
+          highest_prio_proc = p;
+        } else {
+          release(&p->lock);
+        }
+      } else {
+        release(&p->lock);
       }
+    }
+
+    // 如果找到了可运行的进程，运行它
+    if(highest_prio_proc != 0) {
+      p = highest_prio_proc;
+      // Switch to chosen process.  It is the process's job
+      // to release its lock and then reacquire it
+      // before jumping back to us.
+      p->state = RUNNING;
+      // myproc() 返回当前运行的进程
+      c->proc = p;
+      // 保存调度器上下文，切换到进程上下文
+      // 之后通过 mycpu()->context 切换回调度器
+      swtch(&c->context, &p->context);
+
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
       release(&p->lock);
     }
   }
@@ -392,6 +418,9 @@ fork(void)
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
+  // 子进程继承父进程的优先级
+  np->priority = p->priority;
+
   pid = np->pid;
 
   release(&np->lock);
@@ -451,6 +480,9 @@ clone_fork(uint64 stack)
   np->cwd = idup(p->cwd);
 
   safestrcpy(np->name, p->name, sizeof(p->name));
+
+  // 子进程继承父进程的优先级
+  np->priority = p->priority;
 
   pid = np->pid;
 

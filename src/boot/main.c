@@ -24,6 +24,7 @@ void main()
         // print_ruos();
 
         kinit(); // 物理页面分配器初始化
+        kalloc_selftest(); // 验证 buddy+slab 分配器
 
         log_info("xv6 is booting!\n");
         
@@ -34,18 +35,19 @@ void main()
         procinit();          // 进程表初始化
         // 为每一个 hart 设置中断向量表
         trapinithart();
-        binit();               // 初始化内存块管理器
-        iinit();               // 初始化 inode 管理器
+        binit();               // 初始化块缓存
         fileinit();      // 初始化文件表的锁
         virtio_disk_init(minor(ROOTDEV)); // 初始化磁盘驱动
 
         // 使能 S 模式中断（外部/软件/定时器）并打开全局 SIE
         w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
         intr_on();
+
+        fsinit(minor(ROOTDEV)); // VFS filesystems
         
         
         userinit();          // 创建第一个用户进程
-
+        
         __sync_synchronize(); // 确保代码不乱序执行
 
 
@@ -67,7 +69,7 @@ void main()
         // 次级核也需要使能 S 模式中断并打开全局 SIE
         w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
         intr_on();
-
+        
         __sync_synchronize();
     }
 

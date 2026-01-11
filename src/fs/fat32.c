@@ -18,6 +18,7 @@
 #include "sleeplock.h" // TODO 和 fs/file.h 捆绑着引入
 #include "fs/fs.h"     // TODO 和 fs/file.h 捆绑着引入
 #include "fs/file.h"
+#include "fs/vfs.h"
 #include "fs/stat.h"
 #include "buf.h"
 
@@ -35,9 +36,57 @@ static struct {
   uint32 fat_start_sec; // FAT start sector (LBA)
 } fat;
 
+static int fat32_vfs_read(struct inode *ip, int user_dst, uint64 dst, uint off, uint n);
+static int fat32_vfs_write(struct inode *ip, int user_src, uint64 src, uint off, uint n);
+static void fat32_vfs_stat(struct inode *ip, struct stat *st);
+
+static const struct vfs_node_ops fat32_node_ops = {
+  .read = fat32_vfs_read,
+  .write = fat32_vfs_write,
+  .stat = fat32_vfs_stat,
+  .getdents64 = fat32_getdents64,
+};
+
+static const struct vfs_fs_ops fat32_fs_ops = {
+  .namei = fat32_namei,
+  .nameiat = fat32_nameiat,
+  .nameiparent = 0,
+  .create = fat32_create,
+  .createat = fat32_createat,
+  .unlink_path = fat32_unlink,
+};
+
+static const struct vfs_driver fat32_driver = {
+  .name = "fat32",
+  .ops = &fat32_fs_ops,
+};
+
+static uint32
+fat32_cwd_cluster(void)
+{
+  struct proc *p = myproc();
+  if(p && p->cwd){
+    uint32 cl = p->cwd->addrs[0];
+    if(cl != 0)
+      return cl;
+  }
+  return fat.root_clus;
+}
+
+static void
+fat32_log_cwd(const char *tag, const char *path)
+{
+  struct proc *p = myproc();
+  if(p && p->cwd){
+    log_info("%s: path='%s', cwd: dev=%d inum=%d major=%d addrs0=%d",
+             tag, path, p->cwd->dev, p->cwd->inum, p->cwd->major, p->cwd->addrs[0]);
+  } else {
+    log_info("%s: path='%s', cwd unavailable (using root)", tag, path);
+  }
+}
 
 
-// fat32_mode is defined in fs/fs.c
+extern int fat32_mode; // defined in fs/fs.c
 
 static void read_sector512(uint dev, uint32 lba, uint8 *dst)
 {
@@ -255,10 +304,10 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
       read_sector512(fat.dev, sec + s, buf);
       
       // // 打印当前扇区前几个字节，确认读取正确
-      log_info("dir_find: sector %d, first 8 bytes: %02x %02x %02x %02x %02x %02x %02x %02x", 
-               sec + s, 
-               buf[0], buf[1], buf[2], buf[3], 
-               buf[4], buf[5], buf[6], buf[7]);
+      // log_info("dir_find: sector %d, first 8 bytes: %02x %02x %02x %02x %02x %02x %02x %02x", 
+      //          sec + s, 
+      //          buf[0], buf[1], buf[2], buf[3], 
+      //          buf[4], buf[5], buf[6], buf[7]);
       
       // iterate entries
       char lfn_name[260];
@@ -308,8 +357,8 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
         uint16 cl_lo = *(uint16 *)(de + 26);
         uint32 startc = ((uint32)cl_hi << 16) | cl_lo;
         
-        log_info("dir_find: SFN='%s', LFN='%s', start cluster=%d, size=%d", 
-                 sfn_name, lfn_name, startc, *(uint32 *)(de + 28));
+        // log_info("dir_find: SFN='%s', LFN='%s', start cluster=%d, size=%d", 
+        //          sfn_name, lfn_name, startc, *(uint32 *)(de + 28));
         
         // match name: prefer LFN if accumulated; else match SFN
         int matched = 0;
@@ -322,7 +371,7 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
           }
         }
         if(!matched){
-          log_info("dir_find: comparing '%s' with SFN '%s'", comp, sfn_name);
+          // log_info("dir_find: comparing '%s' with SFN '%s'", comp, sfn_name);
           if(match_sfn(comp, de)){
             matched = 1;
             // log_info("dir_find: matched with SFN!");
@@ -356,7 +405,7 @@ static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *
       break;
     }
     cl = nxt;
-    log_info("dir_find: moving to next cluster %d", cl);
+    // log_info("dir_find: moving to next cluster %d", cl);
   }
   
   // log_info("dir_find: file not found");
@@ -565,6 +614,7 @@ void fat32_init(int dev)
   dummy_sb.logstart = 1;  // Start log at block 1 (arbitrary)
   dummy_sb.nlog = 30;     // Match LOGSIZE
   initlog(dev, &dummy_sb);
+  vfs_mount_root(&fat32_driver);
   
   // log_info("FAT32: bps=%d spc=%d rsvd=%d nfats=%d fatsz=%d root=%x", bps, spc, rsvd, nf, fatsz32, rootclus);
 }
@@ -599,6 +649,8 @@ static struct inode *make_inode(uint dev, short type, uint32 size, uint32 start_
   for(int i=0;i<NDIRECT+1;i++) ip->addrs[i] = 0;
   ip->addrs[0] = start_clus; // stash start cluster
   ip->valid = 1; // prevent xv6 ilock from disk-read
+  ip->ops = &fat32_node_ops;
+  ip->fs_private = 0;
   return ip;
 }
 
@@ -612,22 +664,13 @@ struct inode* fat32_namei(char *path)
     log_warn("fat32_namei: fat32 disabled");
     return 0;
   }
-  struct proc *p = myproc();
-  log_info("fat32_namei: path='%s', cwd: dev=%d inum=%d major=%d addrs0=%d",
-         path, p->cwd->dev, p->cwd->inum, p->cwd->major, p->cwd->addrs[0]);
+  fat32_log_cwd("fat32_namei", path);
   // Split path
   char workbuf[MAXPATH];
   char *comps[32];
   int n = split_path(path, comps, 32, workbuf, sizeof(workbuf));
   // base: root for absolute; cwd for relative
-  uint32 cur = (path[0] == '/') ? fat.root_clus : fat.root_clus;
-  if(path[0] != '/'){
-    struct proc *p = myproc();
-    if(p && p->cwd){
-      uint32 cwdclus = p->cwd->addrs[0];
-      if(cwdclus != 0) cur = cwdclus;
-    }
-  }
+  uint32 cur = (path[0] == '/') ? fat.root_clus : fat32_cwd_cluster();
   short cur_type = T_DIR;
   uint32 cur_size = 0;
   if(n == 0){
@@ -635,13 +678,8 @@ struct inode* fat32_namei(char *path)
   }
   // 单个 "." 解析为当前工作目录
   if(n == 1 && comps[0][0] == '.' && comps[0][1] == 0){
-    struct proc *p = myproc();
-    if(p && p->cwd){
-      uint32 cwdclus = p->cwd->addrs[0];
-      if(cwdclus == 0) cwdclus = fat.root_clus;
-      return make_inode(fat.dev, T_DIR, 0, cwdclus);
-    }
-    return make_inode(fat.dev, T_DIR, 0, fat.root_clus);
+    uint32 cwdclus = fat32_cwd_cluster();
+    return make_inode(fat.dev, T_DIR, 0, cwdclus);
   }
   // special device: console
   if(n == 1){
@@ -698,9 +736,7 @@ struct inode* fat32_nameiat(struct inode *base, char *path)
   }else{
     log_info("fat32_nameiat: base is NULL");
   }
-  struct proc *p = myproc();
-    log_info("fat32_namei: path='%s', cwd: dev=%d inum=%d major=%d addrs0=%d",
-           path, p->cwd->dev, p->cwd->inum, p->cwd->major, p->cwd->addrs[0]);
+  fat32_log_cwd("fat32_nameiat", path);
   
   if(path[0] == '/'){
     log_info("fat32_nameiat: absolute path, use fat32_namei");
@@ -814,6 +850,12 @@ int fat32_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
     }
   }
   return tot;
+}
+
+static int
+fat32_vfs_read(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
+{
+  return fat32_readi(ip, user_dst, dst, off, n);
 }
 
 int fat32_writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
@@ -1146,6 +1188,21 @@ struct inode* fat32_create(char *path, short type, int major, int minor)
   return ip;
 }
 
+static int
+fat32_vfs_write(struct inode *ip, int user_src, uint64 src, uint off, uint n)
+{
+  return fat32_writei(ip, user_src, src, off, n);
+}
+
+static void
+fat32_vfs_stat(struct inode *ip, struct stat *st)
+{
+  st->dev = ip->dev;
+  st->ino = ip->inum;
+  st->type = ip->type;
+  st->nlink = ip->nlink;
+  st->size = ip->size;
+}
 // Unlink a file or directory entry on FAT32 by path.
 // For now we only mark the directory entry (and its LFN entries) as deleted;
 // we do not free clusters. want_dir!=0 means caller expects a directory.
@@ -1178,19 +1235,7 @@ int fat32_unlink(char *path, int want_dir)
 
   // Walk to parent directory (similar to fat32_namei / fat32_create)
   // Absolute paths start from root, relative paths start from cwd if FAT32.
-  uint32 cur;
-  if(path[0] == '/'){
-    cur = fat.root_clus;
-  } else {
-    cur = fat.root_clus;
-    struct proc *p = myproc();
-    log_info("p->cwd=%p\n", p->cwd);
-    if(p && p->cwd && 1){
-      uint32 cwdclus = p->cwd->addrs[0];
-      if(cwdclus != 0)
-        cur = cwdclus;
-    }
-  }
+  uint32 cur = (path[0] == '/') ? fat.root_clus : fat32_cwd_cluster();
 
   // 找父目录：只遍历到 n-1，最后一个组件是要删除的目标名
   for(int i = 0; i < n - 1; i++){
@@ -1316,4 +1361,3 @@ int fat32_unlink(char *path, int want_dir)
   end_op(fat.dev);
   return -1;
 }
-

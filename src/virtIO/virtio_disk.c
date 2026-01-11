@@ -13,6 +13,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "sleeplock.h"
+#include "proc.h"
 #include "../fs/buf.h"
 #include "virtio.h"
 
@@ -187,6 +188,7 @@ virtio_disk_rw(int n, struct buf *b, int write)
   uint64 sector = b->blockno * (BSIZE / 512);
 
   acquire(&disk[n].vdisk_lock);
+  int have_proc = mycpu()->proc != 0;
 
   // the spec says that legacy block operations use three
   // descriptors: one for type/reserved/sector, one for
@@ -255,7 +257,15 @@ virtio_disk_rw(int n, struct buf *b, int write)
 
   // 等待 virtio_disk_intr() 表示请求已完成
   while(b->disk == 1) {
-    sleep(b, &disk[n].vdisk_lock);
+    if(have_proc){
+      sleep(b, &disk[n].vdisk_lock);
+    } else {
+      release(&disk[n].vdisk_lock);
+      // Busy-wait during early boot before schedulers run.
+      while(__atomic_load_n(&b->disk, __ATOMIC_ACQUIRE) == 1)
+        ; // wait for interrupt handler to clear the flag
+      acquire(&disk[n].vdisk_lock);
+    }
   }
 
   disk[n].info[idx[0]].b = 0;
@@ -284,4 +294,3 @@ virtio_disk_intr(int n)
 
   release(&disk[n].vdisk_lock);
 }
-

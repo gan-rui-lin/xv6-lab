@@ -10,10 +10,8 @@
 #include "fs/fs.h"     // TODO 和 fs/file.h 捆绑着引入
 #include "fs/file.h"
 #include "fs/stat.h"
-#include "fs/fat32.h"
 #include "fcntl.h"
 
-extern int fat32_mode;
 #// 兼容 Linux open/openat 的 flags 到内核内部标志
 static int normalize_open_flags(int flags)
 {
@@ -273,176 +271,30 @@ sys_fstat(void)
 }
 
 
-// Create the path new as a link to the same inode as old.
 uint64
 sys_link(void)
 {
-  char name[DIRSIZ], new[MAXPATH], old[MAXPATH];
-  struct inode *dp, *ip;
-
-  if(argstr(0, old, MAXPATH) < 0 || argstr(1, new, MAXPATH) < 0)
-    return -1;
-
-  begin_op(ROOTDEV);
-  if((ip = namei(old)) == 0){
-    end_op(ROOTDEV);
-    return -1;
-  }
-
-  ilock(ip);
-  if(ip->type == T_DIR){
-    iunlockput(ip);
-    end_op(ROOTDEV);
-    return -1;
-  }
-
-  ip->nlink++;
-  iupdate(ip);
-  iunlock(ip);
-
-  if((dp = nameiparent(new, name)) == 0)
-    goto bad;
-  ilock(dp);
-  if(dp->dev != ip->dev || dirlink(dp, name, ip->inum) < 0){
-    iunlockput(dp);
-    goto bad;
-  }
-  iunlockput(dp);
-  iput(ip);
-
-  end_op(ROOTDEV);
-
-  return 0;
-
-bad:
-  ilock(ip);
-  ip->nlink--;
-  iupdate(ip);
-  iunlockput(ip);
-  end_op(ROOTDEV);
+  log_warn("sys_link: not supported on current filesystem");
   return -1;
-}
-
-// Is the directory dp empty except for "." and ".." ?
-static int
-isdirempty(struct inode *dp)
-{
-  int off;
-  struct dirent de;
-
-  for(off=2*sizeof(de); off<dp->size; off+=sizeof(de)){
-    if(readi(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
-      panic("isdirempty: readi");
-    if(de.inum != 0)
-      return 0;
-  }
-  return 1;
 }
 
 uint64
 sys_unlink(void)
 {
-  struct inode *ip, *dp;
-  struct dirent de;
-  char name[DIRSIZ], path[MAXPATH];
-  uint off;
-
+  char path[MAXPATH];
   if(argstr(0, path, MAXPATH) < 0)
     return -1;
 
   begin_op(ROOTDEV);
-  if((dp = nameiparent(path, name)) == 0){
-    end_op(ROOTDEV);
-    return -1;
-  }
-
-  ilock(dp);
-
-  // Cannot unlink "." or "..".
-  if(namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
-    goto bad;
-
-  if((ip = dirlookup(dp, name, &off)) == 0)
-    goto bad;
-  ilock(ip);
-
-  if(ip->nlink < 1)
-    panic("unlink: nlink < 1");
-  if(ip->type == T_DIR && !isdirempty(ip)){
-    iunlockput(ip);
-    goto bad;
-  }
-
-  memset(&de, 0, sizeof(de));
-  if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
-    panic("unlink: writei");
-  if(ip->type == T_DIR){
-    dp->nlink--;
-    iupdate(dp);
-  }
-  iunlockput(dp);
-
-  ip->nlink--;
-  iupdate(ip);
-  iunlockput(ip);
-
+  int r = vfs_unlink_path(path, 0);
   end_op(ROOTDEV);
-
-  return 0;
-
-bad:
-  iunlockput(dp);
-  end_op(ROOTDEV);
-  return -1;
+  return r;
 }
 
 static struct inode*
-create(char *path, short type, short major, short minor)
+create_path(char *path, short type, int major, int minor)
 {
-  if(fat32_mode){
-    return fat32_create(path, type, major, minor);
-  }
-
-  struct inode *ip, *dp;
-  char name[DIRSIZ];
-
-  if((dp = nameiparent(path, name)) == 0)
-    return 0;
-
-  ilock(dp);
-
-  if((ip = dirlookup(dp, name, 0)) != 0){
-    iunlockput(dp);
-    ilock(ip);
-    if(type == T_FILE && (ip->type == T_FILE || ip->type == T_DEVICE))
-      return ip;
-    iunlockput(ip);
-    return 0;
-  }
-
-  if((ip = ialloc(dp->dev, type)) == 0)
-    panic("create: ialloc");
-
-  ilock(ip);
-  ip->major = major;
-  ip->minor = minor;
-  ip->nlink = 1;
-  iupdate(ip);
-
-  if(type == T_DIR){  // Create . and .. entries.
-    dp->nlink++;  // for ".."
-    iupdate(dp);
-    // No ip->nlink++ for ".": avoid cyclic ref count.
-    if(dirlink(ip, ".", ip->inum) < 0 || dirlink(ip, "..", dp->inum) < 0)
-      panic("create dots");
-  }
-
-  if(dirlink(dp, name, ip->inum) < 0)
-    panic("create: dirlink");
-
-  iunlockput(dp);
-
-  return ip;
+  return create(path, type, major, minor);
 }
 
 uint64
@@ -463,7 +315,7 @@ sys_open(void)
   begin_op(ROOTDEV);
 
   if(kflags & O_CREATE){
-    ip = create(path, T_FILE, 0, 0);
+    ip = create_path(path, T_FILE, 0, 0);
     if(ip == 0){
       end_op(ROOTDEV);
       return -1;
@@ -576,7 +428,7 @@ sys_openat(void)
     // Not found; if O_CREATE is set, attempt to create when possible
     if(kflags & O_CREATE){
       if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
-        ip = create(path, T_FILE, 0, 0);
+        ip = create_path(path, T_FILE, 0, 0);
         if(ip == 0){
           end_op(ROOTDEV);
           return -1;
@@ -652,7 +504,7 @@ sys_mkdir(void)
   struct inode *ip;
 
   begin_op(ROOTDEV);
-  if(argstr(0, path, MAXPATH) < 0 || (ip = create(path, T_DIR, 0, 0)) == 0){
+  if(argstr(0, path, MAXPATH) < 0 || (ip = create_path(path, T_DIR, 0, 0)) == 0){
     end_op(ROOTDEV);
     return -1;
   }
@@ -672,7 +524,7 @@ sys_mknod(void)
   if((argstr(0, path, MAXPATH)) < 0 ||
      argint(1, &major) < 0 ||
      argint(2, &minor) < 0 ||
-     (ip = create(path, T_DEVICE, major, minor)) == 0){
+     (ip = create_path(path, T_DEVICE, major, minor)) == 0){
     end_op(ROOTDEV);
     return -1;
   }
@@ -740,7 +592,7 @@ sys_mkdirat(void)
   }
 
   if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
-    ip = create(path, T_DIR, 0, 0);
+    ip = create_path(path, T_DIR, 0, 0);
   } else {
     ip = createat(dirf->ip, path, T_DIR, 0, 0);
   }
@@ -864,16 +716,10 @@ sys_getdents64(void)
     return -1;
   int n = 0;
 
-  // Currently only FAT32-backed directories are supported
-  if(fat32_mode && f->ip->major == FAT32_INODE_TAG){
-    uint off_entries = f->off; // logical directory entry index
-    n = fat32_getdents64(f->ip, &off_entries, buf, len);
-    if(n > 0)
-      f->off = off_entries;
-  } else {
-    // non-FAT32 directories not yet supported
-    return -1;
-  }
+  uint off_entries = f->off;
+  n = getdents64(f->ip, &off_entries, buf, len);
+  if(n > 0)
+    f->off = off_entries;
 
   return n;
 }
@@ -926,80 +772,11 @@ sys_unlinkat(void)
 
   int want_dir = (flags & AT_REMOVEDIR) != 0;
 
-  // FAT32 模式：使用 FAT32 的删除实现
-  if(fat32_mode){
-    // log_info("sys_unlinkat: using FAT32 unlink");
-    // 仅支持绝对路径，或相对当前工作目录 (dirfd == AT_FDCWD)
-    if(path[0] != '/' && dirfd != AT_FDCWD)
-      return -1;
-    log_info("sys_unlinkat: calling fat32_unlink");
-    
-    int r = fat32_unlink(path, want_dir);
-    log_info("sys_unlinkat: fat32_unlink returned %d", r);
-    return (r == 0) ? 0 : -1;
-  }
-
-  // xv6 原生 inode 文件系统逻辑
-  // 目前同样只实现绝对路径或 AT_FDCWD 相对路径
   if(path[0] != '/' && dirfd != AT_FDCWD)
     return -1;
 
-  struct inode *ip, *dp;
-  struct dirent de;
-  char name[DIRSIZ];
-  uint off;
-
   begin_op(ROOTDEV);
-  if((dp = nameiparent(path, name)) == 0){
-    end_op(ROOTDEV);
-    return -1;
-  }
-
-  ilock(dp);
-
-  // Cannot unlink "." or "..".
-  if(namecmp(name, ".") == 0 || namecmp(name, "..") == 0)
-    goto bad;
-
-  if((ip = dirlookup(dp, name, &off)) == 0)
-    goto bad;
-  ilock(ip);
-
-  if(ip->nlink < 1)
-    panic("unlinkat: nlink < 1");
-
-  if(ip->type == T_DIR){
-    // 只有在 AT_REMOVEDIR 时才允许删除目录，且目录必须为空
-    if(!want_dir || !isdirempty(ip)){
-      iunlockput(ip);
-      goto bad;
-    }
-  } else {
-    // 非目录但设置了 AT_REMOVEDIR，也应失败
-    if(want_dir){
-      iunlockput(ip);
-      goto bad;
-    }
-  }
-
-  memset(&de, 0, sizeof(de));
-  if(writei(dp, 0, (uint64)&de, off, sizeof(de)) != sizeof(de))
-    panic("unlinkat: writei");
-  if(ip->type == T_DIR){
-    dp->nlink--;
-    iupdate(dp);
-  }
-  iunlockput(dp);
-
-  ip->nlink--;
-  iupdate(ip);
-  iunlockput(ip);
-
+  int r = vfs_unlink_path(path, want_dir);
   end_op(ROOTDEV);
-  return 0;
-
-bad:
-  iunlockput(dp);
-  end_op(ROOTDEV);
-  return -1;
+  return r;
 }

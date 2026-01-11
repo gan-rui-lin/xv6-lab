@@ -212,22 +212,8 @@ proc_pagetable(struct proc *p)
 void
 forkret(void)
 {
-  static int first = 1;
-
   // Still holding p->lock from scheduler.
   release(&myproc()->lock);
-
-  if (first) {
-    //? 进程的第一次返回到用户态时，初始化文件系统 为什么是这样呢？ 
-    // File system initialization must be run in the context of a
-    // regular process (e.g., because it calls sleep), and thus cannot
-    // be run from main().
-    first = 0;
-    // ! 暂时还是使用 xv6 文件系统
-    fsinit(minor(ROOTDEV));
-    // tf_init();
-  }
-
   usertrapret();
 }
 

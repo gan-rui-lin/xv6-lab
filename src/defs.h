@@ -14,6 +14,7 @@ struct buf;
 struct context;
 struct file;
 struct inode;
+struct vfs_driver;
 struct pipe;
 struct proc;
 struct spinlock;
@@ -113,6 +114,11 @@ char*           strncpy(char*, const char*, int);
 // kalloc.c
 void*           kalloc(void);
 void            kfree(void *);
+void*           kalloc_order(int);
+void            kfree_order(void *, int);
+void*           kmalloc(uint64);
+void            kmfree(void *);
+void            kalloc_selftest(void);
 void            kinit(void);
 
 // proc.c
@@ -188,30 +194,24 @@ int             pipewrite(struct pipe*, uint64, int);
 
 // fs.c
 void            fsinit(int);
-int             dirlink(struct inode*, char*, uint);
-struct inode*   dirlookup(struct inode*, char*, uint*);
-struct inode*   ialloc(uint, short);
 struct inode*   idup(struct inode*);
-void            iinit();
 void            ilock(struct inode*);
 void            iput(struct inode*);
 void            iunlock(struct inode*);
 void            iunlockput(struct inode*);
-void            iupdate(struct inode*);
-int             namecmp(const char*, const char*);
 struct inode*   namei(char*);
 struct inode*   nameiat(struct inode*, char*);
 struct inode*   nameiparent(char*, char*);
+struct inode*   create(char*, short, int, int);
+struct inode*   createat(struct inode*, char*, short, int, int);
 int             readi(struct inode*, int, uint64, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, int, uint64, uint, uint);
+int             getdents64(struct inode*, uint*, uint64, uint64);
+void            vfs_mount_root(const struct vfs_driver *);
+const struct vfs_driver *vfs_current_driver(void);
+int             vfs_unlink_path(char *path, int want_dir);
 
-// fat32 (minimal)
-extern int      fat32_mode; // 0: xv6fs, 1: FAT32
-void            fat32_init(int dev);
-struct inode*   fat32_namei(char*);
-struct inode*   fat32_nameiat(struct inode*, char*);
-int             fat32_readi(struct inode*, int, uint64, uint, uint);
 struct inode*   iget_pub(uint dev, uint inum);
 
 // virtio_disk.c

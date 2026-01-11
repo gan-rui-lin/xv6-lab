@@ -15,6 +15,17 @@
 #include "proc.h"
 #include "sleeplock.h"
 
+static struct proc *
+current_proc_safe(void)
+{
+  struct proc *p = myproc();
+  if(p == 0)
+    return 0;
+  if(p < proc || p >= &proc[NPROC])
+    return 0;
+  return p;
+}
+
 void
 initsleeplock(struct sleeplock *lk, char *name)
 {
@@ -32,7 +43,8 @@ acquiresleep(struct sleeplock *lk)
     sleep(lk, &lk->lk);
   }
   lk->locked = 1;
-  lk->pid = myproc()->pid;
+  struct proc *p = current_proc_safe();
+  lk->pid = p ? p->pid : -1;
   release(&lk->lk);
 }
 
@@ -52,10 +64,10 @@ holdingsleep(struct sleeplock *lk)
   int r;
   
   acquire(&lk->lk);
-  r = lk->locked && (lk->pid == myproc()->pid);
+  struct proc *p = current_proc_safe();
+  int pid = p ? p->pid : -1;
+  r = lk->locked && (lk->pid == pid);
   release(&lk->lk);
   return r;
 }
-
-
 

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # RUOS 项目说明
 
 本项目为教学与竞赛场景下的轻量内核实现，基于 xv6 改造并面向 RISC-V 平台。在保持简洁内核设计的同时，增强了系统调用接口、文件系统（FAT32）支持、进程调度与内存管理等能力，并对 BusyBox 进行了初步适配。
@@ -132,3 +133,50 @@ gdb-multiarch -x debug_riscv.gdb
 | [docs/ZJYDocs/问题记录.md](docs/ZJYDocs/问题记录.md) | 问题记录 | 变更与问题跟踪 |
 
 [docs/stages/阶段01.md](docs/stages/阶段01.md) ~ [docs/stages/阶段06.md](docs/stages/阶段06.md) 为实验阶段代码与说明，展示了项目开发的**前期过程**。
+=======
+# xv6-lab Docker 开发环境
+
+## Docker 配置文件
+
+| 文件 | 说明 |
+|------|------|
+| `Dockerfile` | Docker 镜像定义，包含 RISC-V 工具链和 QEMU |
+| `docker-compose.yml` | Docker Compose 配置，方便启动和管理容器 |
+| `.dockerignore` | 构建镜像时忽略的文件 |
+| `docker-run.sh` | 快速启动脚本 |
+
+## 使用方法
+
+### 方式一：使用 docker-compose（推荐）
+```bash
+# 构建并启动容器
+docker-compose up -d
+
+# 进入容器
+docker-compose exec xv6 bash
+
+# 在容器内编译运行
+make clean && make all
+bash run.sh
+```
+
+### 方式二：使用快速脚本
+```bash
+# 进入交互式 shell
+./docker-run.sh
+
+# 直接运行命令
+./docker-run.sh make
+./docker-run.sh bash run.sh
+```
+
+### 方式三：手动 Docker 命令
+```bash
+# 构建镜像
+docker build -t xv6-lab-dev .
+
+# 运行容器
+docker run -it --rm -v $(pwd):/xv6-lab -w /xv6-lab xv6-lab-dev bash
+```
+
+>>>>>>> origin/hwt3

@@ -1,0 +1,150 @@
+digraph RUOS {
+    rankdir=TB;
+    bgcolor="#ffffff";
+    fontname="Helvetica";
+
+    node [
+        shape=rect,
+        style="rounded,filled",
+        fontname="Helvetica",
+        fontsize=12,
+        fillcolor="#ffb3b3",
+        color="#cc6666"
+    ];
+
+    edge [
+        color="#888888",
+        arrowsize=0.7
+    ];
+
+    /* ===================== User Space ===================== */
+    subgraph cluster_user {
+        label="User Space";
+        fontsize=14;
+        fontcolor="#aa3333";
+        style="rounded";
+        color="#ff9999";
+        bgcolor="#ffe6e6";
+
+        user_app [label="User Programs\n(sh, ls, cat, busybox)"];
+        ulib     [label="ulib\n(syscall wrapper,\nlibc subset)"];
+        user_app -> ulib;
+    }
+
+    /* ===================== Syscall Layer ===================== */
+    syscall [label="System Call Interface\n(syscall dispatch)",
+             fillcolor="#ff9999"];
+
+    ulib -> syscall;
+
+    /* ===================== Kernel Space ===================== */
+    subgraph cluster_kernel {
+        label="Kernel Space";
+        fontsize=14;
+        fontcolor="#aa3333";
+        style="rounded";
+        color="#ff6666";
+        bgcolor="#ffd6d6";
+
+        /* ---- Process & Sync ---- */
+        subgraph cluster_proc {
+            label="Process / Sync";
+            style="rounded";
+            bgcolor="#ffcccc";
+
+            sched [label="Scheduler\n(MLFQ)"];
+            proc  [label="Process Mgmt\n(fork/exec/exit)"];
+            sync  [label="Sync / IPC\n(lock, sleep, wakeup)"];
+
+            sched -> proc;
+            sync -> proc;
+        }
+
+        /* ---- Memory ---- */
+        subgraph cluster_mm {
+            label="Memory Management";
+            style="rounded";
+            bgcolor="#ffcccc";
+
+            pmm [label="PMM\n(Buddy)"];
+            vmm [label="VMM\n(Page Table)"];
+            mm  [label="MM\n(Slab)"];
+
+            pmm -> vmm -> mm;
+        }
+
+        /* ---- File System ---- */
+        subgraph cluster_fs {
+            label="File System";
+            style="rounded";
+            bgcolor="#ffcccc";
+
+            vfs    [label="VFS"];
+            fat32  [label="FAT32"];
+            xv6fs  [label="xv6fs"];
+            device [label="Block Device"];
+
+            vfs -> fat32;
+            vfs -> xv6fs;
+            fat32 -> device;
+            xv6fs -> device;
+        }
+
+        /* ---- Kernel Services ---- */
+        subgraph cluster_core {
+            label="Kernel Core";
+            style="rounded";
+            bgcolor="#ffcccc";
+
+            trap [label="Trap / Interrupt"];
+            sbi  [label="SBI Interface"];
+            time [label="Timer"];
+        }
+    }
+
+    syscall -> proc;
+    syscall -> vfs;
+    syscall -> mm;
+    syscall -> trap;
+
+    /* ===================== HAL & Platform ===================== */
+    subgraph cluster_hal {
+        label="HAL / Platform";
+        fontsize=14;
+        style="rounded";
+        color="#ff6666";
+        bgcolor="#ffd6d6";
+
+        hal  [label="HAL"];
+        smp  [label="SMP"];
+        im   [label="Interrupt Mgmt"];
+        tm   [label="Timer Mgmt"];
+    }
+
+    proc -> hal;
+    trap -> im;
+    time -> tm;
+
+    /* ===================== Hardware ===================== */
+    subgraph cluster_hw {
+        label="Hardware";
+        fontsize=14;
+        style="rounded";
+        color="#cc6666";
+        bgcolor="#ffcccc";
+
+        cpu      [label="CPU\n(RISC-V)"];
+        platform [label="Platform\n(QEMU virt)"];
+        disk     [label="Disk\n(VirtIO)"];
+    }
+
+    hal -> cpu;
+    device -> disk;
+    sbi -> platform;
+
+    /* ===================== Rank Alignment ===================== */
+    { rank=same; user_app; ulib; }
+    { rank=same; sched; pmm; vfs; trap; }
+    { rank=same; hal; smp; im; tm; }
+    { rank=same; cpu; platform; disk; }
+}

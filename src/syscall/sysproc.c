@@ -379,114 +379,75 @@ sys_mmap(void)
      argint(2, &prot) < 0 || argint(3, &flags) < 0 || 
      argint(4, &fd) < 0 || argaddr(5, &offset) < 0)
     return -1;
-  
-  // 简化实现：只支持文件映射，不支持匿名映射
-  if(flags & MAP_ANONYMOUS) {
-    // 匿名映射暂不支持
-    return -1;
-  }
-  
+
   struct proc *p = myproc();
   struct file *f;
-  
-  // 获取文件描述符
+
+  // 长度为 0 时，兼容性地映射一页
+  if(length == 0)
+    length = PGSIZE;
+
+  // 对齐起始地址与长度
+  uint64 map_size = PGROUNDUP(length);
+  uint64 old_sz = p->sz;
+  uint64 base = PGROUNDUP(old_sz);
+  uint64 new_sz = base + map_size;
+
+  // 计算权限标志：默认可读，可选写/执行
+  int perm = PTE_R;
+  if(prot & PROT_WRITE)
+    perm |= PTE_W;
+  if(prot & PROT_EXEC)
+    perm |= PTE_X;
+
+  // 匿名映射：忽略 fd/offset，直接扩展地址空间
+  if(flags & MAP_ANONYMOUS){
+    if((new_sz = uvmalloc(p->pagetable, old_sz, new_sz, perm)) == 0)
+      return -1;
+    p->sz = new_sz;
+    return base;
+  }
+
+  // 文件映射：需要有效、可读的文件描述符
   if(fd < 0 || fd >= NOFILE || (f = p->ofile[fd]) == 0)
     return -1;
-  
-  // 检查文件是否可读
   if(!f->readable)
     return -1;
-  
-  // 长度必须大于0
-  if(length == 0)
-    return -1;
-  
-  // 页面对齐长度
-  uint64 map_size = PGROUNDUP(length);
-  
-  // 分配新的虚拟地址空间（在进程当前大小之上）
-  uint64 old_sz = p->sz;
-  uint64 new_sz = old_sz + map_size;
-  
-  // 计算权限标志
-  int xperm = 0;
-  if(prot & PROT_WRITE)
-    xperm |= PTE_W;
-  // 注意：PROT_READ默认就有，xv6中PTE_R总是设置的
-  
+
   // 分配虚拟内存
-  if((new_sz = uvmalloc(p->pagetable, old_sz, new_sz, xperm)) == 0)
+  if((new_sz = uvmalloc(p->pagetable, old_sz, new_sz, perm)) == 0)
     return -1;
-  
-  // 更新进程大小
   p->sz = new_sz;
-  
-  // 从文件读取数据到新分配的内存
-  if(f->type == FD_INODE) {
-    ilock(f->ip);
-    
-    // 读取文件内容
-    uint64 read_size = length;
-    uint64 file_size = f->ip->size;
-    
-    // DEBUG: 先读取文件内容到内核缓冲区验证文件是否真的有数据
-    log_info("[DEBUG mmap] file_size=%d, offset=%d, read_size=%d\n", file_size, offset, read_size);
-    char kernel_buf[64];
-    int test_read = readi(f->ip, 0, (uint64)kernel_buf, offset, read_size < 63 ? read_size : 63);
-    if(test_read > 0) {
-      kernel_buf[test_read] = '\0';
-      log_info("[DEBUG mmap] File content in kernel buffer: '%s'\n", kernel_buf);
-    } else {
-      log_info("[DEBUG mmap] Failed to read file content, test_read=%d\n", test_read);
-    }
-    
-    if(offset >= file_size) {
-      // 偏移量超过文件大小，返回空映射（已经分配并清零）
-      iunlock(f->ip);
-      return old_sz;
-    }
-    
-    if(offset + read_size > file_size)
-      read_size = file_size - offset;
-    
-    // 使用readi读取文件内容到用户空间
-    int bytes_read = readi(f->ip, 1, old_sz, offset, read_size);
-    
-    iunlock(f->ip);
-    
-    // DEBUG: 打印读取的前几个字节
-    log_info("[DEBUG mmap] bytes_read=%d, reading from mapped memory:\n", bytes_read);
-    if(bytes_read > 0) {
-      // 尝试从内核读取映射的内存来验证
-      char debug_buf[32];
-      int copy_len = bytes_read < 31 ? bytes_read : 31;
-      if(copyin(p->pagetable, debug_buf, old_sz, copy_len) == 0) {
-        debug_buf[copy_len] = '\0';
-        log_info("[DEBUG mmap] Content: '%s'\n", debug_buf);
-      } else {
-        log_info("[DEBUG mmap] Failed to copy from mapped memory\n");
-      }
-    }
-    
-    if(bytes_read < 0) {
-      // 读取失败，需要回收分配的内存
-      uvmdealloc(p->pagetable, new_sz, old_sz);
-      p->sz = old_sz;
-      return -1;
-    }
-    
-    // 注意：即使读取的字节少于请求的，也是成功的
-    // 剩余部分已经被uvmalloc清零了
-    
-  } else {
-    // 不支持非inode类型的文件
+
+  if(f->type != FD_INODE){
     uvmdealloc(p->pagetable, new_sz, old_sz);
     p->sz = old_sz;
     return -1;
   }
-  
-  // 返回映射的起始地址
-  return old_sz;
+
+  ilock(f->ip);
+  uint64 read_size = length;
+  uint64 file_size = f->ip->size;
+
+  if(offset >= file_size){
+    // 偏移超界，留空映射
+    iunlock(f->ip);
+    return base;
+  }
+  if(offset + read_size > file_size)
+    read_size = file_size - offset;
+
+  int bytes_read = readi(f->ip, 1, base, offset, read_size);
+  iunlock(f->ip);
+
+  if(bytes_read < 0){
+    uvmdealloc(p->pagetable, new_sz, old_sz);
+    p->sz = old_sz;
+    return -1;
+  }
+
+  // 剩余部分已由 uvmalloc 清零
+  return base;
 }
 
 uint64

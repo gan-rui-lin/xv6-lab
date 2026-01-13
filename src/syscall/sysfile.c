@@ -217,6 +217,29 @@ sys_close(void)
   return 0;
 }
 
+static void
+stat_to_kstat(struct stat *st, struct kstat *kst)
+{
+  kst->st_dev = st->dev;
+  kst->st_ino = st->ino;
+  kst->st_mode = (st->type == T_DIR) ? 0040000 : 0100000; // S_IFDIR : S_IFREG
+  kst->st_nlink = st->nlink;
+  kst->st_uid = 0;
+  kst->st_gid = 0;
+  kst->st_rdev = 0;
+  kst->__pad = 0;
+  kst->st_size = st->size;
+  kst->st_blksize = 512;
+  kst->__pad2 = 0;
+  kst->st_blocks = (st->size + 511) / 512;
+  kst->st_atime_sec = 0;
+  kst->st_atime_nsec = 0;
+  kst->st_mtime_sec = 0;
+  kst->st_mtime_nsec = 0;
+  kst->st_ctime_sec = 0;
+  kst->st_ctime_nsec = 0;
+}
+
 uint64
 sys_fstat(void)
 {
@@ -243,25 +266,8 @@ sys_fstat(void)
     iunlock(f->ip);
     
     // 将 stat 转换为 kstat (Linux格式)
-    kst.st_dev = st.dev;
-    kst.st_ino = st.ino;
-    kst.st_mode = (st.type == T_DIR) ? 0040000 : 0100000; // S_IFDIR : S_IFREG
-    kst.st_nlink = st.nlink;
-    kst.st_uid = 0;
-    kst.st_gid = 0;
-    kst.st_rdev = 0;
-    kst.__pad = 0;
-    kst.st_size = st.size;
-    kst.st_blksize = 512;
-    kst.__pad2 = 0;
-    kst.st_blocks = (st.size + 511) / 512;
-    kst.st_atime_sec = 0;
-    kst.st_atime_nsec = 0;
-    kst.st_mtime_sec = 0;
-    kst.st_mtime_nsec = 0;
-    kst.st_ctime_sec = 0;
-    kst.st_ctime_nsec = 0;
-    
+    stat_to_kstat(&st, &kst);
+
     // 复制到用户空间
     if(copyout(p->pagetable, kst_addr, (char *)&kst, sizeof(kst)) < 0)
       return -1;
@@ -270,6 +276,62 @@ sys_fstat(void)
   }
   
   return -1;
+}
+
+uint64
+sys_fstatat(void)
+{
+  int dirfd, flags;
+  char path[MAXPATH];
+  uint64 ukstat;
+  struct inode *ip;
+  struct proc *p = myproc();
+
+  if(argint(0, &dirfd) < 0 || argstr(1, path, MAXPATH) < 0 ||
+     argaddr(2, &ukstat) < 0 || argint(3, &flags) < 0)
+    return -1;
+
+  // Only support basic lookups: flags must be zero or AT_SYMLINK_NOFOLLOW ignored.
+  if(flags != 0)
+    return -1;
+
+  begin_op(ROOTDEV);
+
+  struct file *dirf = 0;
+  if(path[0] != '/' && dirfd != AT_FDCWD && dirfd >= 0){
+    if(dirfd >= NOFILE){
+      end_op(ROOTDEV);
+      return -1;
+    }
+    dirf = p->ofile[dirfd];
+    if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR){
+      end_op(ROOTDEV);
+      return -1;
+    }
+  }
+
+  if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
+    ip = namei(path);
+  } else {
+    ip = nameiat(dirf->ip, path);
+  }
+
+  if(ip == 0){
+    end_op(ROOTDEV);
+    return -1;
+  }
+
+  ilock(ip);
+  struct stat st;
+  struct kstat kst;
+  stati(ip, &st);
+  stat_to_kstat(&st, &kst);
+  iunlockput(ip);
+  end_op(ROOTDEV);
+
+  if(copyout(p->pagetable, ukstat, (char *)&kst, sizeof(kst)) < 0)
+    return -1;
+  return 0;
 }
 
 

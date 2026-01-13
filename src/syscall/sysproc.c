@@ -156,6 +156,46 @@ sys_getppid(void)
   return 0;
 }
 
+// Basic credential queries: return 0 for all IDs (single-user system).
+uint64 sys_getuid(void)   { return 0; }
+uint64 sys_geteuid(void)  { return 0; }
+uint64 sys_getgid(void)   { return 0; }
+uint64 sys_getegid(void)  { return 0; }
+
+// set_tid_address(addr): record clear_child_tid address if provided, return tid.
+uint64
+sys_set_tid_address(void)
+{
+  uint64 addr;
+  argaddr(0, &addr);
+  struct proc *p = myproc();
+
+  // Mirror Linux by returning the thread id (here, pid).
+  // We also attempt to write the tid to the provided address if non-null.
+  if(addr != 0){
+    if(copyout(p->pagetable, addr, (char *)&p->pid, sizeof(p->pid)) < 0)
+      return -1;
+  }
+  return p->pid;
+}
+
+// gettid: return thread id (pid in this single-threaded model).
+uint64
+sys_gettid(void)
+{
+  return myproc()->pid;
+}
+
+// exit_group(status): treat the group as the single process; reuse exit.
+uint64
+sys_exit_group(void)
+{
+  int status;
+  argint(0, &status);
+  exit(status);
+  return 0;
+}
+
 // Linux execve(path, argv, envp)
 // We currently do not support envp; we silently ignore it if it's empty (first element is NULL).
 uint64

@@ -53,6 +53,28 @@ argraw(int n)
   return -1;
 }
 
+// 是否需要输出系统调用跟踪。
+static int
+should_trace(struct proc *p)
+{
+  // 方便调试时通过 GDB 把这个变量置 1，从而开启全局 syscall 跟踪。
+  extern int syscall_trace_all;
+  if(syscall_trace_all)
+    return 1;
+
+  // 默认只跟踪 busybox 进程，帮助定位其系统调用实现问题。
+  return (p->name[0] == 'b' &&
+          p->name[1] == 'u' &&
+          p->name[2] == 's' &&
+          p->name[3] == 'y' &&
+          p->name[4] == 'b' &&
+          p->name[5] == 'o' &&
+          p->name[6] == 'x');
+}
+
+// 全局开关，默认关闭，便于 GDB 手动打开。
+int syscall_trace_all = 0;
+
 // Fetch the nth 32-bit system call argument.
 int
 argint(int n, int *ip)
@@ -88,6 +110,11 @@ extern uint64 sys_exit(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_kill(void);
 extern uint64 sys_getpid(void);
+extern uint64 sys_gettid(void);
+extern uint64 sys_getuid(void);
+extern uint64 sys_geteuid(void);
+extern uint64 sys_getgid(void);
+extern uint64 sys_getegid(void);
 extern uint64 sys_sbrk(void);
 extern uint64 sys_sleep(void);
 extern uint64 sys_uptime(void);
@@ -102,11 +129,14 @@ extern uint64 sys_close(void);
 extern uint64 sys_dup(void);
 extern uint64 sys_exec(void);
 extern uint64 sys_fstat(void);
+extern uint64 sys_fstatat(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_clone(void);
 extern uint64 sys_execve(void);
 extern uint64 sys_wait4(void);
 extern uint64 sys_getppid(void);
+extern uint64 sys_exit_group(void);
+extern uint64 sys_set_tid_address(void);
 extern uint64 sys_brk(void);
 extern uint64 sys_mmap(void);
 extern uint64 sys_munmap(void);
@@ -148,10 +178,17 @@ static uint64 (*syscalls[])(void) = {
 [SYS_write]       sys_write,
 [SYS_close]       sys_close,
 [SYS_exit]        sys_exit,
+[SYS_exit_group]  sys_exit_group,
 [SYS_wait4]       sys_wait4,
 [SYS_execve]      sys_execve,
 [SYS_getpid]      sys_getpid,
+[SYS_gettid]      sys_gettid,
 [SYS_getppid]     sys_getppid,
+[SYS_getuid]      sys_getuid,
+[SYS_geteuid]     sys_geteuid,
+[SYS_getgid]      sys_getgid,
+[SYS_getegid]     sys_getegid,
+[SYS_set_tid_address] sys_set_tid_address,
 [SYS_gettimeofday] sys_gettimeofday,
 [SYS_openat]      sys_openat,
 
@@ -170,6 +207,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_mkdirat] sys_mkdirat,
 [SYS_uname]       sys_uname,
 [SYS_unlinkat]     sys_unlinkat,
+[SYS_fstatat]      sys_fstatat,
 };
 
 // sysname - return the name of the system call for debugging.
@@ -412,22 +450,28 @@ syscall_handler(void)
   // 获取系统调用号
   num = p->trapframe->a7;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
-    // 轻量 syscall 跟踪：仅针对 busybox 进程打印调用与返回值
-    int trace = ((p->name)[0] == 'b' &&
-                 (p->name)[1] == 'u' &&
-                 (p->name)[2] == 's' &&
-                 (p->name)[3] == 'y' &&
-                 (p->name)[4] == 'b' &&
-                 (p->name)[5] == 'o' &&
-                 (p->name)[6] == 'x' );
+    int trace = should_trace(p);
+
+    // 提前记录调用参数，避免系统调用内部修改 a 寄存器后看不到原始值。
+    uint64 args[6] = {
+      p->trapframe->a0, p->trapframe->a1, p->trapframe->a2,
+      p->trapframe->a3, p->trapframe->a4, p->trapframe->a5
+    };
+
     if (trace) {
-      printf("[syscall] pid=%d name=%s num=%d\n", p->pid, p->name, num);
+      printf("[syscall] pid=%d name=%s num=%d (%s) args=[%p,%p,%p,%p,%p,%p]\n",
+             p->pid, p->name, num, sysname(num),
+             (void *)args[0], (void *)args[1], (void *)args[2],
+             (void *)args[3], (void *)args[4], (void *)args[5]);
     }
+
     // 系统函数返回值放在 p->trapframe->a0
     uint64 ret = syscalls[num]();
     p->trapframe->a0 = ret;
+
     if (trace) {
-      printf("[syscall] pid=%d name=%s num=%d ret=%ld\n", p->pid, p->name, num, (long)ret);
+      printf("[syscall] pid=%d name=%s num=%d (%s) ret=%p\n",
+             p->pid, p->name, num, sysname(num), (void*)ret);
     }
   } else {
     printf("%d %s: unimplemented sys call %s\n",

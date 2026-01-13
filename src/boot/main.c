@@ -11,8 +11,7 @@ volatile static int started = 0;
 
 void main()
 {
-    // uart_puts("\nhere!\n");
-;
+
     if (cpuid() == 0)
     {
         // 只有 hart0 执行系统初始化
@@ -22,6 +21,7 @@ void main()
         printfinit(); // 初始化printf功能
 
         // print_ruos();
+        // printf("xv6 is booting on hart %d\n", cpuid());
 
         kinit(); // 物理页面分配器初始化
 

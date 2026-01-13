@@ -28,7 +28,7 @@ exec(char *path, char **argv)
 {
   char *s, *last;
   int i, off;
-  uint64 argc, sz, sp, ustack[MAXARG+1], stackbase;
+  uint64 argc, sz, sp, ustack[MAXARG + 4], stackbase;
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
@@ -100,19 +100,27 @@ exec(char *path, char **argv)
     ustack[argc] = sp;
   }
   ustack[argc] = 0;
+  // 空的环境变量列表 envp[0] = 0
+  ustack[argc + 1] = 0;
+  // 追加一个 AT_NULL 的 auxv，防止 libc/ldso 读取垃圾
+  ustack[argc + 2] = 0; // a_type = AT_NULL
+  ustack[argc + 3] = 0; // a_val  = 0
 
   // push the array of argv[] pointers.
-  sp -= (argc+1) * sizeof(uint64);
-  sp -= sp % 16;
+  // 额外的 3 项：envp[0]，auxv.type=AT_NULL，auxv.val=0
+  sp -= (argc + 4) * sizeof(uint64);
+  // 调整，使最终栈指针（含 argc）保持 16 字节对齐，同时保证 argv 紧跟在 argc 之后
+  if(((sp - sizeof(uint64)) & 15) != 0){
+    sp -= sizeof(uint64);
+  }
   if(sp < stackbase)
     goto bad;
-  if(copyout(pagetable, sp, (char *)ustack, (argc+1)*sizeof(uint64)) < 0)
+  if(copyout(pagetable, sp, (char *)ustack, (argc + 4) * sizeof(uint64)) < 0)
     goto bad;
   // Place argc on stack so user CRT can read [argc][argv*...] from SP
   uint64 argc64 = argc;
   uint64 sp_argv = sp;
-  sp -= sizeof(uint64);
-  sp -= sp % 16;
+  sp -= sizeof(uint64); // argc slot
   if(sp < stackbase)
     goto bad;
   if(copyout(pagetable, sp, (char *)&argc64, sizeof(uint64)) < 0)

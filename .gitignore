@@ -37,3 +37,4 @@ src/thinfat32/dist
 sbi-qemu
 
 sdcard.img-backup
+*.gz

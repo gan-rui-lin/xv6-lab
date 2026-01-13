@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # RUOS 项目说明
 
 本项目为教学与竞赛场景下的轻量内核实现，基于 xv6 改造并面向 RISC-V 平台。在保持简洁内核设计的同时，增强了系统调用接口、文件系统（FAT32）支持、进程调度与内存管理等能力，并对 BusyBox 进行了初步适配。
@@ -179,7 +178,3 @@ docker run -it --rm -v $(pwd):/xv6-lab -w /xv6-lab xv6-lab-dev bash
 | [docs/ZJYDocs/问题记录.md](docs/ZJYDocs/问题记录.md) | 问题记录 | 变更与问题跟踪 |
 
 [docs/stages/阶段01.md](docs/stages/阶段01.md) ~ [docs/stages/阶段06.md](docs/stages/阶段06.md) 为实验阶段代码与说明，展示了项目开发的**前期过程**。
-=======
-
-
->>>>>>> origin/hwt3

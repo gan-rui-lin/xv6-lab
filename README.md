@@ -95,6 +95,10 @@ gdb-multiarch -x debug_riscv.gdb
 
 ## 文档索引
 
+### RUOS 源码导读与系统设计
+
+见 [docs/OS_SOURCE_GUIDE.md](docs/OS_SOURCE_GUIDE.md)，它描述了 RUOS 各个板块的详细设计。
+
 ### 核心适配与实现
 
 | 文档 | 主题 | 备注 |
@@ -114,10 +118,8 @@ gdb-multiarch -x debug_riscv.gdb
 | 文档 | 主题 | 备注 |
 | - | - | - |
 | [docs/HWTDocs/调度机制.md](docs/HWTDocs/调度机制.md) | 调度机制 | 总览与策略说明 |
-
 | [docs/HWTDocs/内存管理测试.md](docs/HWTDocs/内存管理测试.md) | 内存管理测试 | buddy/slab 相关测试 |
 | [docs/HWTDocs/dup2.md](docs/HWTDocs/dup2.md) | dup2 | 接口与实现要点 |
-| [docs/HWTDocs/mount和umount.md](docs/HWTDocs/mount和umount.md) | 挂载与卸载 | 语义与实现说明 |
 | [docs/HWTDocs/进程测试.md](docs/HWTDocs/进程测试.md) | 进程测试 | 用例与结论 |
 | [docs/HWTDocs/23年官方文档.md](docs/HWTDocs/23年官方文档.md) | 参考资料 | 历史资料汇编 |
 
@@ -129,4 +131,4 @@ gdb-multiarch -x debug_riscv.gdb
 | [docs/ZJYDocs/readme.md](docs/ZJYDocs/readme.md) | 说明 | 子目录概览 |
 | [docs/ZJYDocs/问题记录.md](docs/ZJYDocs/问题记录.md) | 问题记录 | 变更与问题跟踪 |
 
-[阶段01.md](docs/阶段01.md) ~ [阶段06.md](docs/阶段06.md) 为实验阶段代码与说明，展示了项目开发的**前期过程**。
+[docs/stages/阶段01.md](docs/stages/阶段01.md) ~ [docs/stages/阶段06.md](docs/stages/阶段06.md) 为实验阶段代码与说明，展示了项目开发的**前期过程**。

@@ -206,8 +206,8 @@ $(U)/%: $(U)/apps/%
 	cp $< $@
 
 # ===== 磁盘镜像构建 =====
-fs.img: $(SRC)/mkfs/mkfs README $(UPROGS) $(addprefix $U/,$(APP_NAMES))
-	$(SRC)/mkfs/mkfs fs.img README $(UPROGS) $(addprefix $U/,$(APP_NAMES))
+fs.img: $(SRC)/mkfs/mkfs $(UPROGS) $(addprefix $U/,$(APP_NAMES))
+	$(SRC)/mkfs/mkfs fs.img $(UPROGS) $(addprefix $U/,$(APP_NAMES))
 
 -include $(DEPS)
 

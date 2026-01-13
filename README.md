@@ -114,15 +114,13 @@ gdb-multiarch -x debug_riscv.gdb
 | 文档 | 主题 | 备注 |
 | - | - | - |
 | [docs/HWTDocs/调度机制.md](docs/HWTDocs/调度机制.md) | 调度机制 | 总览与策略说明 |
-| [docs/HWTDocs/scheduler_flow.dot](docs/HWTDocs/scheduler_flow.dot) | 调度流程图 | 流程关系图 |
-| [docs/HWTDocs/priority_queue.dot](docs/HWTDocs/priority_queue.dot) | 优先队列 | 数据结构示意 |
-| [docs/HWTDocs/process_state.dot](docs/HWTDocs/process_state.dot) | 进程状态 | 状态转换图 |
+
 | [docs/HWTDocs/内存管理测试.md](docs/HWTDocs/内存管理测试.md) | 内存管理测试 | buddy/slab 相关测试 |
 | [docs/HWTDocs/dup2.md](docs/HWTDocs/dup2.md) | dup2 | 接口与实现要点 |
 | [docs/HWTDocs/mount和umount.md](docs/HWTDocs/mount和umount.md) | 挂载与卸载 | 语义与实现说明 |
 | [docs/HWTDocs/进程测试.md](docs/HWTDocs/进程测试.md) | 进程测试 | 用例与结论 |
 | [docs/HWTDocs/23年官方文档.md](docs/HWTDocs/23年官方文档.md) | 参考资料 | 历史资料汇编 |
-| [docs/HWTDocs/evolution.dot](docs/HWTDocs/evolution.dot) | 结构演进 | 拓扑/演进示意 |
+
 
 ### 其他文档
 

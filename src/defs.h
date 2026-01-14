@@ -114,6 +114,8 @@ char*           strncpy(char*, const char*, int);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+void*           kmalloc(uint64);
+void            kmfree(void *);
 
 // proc.c
 int             cpuid(void);

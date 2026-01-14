@@ -2,7 +2,8 @@
 
 ```
 物理内存 (0x8000_0000..PHYSTOP)
-   │  frelist(kalloc) 提供 4KiB 页
+   │  kalloc -> Buddy allocator -> 提供 2^n 页块
+   │  kmalloc -> Slab caches -> 提供小对象
    ▼
 内核页表 kernel_pagetable (Sv39)
    ├─ 设备恒等映射：UART/PLIC/VIRTIO/TEST_DEVICE
@@ -21,13 +22,35 @@
 
 ## 物理内存与分配器（src/mm/kalloc.c）
 
-- 分配粒度：固定 4KiB 页，供内核栈、页表页、用户物理页、管道缓冲等使用。
-- 初始化 `kinit()`：`freerange(end, PHYSTOP)` 以 `end`（`kernel.ld` 导出）为起点，把剩余物理内存按页插入空闲链表。
-- 空闲链表节点：`struct run { struct run *next; }`；`kmem.freelist` 受自旋锁保护。
-- `kalloc()`：弹出一页，填 0x05 调试填充，返回物理地址（以内核直映虚拟地址形式）。
-- `kfree(pa)`：校验页对齐/范围，填 0x01，头插回链表。
+### 继承关系与迁移背景
 
-> 设计取舍：简单的单链表分配，无伙伴系统；多核下用自旋锁串行化，仍足够支撑教学场景。
+- 早期实现：`struct run` 单链表维护 4KiB 页，简单但存在“易碎片化 + 无法提供连续页 + 小对象浪费整页”的问题。
+- 新实现：引入 **Buddy + Slab** 组合策略，先将 `[end, PHYSTOP)` 页面挂入按阶次分组的伙伴链表，再由 kmalloc/slab 在页内切片供热路径结构体使用。
+- 迁移思路：
+  1. 替换 `kmem.freelist` 为 `buddy_free_areas[order]`，每个节点记录自身 `order`、`index` 与 `slab` 占用标记。
+  2. 保留 `kalloc/kfree` 接口语义（外部仍按页使用）；内部 `kalloc` 改为 `buddy_alloc_pages_internal(0)`，`kfree` 则执行伙伴合并。
+  3. 新增 `kmalloc/kmfree` 供管道等小对象使用。示例：`struct pipe` 由 `kalloc` 改为 `kmalloc(sizeof(*pi))`，释放时走 `kmfree`，避免浪费整页。
+  4. 所有元数据（buddy page table + slab_page_pool）在 `kinit()` 初始化，不改变 `vm.c`、`proc.c` 中的 `kalloc` 调用。
+
+### Buddy 分配器
+
+- **初始化**：`buddy_init()` 计算受管页面数量、可用阶数（MAX_BUDDY_ORDER=15），并将 `buddy_pages[idx]` 与物理页双向绑定。
+- **分配**：`buddy_alloc_pages_internal(order)` 会在当前或更高阶链表上寻找块，必要时不断拆分更大块并将拆下的兄弟页重新挂回链表。
+- **释放**：`buddy_free_pages_internal(pa, order)` 会根据页号找到伙伴，若对方同阶且空闲则合并递归提高阶数，直至无法合并或达到最大阶。
+- **安全性**：释放路径检查页对齐、范围、重复释放；若页被 slab 持有，则禁止直接 `kfree`。
+
+### Slab 分配器 & kmalloc
+
+- **缓存分级**：预设 32~2048 字节 7 个 size class，`slab_cache[i]` 各自维护 `partial/full/empty` 链表。
+- **页元数据**：`slab_page` 记录所在 cache、对象大小、bitmap、order；buddy 页表反向指向 slab，`kmfree` 可据此定位。
+- **分配流程**：`kmalloc(size)` 做 8 字节对齐，若命中 slab 级别：
+  - 优先复用 partial slab；
+  - 若只剩 empty slab 则拉入 partial；
+  - 缓存完全空缺时向 buddy 申请整页并切分。
+- **释放流程**：`kmfree(addr)` 通过页信息回溯到 slab，清空 bitmap 并根据 free_count 将页面转移到 empty/partial/full，必要时将多余 empty slab 归还 buddy。
+- **大块 kmalloc**：超出 2048 字节时落回 buddy，多页块前面带 `kmalloc_large_header` 记住 order，释放时据此合并。
+
+> 当前内核大量仍使用 `kalloc`，kmalloc 先用于管道、后续对象按需迁移，可逐步减少小对象浪费的整页开销。
 
 ## 物理/虚拟布局（memlayout.h）
 
@@ -126,8 +149,9 @@ digraph mm {
   rankdir=LR;
   node [shape=box, style="rounded,filled", fillcolor="#f8fbff"];
 
-  phys [label="物理内存\n[0x8000_0000..PHYSTOP]\nfreelist by kalloc"];
-  kalloc [label="kalloc/kfree\nrun 链表 + spinlock"];
+  phys [label="物理内存\n[0x8000_0000..PHYSTOP]\nBuddy: 2^n 页块"];
+  kalloc [label="kalloc/kfree\n伙伴系统"];
+  kmalloc [label="kmalloc/kmfree\nSlab caches 32~2048B"];
   kvmmake [label="kvmmake()\n恒等映射设备/内核\nproc_mapstacks()"];
   pagetable [label="walk/mappages/uvmalloc\nSv39 三级页表"];
   proc [label="proc_pagetable()\n映射 TRAMPOLINE/TRAPFRAME"];
@@ -135,6 +159,7 @@ digraph mm {
   copy [label="copyin/copyout\nwalkaddr 检查 PTE_U"];
 
   phys -> kalloc -> {kvmmake pagetable};
+  kalloc -> kmalloc [style=dotted, label="整页供 slab 划分"];
   pagetable -> proc -> trap;
   pagetable -> copy [style=dashed, label="用户访问"];
   kvmmake -> trap [label="TRAMPOLINE 映射"];
@@ -150,3 +175,7 @@ digraph mm {
 - 开启 `PAGE_TABLE_DEBUG` 可打印 walk/mappages 特定地址的调试信息。
 - 若引入写时拷贝，可在 `uvmcopy` 中共享物理页并设置 `PTE_W`→清除、增加引用计数，缺页时复制。
 - 调整物理内存上限或映射布局需同步 `PHYSTOP`、`kernel.ld`、`memlayout.h`，并考虑 TRAMPOLINE/KSTACK 位置。
+- Buddy + Slab 未来改进方向：
+  - 扩展 kmalloc 覆盖更多热路径结构体（`struct file` / inode / cache entry），降低页级碎片。
+  - 为 buddy/slab 增加统计接口（空闲页、各 size class 使用率）及调试命令，便于压力测试定位碎片问题。
+  - 研究 NUMA/多核优化（per-CPU slab or magazine）降低自旋锁争用，必要时引入对象 constructor/destructor 钩子。

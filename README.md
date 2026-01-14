@@ -4,6 +4,8 @@
 
 本项目的所有文档均位于 [docs/](docs/) 目录下，包含设计说明、调试记录与适配指南等内容。 README 的末尾提供了文档索引以便查阅。
 
+演示视频的分享链接在[此处](https://pan.baidu.com/s/1KLQgivU_ztO14eKqb95Z9w?pwd=ruos)。
+
 ## 项目架构
 
 RUOS 的整体架构如下所示：

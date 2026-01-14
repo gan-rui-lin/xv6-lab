@@ -67,51 +67,51 @@ int main()
     dup(0); // stderr
     // printf("Hello, xv6 world!\n");
     
-    test_("getppid");
+    // test_("getppid");
 
-    test_("chdir");
-    test_("times");
-    test_("sleep");
-    test_("fork");
-    test_("gettimeofday");
+    // test_("chdir");
+    // test_("times");
+    // test_("sleep");
+    // test_("fork");
+    // test_("gettimeofday");
 
-    test_("open");
-    test_("read");
-    test_("brk");
+    // test_("open");
+    // test_("read");
+    // test_("brk");
 
 
 
-    test_("getcwd");
+    // test_("getcwd");
 
-    test_("openat");
-    test_("getpid");
-    test_("exit");
-    test_("wait");
-    test_("execve");
-    test_("clone");
-    test_("yield");
-    test_("waitpid");
+    // test_("openat");
+    // test_("getpid");
+    // test_("exit");
+    // test_("wait");
+    // test_("execve");
+    // test_("clone");
+    // test_("yield");
+    // test_("waitpid");
 
-    test_("getcwd");
-    test_("dup");
-    test_("close");
-    test_("mkdir_"); 
+    // test_("getcwd");
+    // test_("dup");
+    // test_("close");
+    // test_("mkdir_"); 
 
-    test_("getdents"); 
-    test_("pipe"); 
-    test_("fstat"); 
-    test_("write");
-    test_("uname");
-    test_("mmap");
-    test_("munmap");
+    // test_("getdents"); 
+    // test_("pipe"); 
+    // test_("fstat"); 
+    // test_("write");
+    // test_("uname");
+    // test_("mmap");
+    // test_("munmap");
 
-    test_("unlink");
-    test_("fstat");
-    test_("dup2");
+    // test_("unlink");
+    // test_("fstat");
+    // test_("dup2");
 
-    test_("mount");
-    test_("umount");
-    // test_busybox();
+    // test_("mount");
+    // test_("umount");
+    test_busybox();
     shutdown();
     return 0;
 }

@@ -27,6 +27,7 @@
 #include "buf.h"
 #include "file.h"
 #include "fs/fat32.h"
+#include "fs/ext4fs.h"
 
 #define min(a, b) ((a) < (b) ? (a) : (b))
 static void itrunc(struct inode*);
@@ -49,10 +50,14 @@ readsb(int dev, struct superblock *sb)
 // Init fs
 void
 fsinit(int dev) {
-  // 尝试初始化 FAT32（优先）。若失败则回退到原始 xv6fs。
+  // 尝试初始化 ext4，其次 FAT32，最后回退到原始 xv6fs。
+  ext4fs_init(dev);
+  if(ext4_mode){
+    return;
+  }
+
   fat32_init(dev);
   if(fat32_mode){
-    // log_warn("fsinit: use FAT32 mode on dev %d\n", dev);
     return;
   }
   readsb(dev, &sb);
@@ -295,6 +300,9 @@ iget(uint dev, uint inum)
   ip->inum = inum;
   ip->ref = 1;
   ip->valid = 0;
+  ip->ext_ino = 0;
+  ip->ext_size = 0;
+  ip->ext4_path[0] = 0;
   release(&icache.lock);
   
   // 看看根目录的 inode 是不是被 iget 了
@@ -323,6 +331,13 @@ idup(struct inode *ip)
 void
 ilock(struct inode *ip)
 {
+  // ext4: only lock structure, inode data already populated
+  if(ext4_mode && ip && ip->major == EXT4_INODE_TAG){
+    if(ip->ref < 1) panic("ilock(ext4)");
+    acquiresleep(&ip->lock);
+    if(ip->valid == 0) ip->valid = 1;
+    return;
+  }
   // FAT32: 仅获取锁，不从 xv6fs 盘读取
   if(fat32_mode && ip && (ip->major == FAT32_INODE_TAG || ip->type == T_DEVICE)){
     if(ip->ref < 1) panic("ilock(FAT32)");
@@ -405,6 +420,9 @@ iput(struct inode *ip)
     ip->type = 0;
     iupdate(ip);
     ip->valid = 0;
+    ip->ext_ino = 0;
+    ip->ext_size = 0;
+    ip->ext4_path[0] = 0;
 
     releasesleep(&ip->lock);
 
@@ -470,6 +488,10 @@ bmap(struct inode *ip, uint bn)
 static void
 itrunc(struct inode *ip)
 {
+  if(ext4_mode && ip && ip->major == EXT4_INODE_TAG){
+    ext4_truncate(ip);
+    return;
+  }
   int i, j;
   struct buf *bp;
   uint *a;
@@ -502,6 +524,14 @@ itrunc(struct inode *ip)
 void
 stati(struct inode *ip, struct stat *st)
 {
+  if(ext4_mode && ip->major == EXT4_INODE_TAG){
+    st->dev = ip->dev;
+    st->ino = ip->ext_ino;
+    st->type = ip->type;
+    st->nlink = ip->nlink;
+    st->size = ip->ext_size;
+    return;
+  }
   st->dev = ip->dev;
   st->ino = ip->inum;
   st->type = ip->type;
@@ -516,6 +546,9 @@ stati(struct inode *ip, struct stat *st)
 int
 readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
 {
+  if(ext4_mode && ip && ip->major == EXT4_INODE_TAG){
+    return ext4_readi(ip, user_dst, dst, off, n);
+  }
   if(fat32_mode && ip && ip->major == FAT32_INODE_TAG){
     return fat32_readi(ip, user_dst, dst, off, n);
   }
@@ -562,6 +595,9 @@ readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
 int
 writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 {
+  if(ext4_mode && ip && ip->major == EXT4_INODE_TAG){
+    return ext4_writei(ip, user_src, src, off, n);
+  }
   if(fat32_mode && ip && ip->major == FAT32_INODE_TAG){
     return fat32_writei(ip, user_src, src, off, n);
   }
@@ -771,6 +807,9 @@ namex(char *path, int nameiparent, char *name)
 struct inode*
 namei(char *path)
 {
+  if(ext4_mode){
+    return ext4_namei(path);
+  }
   if(fat32_mode){
     return fat32_namei(path);
   }
@@ -783,6 +822,9 @@ namei(char *path)
 struct inode*
 nameiat(struct inode *base, char *path)
 {
+  if(ext4_mode){
+    return ext4_nameiat(base, path);
+  }
   if(fat32_mode){
     return fat32_nameiat(base, path);
   }
@@ -822,6 +864,9 @@ nameiparent(char *path, char *name)
 struct inode*
 createat(struct inode *dp, char *name, short type, short major, short minor)
 {
+  if(ext4_mode){
+    return ext4_createat(dp, name, type, major, minor);
+  }
   if(fat32_mode){
     return fat32_createat(dp, name, type, major, minor);
   }

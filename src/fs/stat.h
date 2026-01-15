@@ -1,4 +1,7 @@
 
+#ifndef STAT_H
+#define STAT_H
+
 #define T_DIR     1   // Directory
 #define T_FILE    2   // File
 #define T_DEVICE  3   // Device
@@ -32,3 +35,5 @@ struct kstat {
   long st_ctime_sec;    // Last status change time (seconds)
   long st_ctime_nsec;   // Last status change time (nanoseconds)
 };
+
+#endif // STAT_H

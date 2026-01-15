@@ -7,6 +7,8 @@
 #include "fs.h"
 #include "buf.h"
 
+extern int ext4_mode;
+
 // Simple logging that allows concurrent FS system calls.
 //
 // A log transaction contains the updates of multiple FS system
@@ -126,6 +128,8 @@ recover_from_log(int dev)
 void
 begin_op(int dev)
 {
+  if(ext4_mode)
+    return;
   acquire(&log[dev].lock);
   while(1){
     if(log[dev].committing){
@@ -146,6 +150,8 @@ begin_op(int dev)
 void
 end_op(int dev)
 {
+  if(ext4_mode)
+    return;
   int do_commit = 0;
 
   acquire(&log[dev].lock);
@@ -237,5 +243,4 @@ log_write(struct buf *b)
   }
   release(&log[dev].lock);
 }
-
 

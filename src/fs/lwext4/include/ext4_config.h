@@ -41,6 +41,13 @@
 extern "C" {
 #endif
 
+#include <stddef.h>
+#include "types.h"
+
+#if CONFIG_HAVE_OWN_ASSERT
+void ext4_assert(int expr);
+#endif
+
 /*****************************************************************************/
 
 #define F_SET_EXT2 2
@@ -153,7 +160,14 @@ extern "C" {
 /**@brief Switches use of malloc/free functions family
  *        from standard library to user provided*/
 #ifndef CONFIG_USE_USER_MALLOC
-#define CONFIG_USE_USER_MALLOC 0
+#define CONFIG_USE_USER_MALLOC 1
+#endif
+
+#if CONFIG_USE_USER_MALLOC
+void *ext4_user_malloc(size_t size);
+void *ext4_user_calloc(size_t nmemb, size_t size);
+void *ext4_user_realloc(void *ptr, size_t size);
+void ext4_user_free(void *ptr);
 #endif
 
 #ifdef __cplusplus

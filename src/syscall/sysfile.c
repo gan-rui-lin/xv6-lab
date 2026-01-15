@@ -11,6 +11,7 @@
 #include "fs/file.h"
 #include "fs/stat.h"
 #include "fs/fat32.h"
+#include "fs/ext4fs.h"
 #include "fcntl.h"
 
 extern int fat32_mode;
@@ -344,6 +345,8 @@ sys_link(void)
 
   if(argstr(0, old, MAXPATH) < 0 || argstr(1, new, MAXPATH) < 0)
     return -1;
+  if(ext4_mode)
+    return -1;
 
   begin_op(ROOTDEV);
   if((ip = namei(old)) == 0){
@@ -412,6 +415,17 @@ sys_unlink(void)
   if(argstr(0, path, MAXPATH) < 0)
     return -1;
 
+  if(ext4_mode){
+    struct inode *ip = ext4_namei(path);
+    if(ip == 0)
+      return -1;
+    int is_dir = (ip->type == T_DIR);
+    char full[MAXPATH];
+    safestrcpy(full, ip->ext4_path, sizeof(full));
+    iput(ip);
+    return ext4_unlink_path(full, is_dir);
+  }
+
   begin_op(ROOTDEV);
   if((dp = nameiparent(path, name)) == 0){
     end_op(ROOTDEV);
@@ -461,6 +475,9 @@ bad:
 static struct inode*
 create(char *path, short type, short major, short minor)
 {
+  if(ext4_mode){
+    return ext4_createat(0, path, type, major, minor);
+  }
   if(fat32_mode){
     return fat32_create(path, type, major, minor);
   }
@@ -969,6 +986,11 @@ sys_getdents64(void)
     n = fat32_getdents64(f->ip, &off_entries, buf, len);
     if(n > 0)
       f->off = off_entries;
+  } else if(ext4_mode && f->ip->major == EXT4_INODE_TAG){
+    uint off_entries = f->off;
+    n = ext4_getdents64(f->ip, &off_entries, buf, len);
+    if(n > 0)
+      f->off = off_entries;
   } else {
     // non-FAT32 directories not yet supported
     return -1;
@@ -1065,6 +1087,26 @@ sys_unlinkat(void)
   char *npath = path;
   while(npath[0] == '.' && npath[1] == '/')
     npath += 2;
+
+  if(ext4_mode){
+    struct inode *base = 0;
+    if(dirfd != AT_FDCWD && dirfd >= 0){
+      if(dirfd >= NOFILE)
+        return -1;
+      struct file *dirf = p->ofile[dirfd];
+      if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR)
+        return -1;
+      base = dirf->ip;
+    }
+    struct inode *ip = (npath[0] == '/' || base == 0) ? ext4_namei(npath) : ext4_nameiat(base, npath);
+    if(ip == 0)
+      return -1;
+    char full[MAXPATH];
+    safestrcpy(full, ip->ext4_path, sizeof(full));
+    int is_dir = ((flags & 0x200) != 0) || ip->type == T_DIR;
+    iput(ip);
+    return ext4_unlink_path(full, is_dir ? 1 : 0);
+  }
 
   // If FAT32 mode, perform FAT32 unlink semantics
   if(fat32_mode){

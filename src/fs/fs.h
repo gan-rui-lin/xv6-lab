@@ -1,3 +1,5 @@
+#ifndef FS_H
+#define FS_H
 // On-disk file system format.
 // Both the kernel and user programs use this header file.
 
@@ -77,4 +79,4 @@ struct dirent {
 struct inode* namei(char *path);
 struct inode* nameiat(struct inode *base, char *path);
 struct inode* createat(struct inode *dp, char *name, short type, short major, short minor);
-
+#endif // FS_H

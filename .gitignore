@@ -38,3 +38,4 @@ sbi-qemu
 
 sdcard.img-backup
 *.gz
+*.xz

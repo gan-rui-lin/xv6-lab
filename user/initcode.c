@@ -66,7 +66,7 @@ int main()
     dup(0); // stdout
     dup(0); // stderr
     // printf("Hello, xv6 world!\n");
-    
+    chdir("/musl/basic");
     test_("getppid");
 
     test_("chdir");
@@ -77,7 +77,7 @@ int main()
 
     test_("open");
     test_("read");
-    test_("brk");
+    test_("brk"); 
 
 
 

@@ -44,10 +44,14 @@ exec(char *path, char **argv)
   ilock(ip);
 
   // Check ELF header
-  if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf))
+  if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf)){
+    log_error("exec: read elf header failed for %s", path);
     goto bad;
-  if(elf.magic != ELF_MAGIC)
+  }
+  if(elf.magic != ELF_MAGIC){
+    log_error("exec: bad magic for %s (0x%x)", path, elf.magic);
     goto bad;
+  }
 
   if((pagetable = proc_pagetable(p)) == 0)
     goto bad;
@@ -55,14 +59,20 @@ exec(char *path, char **argv)
   // Load program into memory.
   sz = 0;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
-    if(readi(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph))
+    if(readi(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph)){
+      log_error("exec: read phdr %d failed for %s", i, path);
       goto bad;
+    }
     if(ph.type != ELF_PROG_LOAD)
       continue;
-    if(ph.memsz < ph.filesz)
+    if(ph.memsz < ph.filesz){
+      log_error("exec: memsz < filesz for %s", path);
       goto bad;
-    if(ph.vaddr + ph.memsz < ph.vaddr)
+    }
+    if(ph.vaddr + ph.memsz < ph.vaddr){
+      log_error("exec: vaddr overflow for %s", path);
       goto bad;
+    }
     // Map the segment, allowing non-page-aligned vaddr by rounding.
     uint64 va_start = PGROUNDDOWN(ph.vaddr);
     uint64 va_end = PGROUNDUP(ph.vaddr + ph.memsz);

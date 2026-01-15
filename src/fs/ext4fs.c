@@ -32,8 +32,10 @@ static int ext4_devno = 0;
 int ext4_mode = 0;
 
 // lwext4 is configured to call these memory hooks.
+// 通过内核分配器为 lwext4 分配内存。
 void *ext4_user_malloc(size_t size) { return kmalloc(size); }
 
+// 使用 kmalloc 为 lwext4 分配清零内存。
 void *ext4_user_calloc(size_t nmemb, size_t size) {
   size_t total = nmemb * size;
   void *p = kmalloc(total);
@@ -42,6 +44,7 @@ void *ext4_user_calloc(size_t nmemb, size_t size) {
   return p;
 }
 
+// 通过复制到新的 kmalloc 缓冲区实现重新分配。
 void *ext4_user_realloc(void *ptr, size_t size) {
   void *p = kmalloc(size);
   if(!p)
@@ -53,6 +56,7 @@ void *ext4_user_realloc(void *ptr, size_t size) {
   return p;
 }
 
+// 释放 lwext4 钩子分配的内存。
 void ext4_user_free(void *ptr) {
   if(ptr)
     kmfree(ptr);
@@ -61,19 +65,26 @@ void ext4_user_free(void *ptr) {
 // Local helpers -------------------------------------------------------------
 extern struct inode* iget_pub(uint dev, uint inum);
 
+// lwext4 块设备的加锁桩函数。
 static int bdev_lock(struct ext4_blockdev *bdev) { return EOK; }
+// lwext4 块设备的解锁桩函数。
 static int bdev_unlock(struct ext4_blockdev *bdev) { return EOK; }
+// lwext4 块设备的打开桩函数。
 static int bdev_open(struct ext4_blockdev *bdev) { return EOK; }
+// lwext4 块设备的关闭桩函数。
 static int bdev_close(struct ext4_blockdev *bdev) { return EOK; }
 
+// 将扇区 LBA 转为对应的 xv6 块号。
 static inline uint sector_block(uint64 lba) {
   return lba / (BSIZE / EXT4_SECTOR_SIZE);
 }
 
+// 计算扇区在其 xv6 块内的字节偏移。
 static inline uint sector_offset(uint64 lba) {
   return (lba % (BSIZE / EXT4_SECTOR_SIZE)) * EXT4_SECTOR_SIZE;
 }
 
+// 通过读取 xv6 缓冲区块为 lwext4 提供扇区读。
 static int bdev_read(struct ext4_blockdev *bdev, void *buf, uint64_t blk_id,
                      uint32_t blk_cnt) {
   uint8 *dst = (uint8 *)buf;
@@ -88,6 +99,7 @@ static int bdev_read(struct ext4_blockdev *bdev, void *buf, uint64_t blk_id,
   return EOK;
 }
 
+// 通过 xv6 缓冲区块为 lwext4 提供扇区写。
 static int bdev_write(struct ext4_blockdev *bdev, const void *buf, uint64_t blk_id,
                       uint32_t blk_cnt) {
   const uint8 *src = (const uint8 *)buf;
@@ -103,6 +115,7 @@ static int bdev_write(struct ext4_blockdev *bdev, const void *buf, uint64_t blk_
   return EOK;
 }
 
+// 以基路径规范化可能的相对路径。
 static void resolve_path(const char *base, const char *path, char *out, int outlen) {
   const char *src;
   const char *parts[64];
@@ -176,6 +189,7 @@ static void resolve_path(const char *base, const char *path, char *out, int outl
     out[outlen-1] = '\0';
 }
 
+// 为 ext4 路径/ino 构造一个 xv6 inode 包装。
 static struct inode *make_inode(const char *path, short type, uint64 size, uint64 inum) {
   struct inode *ip = iget_pub(ext4_devno, inum ? (uint)inum : 1);
   ip->type = type;
@@ -190,6 +204,7 @@ static struct inode *make_inode(const char *path, short type, uint64 size, uint6
   return ip;
 }
 
+// 为 ext4 路径创建伪造的设备 inode（如 console）。
 static struct inode *make_device_inode(uint dev, short major, short minor) {
   struct inode *ip = iget_pub(dev, 0);
   ip->type = T_DEVICE;
@@ -206,6 +221,7 @@ static struct inode *make_device_inode(uint dev, short major, short minor) {
 
 // Public API ----------------------------------------------------------------
 
+// 初始化 lwext4、注册块设备并挂载根目录。
 void ext4fs_init(int dev) {
   ext4_mode = 0;
   ext4_devno = dev;
@@ -247,6 +263,7 @@ void ext4fs_init(int dev) {
   log_info("ext4: mounted device %s", EXT4_DEV_NAME);
 }
 
+// 解析 ext4 路径并返回对应的 xv6 inode 包装。
 struct inode* ext4_namei(char *path) {
   if(!ext4_mode || !path)
     return 0;
@@ -280,6 +297,7 @@ struct inode* ext4_namei(char *path) {
   return 0;
 }
 
+// 类似 ext4_namei，但相对路径从给定目录 inode 开始解析。
 struct inode* ext4_nameiat(struct inode *base, char *path) {
   if(!ext4_mode || !path)
     return 0;
@@ -304,6 +322,7 @@ struct inode* ext4_nameiat(struct inode *base, char *path) {
   return ext4_namei(full);
 }
 
+// 从 ext4 inode 读取数据到用户或内核内存。
 int ext4_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n) {
   if(!ext4_mode || !ip || ip->major != EXT4_INODE_TAG)
     return -1;
@@ -362,6 +381,7 @@ int ext4_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n) {
   return rcnt;
 }
 
+// 向 ext4 inode 写入数据，并在需要时更新长度元数据。
 int ext4_writei(struct inode *ip, int user_src, uint64 src, uint off, uint n) {
   if(!ext4_mode || !ip || ip->major != EXT4_INODE_TAG)
     return -1;
@@ -404,6 +424,7 @@ int ext4_writei(struct inode *ip, int user_src, uint64 src, uint off, uint n) {
   return wcnt;
 }
 
+// 将 ext4 文件截断为零长度。
 int ext4_truncate(struct inode *ip) {
   if(!ext4_mode || !ip || ip->major != EXT4_INODE_TAG)
     return -1;
@@ -420,6 +441,7 @@ int ext4_truncate(struct inode *ip) {
   return 0;
 }
 
+// 在给定目录 inode 的相对路径下创建文件或目录。
 struct inode* ext4_createat(struct inode *dp, char *name, short type, short major, short minor) {
   (void)major;
   (void)minor;
@@ -454,6 +476,7 @@ struct inode* ext4_createat(struct inode *dp, char *name, short type, short majo
   return ext4_namei(full);
 }
 
+// 将 lwext4 目录项类型映射为 linux_dirent64 的类型值。
 static uint8 map_dir_type(uint8 t) {
   switch(t){
     case EXT4_DE_DIR: return 4;      // DT_DIR
@@ -463,6 +486,7 @@ static uint8 map_dir_type(uint8 t) {
   }
 }
 
+// 为 getdents64 读取目录项并写入 linux_dirent64 数组。
 int ext4_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen) {
   if(!ext4_mode || !dp || dp->major != EXT4_INODE_TAG || dp->type != T_DIR)
     return -1;
@@ -518,6 +542,7 @@ int ext4_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen) {
   return written;
 }
 
+// 删除指定路径的文件或目录。
 int ext4_unlink_path(const char *path, int is_dir) {
   if(!ext4_mode || !path)
     return -1;

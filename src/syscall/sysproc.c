@@ -281,9 +281,7 @@ sys_execve(void)
 
   int ret = exec(path, argv);
   if(ret == -ENOEXEC){
-    log_warn("sys_execve: exec  failed ENOEXEC, trying busybox sh\n");
-    // ! 非常随意的 fallback
-    // Fallback: run script via busybox sh to avoid /bin/sh dependency.
+    // Fallback: run script via /bin/sh (symlinked to busybox).
     char *argv2[MAXARG];
     int j = 0;
     argv2[j++] = "sh";
@@ -291,8 +289,21 @@ sys_execve(void)
     for(i = 1; i < MAXARG && argv[i] != 0; i++)
       argv2[j++] = argv[i];
     argv2[j] = 0;
-    ret = exec("/musl/busybox", argv2);
+    ret = exec("/bin/sh", argv2);
   }
+  // if(ret == -ENOEXEC){
+  //   log_error("sys_execve: exec  failed ENOEXEC, trying busybox sh\n");
+  //   // ! 非常随意的 fallback
+  //   // Fallback: run script via busybox sh to avoid /bin/sh dependency.
+  //   char *argv2[MAXARG];
+  //   int j = 0;
+  //   argv2[j++] = "sh";
+  //   argv2[j++] = path;
+  //   for(i = 1; i < MAXARG && argv[i] != 0; i++)
+  //     argv2[j++] = argv[i];
+  //   argv2[j] = 0;
+  //   ret = exec("/musl/busybox", argv2);
+  // }
 
   for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
     kfree(argv[i]);

@@ -303,6 +303,49 @@ sys_writev(void)
 }
 
 uint64
+sys_symlink(void)
+{
+  char target[MAXPATH];
+  char path[MAXPATH];
+
+  if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
+    return -EINVAL;
+  if(!ext4_mode)
+    return -ENOTSUP;
+  if(ext4_symlink(target, path) < 0)
+    return -EIO;
+  return 0;
+}
+
+uint64
+sys_symlinkat(void)
+{
+  char target[MAXPATH];
+  char path[MAXPATH];
+  int dirfd;
+
+  if(argstr(0, target, MAXPATH) < 0 || argint(1, &dirfd) < 0 ||
+     argstr(2, path, MAXPATH) < 0)
+    return -EINVAL;
+  if(!ext4_mode)
+    return -ENOTSUP;
+  if(path[0] == '/' || dirfd == AT_FDCWD || dirfd < 0){
+    if(ext4_symlink(target, path) < 0)
+      return -EIO;
+    return 0;
+  }
+
+  if(dirfd >= NOFILE)
+    return -EBADF;
+  struct file *dirf = myproc()->ofile[dirfd];
+  if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR)
+    return -ENOTDIR;
+  if(ext4_symlinkat(dirf->ip, target, path) < 0)
+    return -EIO;
+  return 0;
+}
+
+uint64
 sys_close(void)
 {
   int fd;

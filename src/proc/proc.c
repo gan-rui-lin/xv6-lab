@@ -168,7 +168,7 @@ found:
   // swtch 函数会从 context 的 ra 和 sp 字段恢复
   // forkret -> usertrapret -> userret
   p->context.ra = (uint64)forkret;
-  p->context.sp = p->kernel_stack + PGSIZE;
+  p->context.sp = p->kernel_stack + KSTACK_SIZE;
 
   #ifdef LOG_DEBUG
   log_debug("proc %d: context at %p\n", p->pid, p->context.sp);
@@ -372,11 +372,13 @@ proc_mapstacks(pagetable_t kpgtbl)
   struct proc *p;
   
   for(p = proc; p < &proc[NPROC]; p++) {
-    char *pa = kalloc();
-    if(pa == 0)
-      panic("kalloc");
     uint64 va = KSTACK((int) (p - proc));
-    kvmmap(kpgtbl, va, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+    for(int i = 0; i < KSTACK_PAGES; i++){
+      char *pa = kalloc();
+      if(pa == 0)
+        panic("kalloc");
+      kvmmap(kpgtbl, va + i * PGSIZE, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+    }
   }
 
 }

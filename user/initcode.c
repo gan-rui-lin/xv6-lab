@@ -89,6 +89,14 @@ int main()
     dup(0); // stdout
     dup(0); // stderr
 
+    // Provide /bin/sh for script fallback.
+    int r1 = mkdir("/bin");
+    printf("r1 = %d\n", r1);
+    int r2 = syscall(SYS_symlink, "/musl/busybox", "/bin/sh");
+    printf("r2 = %d\n", r2);
+    int fd = open("/bin/sh", O_RDONLY);
+    printf("open /bin/sh = %d\n", fd);
+
     test_basic();
     // printf("Hello, xv6 world!\n");
 

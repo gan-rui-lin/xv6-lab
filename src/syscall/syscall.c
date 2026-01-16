@@ -159,6 +159,8 @@ extern uint64 sys_fcntl(void);
 extern uint64 sys_writev(void);
 extern uint64 sys_rt_sigaction(void);
 extern uint64 sys_rt_sigprocmask(void);
+extern uint64 sys_symlink(void);
+extern uint64 sys_symlinkat(void);
 
 extern uint64 sys_setpriority(void);
 extern uint64 sys_getpriority(void);
@@ -216,6 +218,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_writev]      sys_writev,
 [SYS_rt_sigaction] sys_rt_sigaction,
 [SYS_rt_sigprocmask] sys_rt_sigprocmask,
+[SYS_symlink]     sys_symlink,
+[SYS_symlinkat]   sys_symlinkat,
 };
 
 // sysname - return the name of the system call for debugging.

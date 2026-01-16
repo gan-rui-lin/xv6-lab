@@ -31,6 +31,9 @@ static int ext4_devno = 0;
 
 int ext4_mode = 0;
 
+// Avoid infinite loops when resolving symlinks.
+#define EXT4_MAX_SYMLINKS 8
+
 // lwext4 is configured to call these memory hooks.
 // 通过内核分配器为 lwext4 分配内存。
 void *ext4_user_malloc(size_t size) { return kmalloc(size); }
@@ -189,6 +192,26 @@ static void resolve_path(const char *base, const char *path, char *out, int outl
     out[outlen-1] = '\0';
 }
 
+// Extract directory path from an absolute path ("/a/b/c" -> "/a/b").
+static void dirname_from_full(const char *full, char *out, int outlen) {
+  int len = strlen(full);
+  if(len <= 1){
+    safestrcpy(out, "/", outlen);
+    return;
+  }
+  int i = len - 1;
+  while(i > 0 && full[i] != '/')
+    i--;
+  if(i <= 0){
+    safestrcpy(out, "/", outlen);
+    return;
+  }
+  if(i >= outlen)
+    i = outlen - 1;
+  memmove(out, full, i);
+  out[i] = '\0';
+}
+
 // 为 ext4 路径/ino 构造一个 xv6 inode 包装。
 static struct inode *make_inode(const char *path, short type, uint64 size, uint64 inum) {
   struct inode *ip = iget_pub(ext4_devno, inum ? (uint)inum : 1);
@@ -263,15 +286,10 @@ void ext4fs_init(int dev) {
   log_info("ext4: mounted device %s", EXT4_DEV_NAME);
 }
 
-// 解析 ext4 路径并返回对应的 xv6 inode 包装。
-struct inode* ext4_namei(char *path) {
-  if(!ext4_mode || !path)
+// Resolve ext4 path (absolute) and follow symlinks.
+static struct inode* ext4_namei_internal(const char *full, int depth) {
+  if(depth > EXT4_MAX_SYMLINKS)
     return 0;
-
-  char full[MAXPATH];
-  struct proc *p = myproc();
-  const char *cwd = (p && p->cwdpath[0]) ? p->cwdpath : "/";
-  resolve_path(cwd, path, full, sizeof(full));
 
   // special device: console (accept "console" or "/dev/console")
   if(strcmp(full, "console") == 0 || strcmp(full, "/console") == 0 ||
@@ -294,7 +312,36 @@ struct inode* ext4_namei(char *path) {
     return ip;
   }
 
+  // Try symlink resolution.
+  char linkbuf[MAXPATH];
+  size_t rcnt = 0;
+  if(ext4_readlink(full, linkbuf, sizeof(linkbuf) - 1, &rcnt) == EOK){
+    linkbuf[rcnt] = '\0';
+    char base[MAXPATH];
+    char resolved[MAXPATH];
+    if(linkbuf[0] == '/'){
+      safestrcpy(resolved, linkbuf, sizeof(resolved));
+    } else {
+      dirname_from_full(full, base, sizeof(base));
+      resolve_path(base, linkbuf, resolved, sizeof(resolved));
+    }
+    return ext4_namei_internal(resolved, depth + 1);
+  }
+
   return 0;
+}
+
+// 解析 ext4 路径并返回对应的 xv6 inode 包装。
+struct inode* ext4_namei(char *path) {
+  if(!ext4_mode || !path)
+    return 0;
+
+  char full[MAXPATH];
+  struct proc *p = myproc();
+  const char *cwd = (p && p->cwdpath[0]) ? p->cwdpath : "/";
+  resolve_path(cwd, path, full, sizeof(full));
+
+  return ext4_namei_internal(full, 0);
 }
 
 // 类似 ext4_namei，但相对路径从给定目录 inode 开始解析。
@@ -319,7 +366,7 @@ struct inode* ext4_nameiat(struct inode *base, char *path) {
      strcmp(full, "/dev/console") == 0){
     return make_device_inode(ext4_devno, CONSOLE, 0);
   }
-  return ext4_namei(full);
+  return ext4_namei_internal(full, 0);
 }
 
 // 从 ext4 inode 读取数据到用户或内核内存。
@@ -439,6 +486,42 @@ int ext4_truncate(struct inode *ip) {
   ip->ext_size = 0;
   ip->size = 0;
   return 0;
+}
+
+// Create a symlink at path pointing to target.
+int ext4_symlink(const char *target, char *path) {
+  if(!ext4_mode || !target || !path)
+    return -1;
+
+  char full[MAXPATH];
+  struct proc *p = myproc();
+  const char *cwd = (p && p->cwdpath[0]) ? p->cwdpath : "/";
+  resolve_path(cwd, path, full, sizeof(full));
+
+  int r = ext4_fsymlink(target, full);
+  return (r == EOK) ? 0 : -1;
+}
+
+// Create a symlink at path relative to dp (directory inode).
+int ext4_symlinkat(struct inode *dp, const char *target, char *path) {
+  if(!ext4_mode || !target || !path)
+    return -1;
+
+  if(path[0] == '/')
+    return ext4_symlink(target, path);
+
+  char full[MAXPATH];
+  const char *base = "/";
+  struct proc *p = myproc();
+  if(dp && dp->major == EXT4_INODE_TAG){
+    base = dp->ext4_path;
+  } else if(p && p->cwdpath[0]){
+    base = p->cwdpath;
+  }
+  resolve_path(base, path, full, sizeof(full));
+
+  int r = ext4_fsymlink(target, full);
+  return (r == EOK) ? 0 : -1;
 }
 
 // 在给定目录 inode 的相对路径下创建文件或目录。

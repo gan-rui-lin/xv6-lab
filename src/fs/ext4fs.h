@@ -24,6 +24,7 @@ int ext4_writei(struct inode *ip, int user_src, uint64 src, uint off, uint n);
 int ext4_truncate(struct inode *ip);
 
 struct inode* ext4_createat(struct inode *dp, char *name, short type, short major, short minor);
+int ext4_symlink(const char *target, char *path);
+int ext4_symlinkat(struct inode *dp, const char *target, char *path);
 int ext4_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen);
 int ext4_unlink_path(const char *path, int is_dir);
-

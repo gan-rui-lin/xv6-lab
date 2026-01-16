@@ -57,8 +57,11 @@
 // 用户空间和内核空间均可访问；占用最高地址的一页大小
 #define TRAMPOLINE (MAXVA - PGSIZE)
 
-// 每个内核栈占用 2 页空间，其中一页用于实际的栈，另一页作为无效的“guard page”（保护页）
-#define KSTACK(p) (TRAMPOLINE - ((p)+1)* 2*PGSIZE)
+// 每个内核栈使用 KSTACK_PAGES 页，另加 1 页作为 guard page。
+#define KSTACK_PAGES 2
+#define KSTACK_GUARD_PAGES 1
+#define KSTACK_SIZE (KSTACK_PAGES * PGSIZE)
+#define KSTACK(p) (TRAMPOLINE - ((p)+1) * (KSTACK_PAGES + KSTACK_GUARD_PAGES) * PGSIZE)
 
 // User memory layout.
 // Address zero first:

@@ -126,7 +126,7 @@ usertrapret(void)
 
   // 在 trapframe 中设置内核态相关字段
   p->trapframe->kernel_satp = r_satp();         // kernel page table
-  p->trapframe->kernel_sp = p->kernel_stack + PGSIZE; // process's kernel stack
+  p->trapframe->kernel_sp = p->kernel_stack + KSTACK_SIZE; // process's kernel stack
   p->trapframe->kernel_trap = (uint64)usertrap;
   p->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
 
@@ -314,4 +314,3 @@ devintr()
     return 0;
   }
 }
-

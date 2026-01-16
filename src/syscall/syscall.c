@@ -155,6 +155,10 @@ extern uint64 sys_uname(void);
 extern uint64 sys_nanosleep(void);
 extern uint64 sys_times(void);
 extern uint64 sys_unlinkat(void);
+extern uint64 sys_fcntl(void);
+extern uint64 sys_writev(void);
+extern uint64 sys_rt_sigaction(void);
+extern uint64 sys_rt_sigprocmask(void);
 
 extern uint64 sys_setpriority(void);
 extern uint64 sys_getpriority(void);
@@ -198,6 +202,7 @@ static uint64 (*syscalls[])(void) = {
 
 [SYS_brk]         sys_brk,
 [SYS_fstat]       sys_fstat,
+[SYS_fcntl]       sys_fcntl,
 [SYS_openat]      sys_openat,
 [SYS_munmap]      sys_munmap,
 [SYS_mmap]        sys_mmap,
@@ -208,6 +213,9 @@ static uint64 (*syscalls[])(void) = {
 [SYS_uname]       sys_uname,
 [SYS_unlinkat]     sys_unlinkat,
 [SYS_fstatat]      sys_fstatat,
+[SYS_writev]      sys_writev,
+[SYS_rt_sigaction] sys_rt_sigaction,
+[SYS_rt_sigprocmask] sys_rt_sigprocmask,
 };
 
 // sysname - return the name of the system call for debugging.
@@ -458,8 +466,9 @@ syscall_handler(void)
       p->trapframe->a3, p->trapframe->a4, p->trapframe->a5
     };
 
+
     if (trace) {
-      printf("[syscall] pid=%d name=%s num=%d (%s) args=[%p,%p,%p,%p,%p,%p]\n",
+      log_debug("[syscall] pid=%d name=%s num=%d (%s) args=[%p,%p,%p,%p,%p,%p]\n",
              p->pid, p->name, num, sysname(num),
              (void *)args[0], (void *)args[1], (void *)args[2],
              (void *)args[3], (void *)args[4], (void *)args[5]);
@@ -470,7 +479,7 @@ syscall_handler(void)
     p->trapframe->a0 = ret;
 
     if (trace) {
-      printf("[syscall] pid=%d name=%s num=%d (%s) ret=%p\n",
+      log_debug("[syscall] pid=%d name=%s num=%d (%s) ret=%p\n",
              p->pid, p->name, num, sysname(num), (void*)ret);
     }
   } else {

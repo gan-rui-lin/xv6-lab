@@ -4,7 +4,6 @@
 #define TEST_SYSCALLS
 #include "../src/syscall/syscall.h"
 
-
 void test_(char *name)
 {
 
@@ -56,6 +55,30 @@ void test_busybox()
     }
 }
 
+void test_basic()
+{
+    printf("=== Testing basic syscalls ===\n");
+    chdir("/musl/");
+
+    int pid = fork();
+    if (pid == 0)
+    {
+        char *argv[] = {"sh", "/musl/basic_testcode.sh", 0};
+        exec("/musl/busybox", argv);
+        printf("Exec busybox failed!\n");
+        syscall(SYS_exit, -1);
+    }
+    else if (pid > 0)
+    {
+        int status;
+        wait(&status);
+    }
+    else
+    {
+        printf("Fork failed!\n");
+    }
+}
+
 int main()
 {
     if (open("console", O_RDWR) < 0)
@@ -65,52 +88,50 @@ int main()
     }
     dup(0); // stdout
     dup(0); // stderr
+
+    test_basic();
     // printf("Hello, xv6 world!\n");
-    chdir("/musl/basic");
-    test_("getppid");
 
-    test_("chdir");
-    test_("times");
-    test_("sleep");
-    test_("fork");
-    test_("gettimeofday");
+    // test_("getppid");
 
-    test_("open");
-    test_("read");
-    test_("brk"); 
+    // test_("chdir");
+    // test_("times");
+    // test_("sleep");
+    // test_("fork");
+    // test_("gettimeofday");
 
+    // test_("open");
+    // test_("read");
+    // test_("brk");
 
+    // test_("getcwd");
 
-    test_("getcwd");
+    // test_("openat");
+    // test_("getpid");
+    // test_("exit");
+    // test_("wait");
+    // test_("execve");
+    // test_("clone");
+    // test_("yield");
+    // test_("waitpid");
 
-    test_("openat");
-    test_("getpid");
-    test_("exit");
-    test_("wait");
-    test_("execve");
-    test_("clone");
-    test_("yield");
-    test_("waitpid");
+    // test_("getcwd");
+    // test_("dup");
+    // test_("close");
+    // test_("mkdir_");
 
-    test_("getcwd");
-    test_("dup");
-    test_("close");
-    test_("mkdir_"); 
+    // test_("getdents");
+    // test_("pipe");
+    // test_("fstat");
+    // test_("write");
+    // test_("uname");
+    // test_("mmap");
+    // test_("munmap");
 
-    test_("getdents"); 
-    test_("pipe"); 
-    test_("fstat"); 
-    test_("write");
-    test_("uname");
-    test_("mmap");
-    test_("munmap");
+    // test_("unlink");
+    // test_("fstat");
+    // test_("dup2");
 
-    test_("unlink");
-    test_("fstat");
-    test_("dup2");
-
-    test_("mount");
-    test_("umount");
     // test_busybox();
     shutdown();
     return 0;

@@ -17,3 +17,4 @@
 #define NDISK        2  // maximum number of disks
 
 #define MAXARG       32  // max exec arguments
+#define USERSTACK_PAGES 8  // user stack pages (plus one guard page)

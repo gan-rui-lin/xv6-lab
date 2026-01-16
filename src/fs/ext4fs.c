@@ -334,7 +334,7 @@ int ext4_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n) {
     log_error("ext4_readi: fopen '%s' failed %d", ip->ext4_path, fr);
     return -1;
   }
-  log_info("ext4_readi: open '%s' inode 0x%x size 0x%x off %d len %d\n", ip->ext4_path, (uint)f.inode, (uint)f.fsize, (int)off, (int)n);
+  // log_info("ext4_readi: open '%s' inode 0x%x size 0x%x off %d len %d\n", ip->ext4_path, (uint)f.inode, (uint)f.fsize, (int)off, (int)n);
 
   if(off > f.fsize){
     ext4_fclose(&f);

@@ -6,6 +6,18 @@
 #include "proc.h"
 #include "defs.h"
 #include "elf.h"
+#include "errno.h"
+
+#ifndef AT_NULL
+#define AT_NULL 0
+#define AT_PHDR 3
+#define AT_PHENT 4
+#define AT_PHNUM 5
+#define AT_PAGESZ 6
+#define AT_ENTRY 9
+#endif
+
+#define AUXV_ENTRIES 5
 
 // map ELF program header flags (PF_X=0x1, PF_W=0x2, PF_R=0x4)
 // to PTE permission bits.
@@ -28,58 +40,71 @@ exec(char *path, char **argv)
 {
   char *s, *last;
   int i, off;
-  uint64 argc, sz, sp, ustack[MAXARG + 4], stackbase;
+  uint64 argc, sz, sp, stackbase;
+  uint64 ustack[MAXARG + 1 + 1 + (AUXV_ENTRIES + 1) * 2];
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
+  uint64 load_bias = 0;
+  int first_load = 1;
+  int err = -EIO;
 
   begin_op(ROOTDEV);
 
   if((ip = namei(path)) == 0){
     end_op(ROOTDEV);
-    return -1;
+    return -ENOENT;
   }
   ilock(ip);
 
   // Check ELF header
   if(readi(ip, 0, (uint64)&elf, 0, sizeof(elf)) != sizeof(elf)){
     log_error("exec: read elf header failed for %s", path);
+    err = -EIO;
     goto bad;
   }
   if(elf.magic != ELF_MAGIC){
     log_error("exec: bad magic for %s (0x%x)", path, elf.magic);
+    err = -ENOEXEC;
     goto bad;
   }
 
   if((pagetable = proc_pagetable(p)) == 0)
-    goto bad;
+    { err = -ENOMEM; goto bad; }
 
   // Load program into memory.
   sz = 0;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph)){
       log_error("exec: read phdr %d failed for %s", i, path);
+      err = -EIO;
       goto bad;
     }
     if(ph.type != ELF_PROG_LOAD)
       continue;
+    if(first_load){
+      load_bias = ph.vaddr - ph.off;
+      first_load = 0;
+    }
     if(ph.memsz < ph.filesz){
       log_error("exec: memsz < filesz for %s", path);
+      err = -ENOEXEC;
       goto bad;
     }
     if(ph.vaddr + ph.memsz < ph.vaddr){
       log_error("exec: vaddr overflow for %s", path);
+      err = -ENOEXEC;
       goto bad;
     }
     // Map the segment, allowing non-page-aligned vaddr by rounding.
     uint64 va_start = PGROUNDDOWN(ph.vaddr);
     uint64 va_end = PGROUNDUP(ph.vaddr + ph.memsz);
     if((sz = uvmalloc(pagetable, sz, va_end, flags2perm(ph.flags))) == 0)
-      goto bad;
+      { err = -ENOMEM; goto bad; }
     if(loadseg(pagetable, ph.vaddr, ip, ph.off, ph.filesz) < 0)
-      goto bad;
+      { err = -EIO; goto bad; }
   }
   iunlockput(ip);
   end_op(ROOTDEV);
@@ -88,14 +113,15 @@ exec(char *path, char **argv)
   p = myproc();
   uint64 oldsz = p->sz;
 
-  // Allocate two pages at the next page boundary.
-  // Use the second as the user stack.
+  // Allocate user stack pages plus a guard page at the bottom.
   sz = PGROUNDUP(sz);
-  if((sz = uvmalloc(pagetable, sz, sz + 2*PGSIZE, PTE_R|PTE_W)) == 0)
-    goto bad;
-  uvmclear(pagetable, sz-2*PGSIZE);
+  uint64 stack_pages = USERSTACK_PAGES;
+  uint64 stack_total = (stack_pages + 1) * PGSIZE;
+  if((sz = uvmalloc(pagetable, sz, sz + stack_total, PTE_R|PTE_W)) == 0)
+    { err = -ENOMEM; goto bad; }
+  uvmclear(pagetable, sz - stack_total);
   sp = sz;
-  stackbase = sp - PGSIZE;
+  stackbase = sp - stack_pages * PGSIZE;
 
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
@@ -104,39 +130,46 @@ exec(char *path, char **argv)
     sp -= strlen(argv[argc]) + 1;
     sp -= sp % 16; // riscv sp must be 16-byte aligned
     if(sp < stackbase)
-      goto bad;
+      { err = -EFAULT; goto bad; }
     if(copyout(pagetable, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
-      goto bad;
+      { err = -EFAULT; goto bad; }
     ustack[argc] = sp;
   }
-  ustack[argc] = 0;
-  // 空的环境变量列表 envp[0] = 0
-  ustack[argc + 1] = 0;
-  // 追加一个 AT_NULL 的 auxv，防止 libc/ldso 读取垃圾
-  ustack[argc + 2] = 0; // a_type = AT_NULL
-  ustack[argc + 3] = 0; // a_val  = 0
+  ustack[argc] = 0; // argv[argc] = NULL
+  int envp_idx = argc + 1;
+  ustack[envp_idx] = 0; // envp[0] = NULL
+  int auxv_idx = envp_idx + 1;
+  uint64 phdr = load_bias + elf.phoff;
+  ustack[auxv_idx++] = AT_PHDR;   ustack[auxv_idx++] = phdr;
+  ustack[auxv_idx++] = AT_PHENT;  ustack[auxv_idx++] = sizeof(struct proghdr);
+  ustack[auxv_idx++] = AT_PHNUM;  ustack[auxv_idx++] = elf.phnum;
+  ustack[auxv_idx++] = AT_PAGESZ; ustack[auxv_idx++] = PGSIZE;
+  ustack[auxv_idx++] = AT_ENTRY;  ustack[auxv_idx++] = elf.entry;
+  ustack[auxv_idx++] = AT_NULL;   ustack[auxv_idx++] = 0;
 
   // push the array of argv[] pointers.
-  // 额外的 3 项：envp[0]，auxv.type=AT_NULL，auxv.val=0
-  sp -= (argc + 4) * sizeof(uint64);
+  int stack_entries = auxv_idx;
+  sp -= stack_entries * sizeof(uint64);
   // 调整，使最终栈指针（含 argc）保持 16 字节对齐，同时保证 argv 紧跟在 argc 之后
   if(((sp - sizeof(uint64)) & 15) != 0){
     sp -= sizeof(uint64);
   }
   if(sp < stackbase)
-    goto bad;
-  if(copyout(pagetable, sp, (char *)ustack, (argc + 4) * sizeof(uint64)) < 0)
-    goto bad;
+    { err = -EFAULT; goto bad; }
+  if(copyout(pagetable, sp, (char *)ustack, stack_entries * sizeof(uint64)) < 0)
+    { err = -EFAULT; goto bad; }
   // Place argc on stack so user CRT can read [argc][argv*...] from SP
   uint64 argc64 = argc;
   uint64 sp_argv = sp;
   sp -= sizeof(uint64); // argc slot
   if(sp < stackbase)
-    goto bad;
+    { err = -EFAULT; goto bad; }
   if(copyout(pagetable, sp, (char *)&argc64, sizeof(uint64)) < 0)
-    goto bad;
-  // Set registers for main(argc, argv)
+    { err = -EFAULT; goto bad; }
+  // Set registers for main(argc, argv, envp)
+  p->trapframe->a0 = argc;
   p->trapframe->a1 = sp_argv;
+  p->trapframe->a2 = sp_argv + (argc + 1) * sizeof(uint64);
 
   // Save program name for debugging.
   for(last=s=path; *s; s++)
@@ -161,7 +194,7 @@ exec(char *path, char **argv)
     iunlockput(ip);
     end_op(ROOTDEV);
   }
-  return -1;
+  return err;
 }
 
 // Load a program segment into pagetable at virtual address va.

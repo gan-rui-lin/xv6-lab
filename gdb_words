@@ -1,0 +1,32 @@
+gdb-multiarch -ex "target remote:1234"
+
+gdb-multiarch -ex "file busybox/musl/busybox" -ex "set architecture riscv:rv64" -ex "target remote:1234"
+
+gdb-multiarch -ex "file /home/grl/codeRepo/xv6-lab/kernel-qemu" \
+  -ex "set architecture riscv:rv64" \
+  -ex "target remote localhost:1234" \
+  -ex "add-symbol-file busybox/musl/busybox 0x0" \
+  -ex "b syscall.c:470" \
+  -ex "b run_applet_main" 
+
+cat <<'EOF' >/tmp/nn.gdb
+define nn
+  ni
+  p/x myproc()->trapframe->a7
+  p/x myproc()->trapframe->a0
+  p/x myproc()->trapframe->a1
+  p/x myproc()->trapframe->a2
+  p/x myproc()->trapframe->a3
+  p/x myproc()->trapframe->a4
+  p/x myproc()->trapframe->a5
+  p sysname(myproc()->trapframe->a7)
+end
+EOF
+
+gdb-multiarch -ex "file /home/grl/codeRepo/xv6-lab/kernel-qemu" \
+  -ex "set architecture riscv:rv64" \
+  -ex "target remote localhost:1234" \
+  -ex "add-symbol-file busybox/musl/busybox 0x0" \
+  -ex "source /tmp/nn.gdb" \
+  -ex "b syscall.c:470" \
+  -ex "c"

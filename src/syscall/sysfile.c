@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "syscall.h"
+#include "errno.h"
 
 #include "sleeplock.h" // TODO 和 fs/file.h 捆绑着引入
 #include "fs/fs.h"     // TODO 和 fs/file.h 捆绑着引入
@@ -132,11 +133,11 @@ argfd(int n, int *pfd, struct file **pf)
   struct file *f;
 
   if(argint(n, &fd) < 0)
-    return -1;
+    return -EINVAL;
   if(fd < 0 || fd >= NOFILE || (f=myproc()->ofile[fd]) == 0){
     log_error("argfd: fd %d invalid\n", fd);
     log_error("myproc()->ofile[fd] is %p\n", myproc()->ofile[fd]);
-    return -1;
+    return -EBADF;
   }
     
   if(pfd)
@@ -169,10 +170,11 @@ sys_dup(void)
   struct file *f;
   int fd;
 
-  if(argfd(0, 0, &f) < 0)
-    return -1;
+  int r = argfd(0, 0, &f);
+  if(r < 0)
+    return r;
   if((fd=fdalloc(f)) < 0)
-    return -1;
+    return -EMFILE;
   filedup(f);
   return fd;
 }
@@ -184,8 +186,11 @@ sys_read(void)
   int n;
   uint64 p;
 
-  if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argaddr(1, &p) < 0)
-    return -1;
+  int r = argfd(0, 0, &f);
+  if(r < 0)
+    return r;
+  if(argint(2, &n) < 0 || argaddr(1, &p) < 0)
+    return -EINVAL;
   return fileread(f, p, n);
 }
 
@@ -196,13 +201,105 @@ sys_write(void)
   int n;
   uint64 p;
 
-  if(argfd(0, 0, &f) < 0 || argint(2, &n) < 0 || argaddr(1, &p) < 0){
+  int r = argfd(0, 0, &f);
+  if(r < 0)
+    return r;
+  if(argint(2, &n) < 0 || argaddr(1, &p) < 0){
      log_error("sys_write f is %p, n is %d, p is %p\n", f, n, p);
-     return -1;
+     return -EINVAL;
   }
    
   // log_debug("sys_write: fd=%d, p=%p, n=%d\n", f, p, n); // TODO 调试信息
   return filewrite(f, p, n);
+}
+
+// minimal fcntl: support F_GETFL/F_SETFL/F_GETFD/F_SETFD/F_DUPFD
+uint64
+sys_fcntl(void)
+{
+  struct proc *p = myproc();
+  struct file *f;
+  int fd;
+  int cmd;
+  int arg;
+
+  int r = argfd(0, &fd, &f);
+  if(r < 0)
+    return r;
+  if(argint(1, &cmd) < 0 || argint(2, &arg) < 0)
+    return -EINVAL;
+
+  switch(cmd){
+  case F_GETFL: {
+    int flags = 0;
+    if(f->readable && f->writable)
+      flags |= O_RDWR;
+    else if(f->readable)
+      flags |= O_RDONLY;
+    else
+      flags |= O_WRONLY;
+    return flags;
+  }
+  case F_SETFL:
+    return 0;
+  case F_GETFD:
+    return 0;
+  case F_SETFD:
+    return 0;
+  case F_DUPFD: {
+    if(arg < 0)
+      return -EINVAL;
+    for(int newfd = arg; newfd < NOFILE; newfd++){
+      if(p->ofile[newfd] == 0){
+        p->ofile[newfd] = f;
+        filedup(f);
+        return newfd;
+      }
+    }
+    return -EMFILE;
+  }
+  default:
+    return -EINVAL;
+  }
+}
+
+// writev: write multiple buffers to a file descriptor
+uint64
+sys_writev(void)
+{
+  struct file *f;
+  uint64 iov_addr;
+  int iovcnt;
+
+  int r = argfd(0, 0, &f);
+  if(r < 0)
+    return r;
+  if(argaddr(1, &iov_addr) < 0 || argint(2, &iovcnt) < 0)
+    return -EINVAL;
+  if(iovcnt < 0 || iovcnt > 1024)
+    return -EINVAL;
+
+  uint64 total = 0;
+  for(int i = 0; i < iovcnt; i++){
+    struct {
+      uint64 iov_base;
+      uint64 iov_len;
+    } iov;
+
+    if(copyin(myproc()->pagetable, (char *)&iov, iov_addr + i * sizeof(iov), sizeof(iov)) < 0)
+      return total ? total : (uint64)-EFAULT;
+    if(iov.iov_len == 0)
+      continue;
+
+    int n = filewrite(f, iov.iov_base, (int)iov.iov_len);
+    if(n < 0)
+      return total ? total : (uint64)-EIO;
+    total += n;
+    if(n != (int)iov.iov_len)
+      break;
+  }
+
+  return total;
 }
 
 uint64
@@ -211,8 +308,9 @@ sys_close(void)
   int fd;
   struct file *f;
 
-  if(argfd(0, &fd, &f) < 0)
-    return -1;
+  int r = argfd(0, &fd, &f);
+  if(r < 0)
+    return r;
   myproc()->ofile[fd] = 0;
   fileclose(f);
   return 0;
@@ -251,11 +349,12 @@ sys_fstat(void)
   
   // 获取参数: fd 和 kstat 指针
   if(argint(0, &fd) < 0 || argaddr(1, &kst_addr) < 0)
-    return -1;
+    return -EINVAL;
   
   // 获取文件描述符对应的文件
-  if(argfd(0, &fd, &f) < 0)
-    return -1;
+  int r = argfd(0, &fd, &f);
+  if(r < 0)
+    return r;
   
   // 获取文件状态信息
   if(f->type == FD_INODE || f->type == FD_DEVICE){
@@ -271,12 +370,12 @@ sys_fstat(void)
 
     // 复制到用户空间
     if(copyout(p->pagetable, kst_addr, (char *)&kst, sizeof(kst)) < 0)
-      return -1;
+      return -EFAULT;
       
     return 0;
   }
   
-  return -1;
+  return -EINVAL;
 }
 
 uint64
@@ -290,11 +389,11 @@ sys_fstatat(void)
 
   if(argint(0, &dirfd) < 0 || argstr(1, path, MAXPATH) < 0 ||
      argaddr(2, &ukstat) < 0 || argint(3, &flags) < 0)
-    return -1;
+    return -EINVAL;
 
   // Only support basic lookups: flags must be zero or AT_SYMLINK_NOFOLLOW ignored.
   if(flags != 0)
-    return -1;
+    return -EINVAL;
 
   begin_op(ROOTDEV);
 
@@ -302,12 +401,12 @@ sys_fstatat(void)
   if(path[0] != '/' && dirfd != AT_FDCWD && dirfd >= 0){
     if(dirfd >= NOFILE){
       end_op(ROOTDEV);
-      return -1;
+      return -EBADF;
     }
     dirf = p->ofile[dirfd];
     if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR){
       end_op(ROOTDEV);
-      return -1;
+      return -ENOTDIR;
     }
   }
 
@@ -319,7 +418,7 @@ sys_fstatat(void)
 
   if(ip == 0){
     end_op(ROOTDEV);
-    return -1;
+    return -ENOENT;
   }
 
   ilock(ip);
@@ -331,7 +430,7 @@ sys_fstatat(void)
   end_op(ROOTDEV);
 
   if(copyout(p->pagetable, ukstat, (char *)&kst, sizeof(kst)) < 0)
-    return -1;
+    return -EFAULT;
   return 0;
 }
 
@@ -534,7 +633,7 @@ sys_open(void)
   int n;
 
   if((n = argstr(0, path, MAXPATH)) < 0 || argint(1, &omode) < 0)
-    return -1;
+    return -EINVAL;
 
   int kflags = normalize_open_flags(omode);
   log_info("sys_open: path='%s' omode=0x%x kflags=0x%x", path, omode, kflags);
@@ -545,13 +644,13 @@ sys_open(void)
     ip = create(path, T_FILE, 0, 0);
     if(ip == 0){
       end_op(ROOTDEV);
-      return -1;
+      return -EACCES;
     }
   } else {
     if((ip = namei(path)) == 0){
       log_warn("sys_open: namei('%s') failed", path);
       end_op(ROOTDEV);
-      return -1;
+      return -ENOENT;
     }
     ilock(ip);
     if(ip->type == T_DIR){
@@ -561,7 +660,7 @@ sys_open(void)
         log_warn("sys_open: reject open dir without O_DIRECTORY/O_RDONLY");
         iunlockput(ip);
         end_op(ROOTDEV);
-        return -1;
+        return -EISDIR;
       }
       log_info("sys_open: opened directory");
     }
@@ -570,7 +669,7 @@ sys_open(void)
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
     iunlockput(ip);
     end_op(ROOTDEV);
-    return -1;
+    return -ENODEV;
   }
 
   if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
@@ -578,7 +677,7 @@ sys_open(void)
       fileclose(f);
     iunlockput(ip);
     end_op(ROOTDEV);
-    return -1;
+    return -EMFILE;
   }
 
   if(ip->type == T_DEVICE){
@@ -618,9 +717,9 @@ sys_openat(void)
   int n;
 
   // 提取参数（Linux 布局）
-  if(argint(0, &dirfd) < 0) return -1;
+  if(argint(0, &dirfd) < 0) return -EINVAL;
   if((n = argstr(1, path, MAXPATH)) < 0 || argint(2, &flags) < 0)
-    return -1;
+    return -EINVAL;
 
   int kflags = normalize_open_flags(flags);
   // Normalize path: strip leading './' segments
@@ -636,13 +735,13 @@ sys_openat(void)
     if(dirfd >= NOFILE){
       log_warn("sys_openat: dirfd out of range %d", dirfd);
       end_op(ROOTDEV);
-      return -1;
+      return -EBADF;
     }
     dirf = p->ofile[dirfd];
     if(dirf == 0 || dirf->type != FD_INODE || dirf->ip->type != T_DIR){
       log_warn("sys_openat: dirfd not a directory fd=%d", dirfd);
       end_op(ROOTDEV);
-      return -1;
+      return -ENOTDIR;
     }
   }
 
@@ -667,7 +766,7 @@ sys_openat(void)
         ip = create(npath, T_FILE, 0, 0);
         if(ip == 0){
           end_op(ROOTDEV);
-          return -1;
+          return -EACCES;
         }
       } else if(dirfd != AT_FDCWD && dirfd >= 0){
         // create relative to dirfd
@@ -676,20 +775,20 @@ sys_openat(void)
         if(ip == 0){
           log_warn("sys_openat: createat failed for '%s'", npath);
           end_op(ROOTDEV);
-          return -1;
+          return -EACCES;
         }
       } else {
         // AT_FDCWD relative: use create with normalized path (relative to root in FAT32)
         ip = create(npath, T_FILE, 0, 0);
         if(ip == 0){
           end_op(ROOTDEV);
-          return -1;
+          return -EACCES;
         }
       }
     } else {
       log_warn("sys_openat: resolve failed for '%s'", npath);
       end_op(ROOTDEV);
-      return -1;
+      return -ENOENT;
     }
   }
 
@@ -701,14 +800,14 @@ sys_openat(void)
       log_warn("sys_openat: reject opening dir with write flags");
       iunlockput(ip);
       end_op(ROOTDEV);
-      return -1;
+      return -EISDIR;
     }
   }
 
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
     iunlockput(ip);
     end_op(ROOTDEV);
-    return -1;
+    return -ENODEV;
   }
 
   if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
@@ -716,7 +815,7 @@ sys_openat(void)
       fileclose(f);
     iunlockput(ip);
     end_op(ROOTDEV);
-    return -1;
+    return -EMFILE;
   }
 
   if(ip->type == T_DEVICE){

@@ -6,9 +6,14 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "fcntl.h"
+#include "errno.h"
 #include "../sync/sleeplock.h"
 #include "../fs/fs.h"
 #include "../fs/file.h"
+
+#ifndef WNOHANG
+#define WNOHANG 1
+#endif
 
 uint64
 sys_exit(void)
@@ -196,6 +201,47 @@ sys_exit_group(void)
   return 0;
 }
 
+// rt_sigaction: minimal stub for musl/busybox
+uint64
+sys_rt_sigaction(void)
+{
+  // args: signum, act, oldact, sigsetsize
+  // We don't support signals yet; report success.
+  return 0;
+}
+
+// rt_sigprocmask: minimal stub that clears oldset if provided
+uint64
+sys_rt_sigprocmask(void)
+{
+  int how;
+  uint64 set;
+  uint64 oldset;
+  uint64 sigsetsize;
+
+  if(argint(0, &how) < 0 || argaddr(1, &set) < 0 ||
+     argaddr(2, &oldset) < 0 || argaddr(3, &sigsetsize) < 0)
+    return -1;
+
+  (void)how;
+  (void)set;
+
+  if(oldset != 0 && sigsetsize > 0){
+    uint64 zero = 0;
+    uint64 off = 0;
+    while(off < sigsetsize){
+      uint64 chunk = sigsetsize - off;
+      if(chunk > sizeof(zero))
+        chunk = sizeof(zero);
+      if(copyout(myproc()->pagetable, oldset + off, (char *)&zero, chunk) < 0)
+        return -1;
+      off += chunk;
+    }
+  }
+
+  return 0;
+}
+
 // Linux execve(path, argv, envp)
 // We currently do not support envp; we silently ignore it if it's empty (first element is NULL).
 uint64
@@ -204,48 +250,58 @@ sys_execve(void)
   char path[MAXPATH], *argv[MAXARG];
   int i;
   uint64 uargv, uarg, uenvp;
+  int err = -EFAULT;
 
   if(argstr(0, path, MAXPATH) < 0 || argaddr(1, &uargv) < 0 || argaddr(2, &uenvp) < 0)
-    return -1;
+    return -EFAULT;
   
-  // Check if envp is non-empty (not just non-NULL)
-  // If envp is provided, check if the first element is NULL (empty array)
+  // envp is ignored for now; accept non-empty arrays to avoid aborting.
   if(uenvp != 0) {
     uint64 first_env;
     if(fetchaddr(uenvp, &first_env) < 0)
-      return -1;
-    if(first_env != 0)
-      panic("sys_execve: non-empty envp unsupported");
-    // If first_env == 0, envp is empty, we can proceed
+      return -EFAULT;
   }
 
   memset(argv, 0, sizeof(argv));
   for(i=0;; i++){
     if(i >= NELEM(argv))
-      goto bad;
+      { err = -E2BIG; goto bad; }
     if(fetchaddr(uargv+sizeof(uint64)*i, (uint64*)&uarg) < 0)
-      goto bad;
+      { err = -EFAULT; goto bad; }
     if(uarg == 0){
       argv[i] = 0;
       break;
     }
     argv[i] = kalloc();
     if(argv[i] == 0)
-      panic("sys_execve kalloc");
+      { err = -ENOMEM; goto bad; }
     if(fetchstr(uarg, argv[i], PGSIZE) < 0)
-      goto bad;
+      { err = -EFAULT; goto bad; }
   }
 
   int ret = exec(path, argv);
+  if(ret == -ENOEXEC){
+    log_warn("sys_execve: exec  failed ENOEXEC, trying busybox sh\n");
+    // ! 非常随意的 fallback
+    // Fallback: run script via busybox sh to avoid /bin/sh dependency.
+    char *argv2[MAXARG];
+    int j = 0;
+    argv2[j++] = "sh";
+    argv2[j++] = path;
+    for(i = 1; i < MAXARG && argv[i] != 0; i++)
+      argv2[j++] = argv[i];
+    argv2[j] = 0;
+    ret = exec("/musl/busybox", argv2);
+  }
 
   for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
     kfree(argv[i]);
   return ret;
 
-bad:
+ bad:
   for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
     kfree(argv[i]);
-  return -1;
+  return err;
 }
 
 // Minimal wait4(pid, status, options): support only pid == -1 and options == 0
@@ -259,17 +315,13 @@ sys_wait4(void)
   argaddr(1, &status);
   argint(2, &options);
 
-  // 原来的实现（已注释）：
-  // if (pid != -1)
-  //   panic("sys_wait4: pid != -1 unsupported");
-  
-  if (options != 0)
-    panic("sys_wait4: options unsupported");
+  if(options & ~WNOHANG)
+    return -EINVAL;
+  int nohang = (options & WNOHANG) != 0;
 
-  // If pid == -1, wait for any child (original behavior)
-  if (pid == -1) {
+  // If pid == -1 and no WNOHANG, wait for any child (original behavior)
+  if (pid == -1 && !nohang)
     return wait(status);
-  }
   
   // If pid > 0, wait for specific child process
   // We need to implement waitpid functionality
@@ -286,7 +338,7 @@ sys_wait4(void)
       // Check if this is our child
       if(pp->parent == p){
         // Check if this matches the requested PID
-        if(pp->pid == pid){
+        if(pid == -1 || pp->pid == pid){
           acquire(&pp->lock);
           havekids = 1;
           
@@ -301,7 +353,7 @@ sys_wait4(void)
                                     sizeof(pp->xstate)) < 0) {
               release(&pp->lock);
               release(&wait_lock);
-              return -1;
+              return -EFAULT;
             }
             freeproc(pp);
             release(&pp->lock);
@@ -316,10 +368,13 @@ sys_wait4(void)
     // No matching child found
     if(!havekids || killed(p)){
       release(&wait_lock);
-      printf("sys_wait4: no matching child found for pid=%d\n", pid);
-      return -1;
+      return -ECHILD;
     }
-    
+    if(nohang){
+      release(&wait_lock);
+      return 0;
+    }
+
     // Wait for the child to exit
     sleep(p, &wait_lock);
   }
@@ -383,9 +438,9 @@ sys_mmap(void)
   struct proc *p = myproc();
   struct file *f;
 
-  // 长度为 0 时，兼容性地映射一页
+  // Linux 语义：length == 0 返回 -EINVAL
   if(length == 0)
-    length = PGSIZE;
+    return -EINVAL;
 
   // 对齐起始地址与长度
   uint64 map_size = PGROUNDUP(length);

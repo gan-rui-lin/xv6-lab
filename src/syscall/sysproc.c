@@ -191,6 +191,66 @@ sys_gettid(void)
   return myproc()->pid;
 }
 
+uint64
+sys_ppoll(void)
+{
+  uint64 fds_addr;
+  uint64 nfds;
+  uint64 tmo_addr;
+  uint64 sigmask_addr;
+  uint64 sigsetsize;
+
+  if(argaddr(0, &fds_addr) < 0 || argaddr(1, &nfds) < 0 ||
+     argaddr(2, &tmo_addr) < 0 || argaddr(3, &sigmask_addr) < 0 ||
+     argaddr(4, &sigsetsize) < 0)
+    return -EINVAL;
+
+  // Minimal ppoll: mark requested events as ready for valid fds.
+  if(nfds > 1024)
+    return -EINVAL;
+
+  int ready = 0;
+  if(nfds > 0 && fds_addr != 0){
+    struct {
+      int fd;
+      short events;
+      short revents;
+    } pfd;
+
+    for(uint64 i = 0; i < nfds; i++){
+      uint64 off = fds_addr + i * sizeof(pfd);
+      if(copyin(myproc()->pagetable, (char *)&pfd, off, sizeof(pfd)) < 0)
+        return -EFAULT;
+      if(pfd.fd >= 0 && pfd.fd < NOFILE && myproc()->ofile[pfd.fd] != 0){
+        pfd.revents = pfd.events;
+        if(pfd.revents)
+          ready++;
+      } else {
+        pfd.revents = 0;
+      }
+      if(copyout(myproc()->pagetable, off, (char *)&pfd, sizeof(pfd)) < 0)
+        return -EFAULT;
+    }
+    return ready;
+  }
+
+  if(tmo_addr != 0){
+    struct { long sec; long nsec; } tmo;
+    if(copyin(myproc()->pagetable, (char *)&tmo, tmo_addr, sizeof(tmo)) < 0)
+      return -EFAULT;
+    if(tmo.sec < 0 || tmo.nsec < 0 || tmo.nsec >= 1000000000L)
+      return -EINVAL;
+    unsigned long long total_ns = (unsigned long long)tmo.sec * 1000000000ULL
+                                + (unsigned long long)tmo.nsec;
+    const long TICK_NS = 1000000L;
+    int n_ticks = (int)((total_ns + TICK_NS - 1) / TICK_NS);
+    if(n_ticks > 0)
+      return sleep_ticks(n_ticks);
+  }
+
+  return 0;
+}
+
 // exit_group(status): treat the group as the single process; reuse exit.
 uint64
 sys_exit_group(void)

@@ -346,6 +346,91 @@ sys_symlinkat(void)
 }
 
 uint64
+sys_sendfile(void)
+{
+  int out_fd, in_fd;
+  struct file *outf, *inf;
+  uint64 off_ptr;
+  uint64 count;
+
+  int r = argfd(0, &out_fd, &outf);
+  if(r < 0)
+    return r;
+  r = argfd(1, &in_fd, &inf);
+  if(r < 0)
+    return r;
+  if(argaddr(2, &off_ptr) < 0 || argaddr(3, &count) < 0)
+    return -EINVAL;
+  if(count == 0)
+    return 0;
+  if(!inf->readable || !outf->writable)
+    return -EBADF;
+  if(inf->type != FD_INODE)
+    return -ENOTSUP;
+  if(outf->type != FD_INODE && outf->type != FD_DEVICE)
+    return -ENOTSUP;
+
+  uint64 off = inf->off;
+  if(off_ptr != 0){
+    if(copyin(myproc()->pagetable, (char *)&off, off_ptr, sizeof(off)) < 0)
+      return -EFAULT;
+  }
+
+  char *buf = kalloc();
+  if(buf == 0)
+    return -ENOMEM;
+
+  uint64 total = 0;
+  while(total < count){
+    uint64 left = count - total;
+    int n = left > PGSIZE ? PGSIZE : (int)left;
+
+    ilock(inf->ip);
+    int nr = readi(inf->ip, 0, (uint64)buf, off, n);
+    iunlock(inf->ip);
+    if(nr < 0){
+      kmfree(buf);
+      return total ? total : (uint64)-EIO;
+    }
+    if(nr == 0)
+      break;
+
+    int nw = 0;
+    if(outf->type == FD_DEVICE){
+      if(outf->major < 0 || outf->major >= NDEV || !devsw[outf->major].write){
+        kmfree(buf);
+        return total ? total : (uint64)-EBADF;
+      }
+      nw = devsw[outf->major].write(outf, 0, (uint64)buf, nr);
+    } else {
+      begin_op(outf->ip->dev);
+      ilock(outf->ip);
+      nw = writei(outf->ip, 0, (uint64)buf, outf->off, nr);
+      if(nw > 0)
+        outf->off += nw;
+      iunlock(outf->ip);
+      end_op(outf->ip->dev);
+    }
+
+    if(nw < 0){
+      kmfree(buf);
+      return total ? total : (uint64)-EIO;
+    }
+    total += nw;
+    off += nw;
+    if(nw != nr)
+      break;
+  }
+
+  kmfree(buf);
+  if(off_ptr == 0)
+    inf->off = off;
+  else if(copyout(myproc()->pagetable, off_ptr, (char *)&off, sizeof(off)) < 0)
+    return total ? total : (uint64)-EFAULT;
+  return total;
+}
+
+uint64
 sys_close(void)
 {
   int fd;

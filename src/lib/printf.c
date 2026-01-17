@@ -60,6 +60,24 @@ printint(int xx, int base, int sign)
     consputc(buf[i]);
 }
 
+// 打印 64 位无符号整数到控制台
+// 参数：
+//   x: 要打印的 64 位无符号整数
+//   base: 进制基数（10=十进制，16=十六进制）
+static void
+printuint64(uint64 x, int base)
+{
+  char buf[32];
+  int i = 0;
+
+  do {
+    buf[i++] = digits[x % base];
+  } while ((x /= base) != 0);
+
+  while (--i >= 0)
+    consputc(buf[i]);
+}
+
 // 打印指针地址到控制台（格式：0x[16位十六进制]）
 // 参数：
 //   x: 要打印的指针值（64位地址）
@@ -76,6 +94,32 @@ printptr(uint64 x)
   // 从最高位开始，每次取4位转换为十六进制字符
   for (i = 0; i < (sizeof(uint64) * 2); i++, x <<= 4)
     consputc(digits[x >> (sizeof(uint64) * 8 - 4)]);
+}
+
+// 打印浮点数（默认 6 位小数）
+static void
+printdouble(double x)
+{
+  if (x < 0) {
+    consputc('-');
+    x = -x;
+  }
+
+  // 整数部分
+  uint64 ip = (uint64)x;
+  printuint64(ip, 10);
+
+  consputc('.');
+
+  // 小数部分，输出 6 位
+  int precision = 6;
+  double frac = x - (double)ip;
+  for (int i = 0; i < precision; i++) {
+    frac *= 10.0;
+    int digit = (int)frac;
+    consputc('0' + (digit % 10));
+    frac -= digit;
+  }
 }
 
 
@@ -140,19 +184,55 @@ vprintf_internal(char *fmt, va_list ap)
       continue;
     }
     
+    // 解析长度修饰符（l / ll）
+    int long_count = 0;
     c = fmt[++i] & 0xff;
     if(c == 0)
       break;
-      
+    if(c == 'l'){
+      long_count = 1;
+      c = fmt[++i] & 0xff;
+      if(c == 0)
+        break;
+      if(c == 'l'){
+        long_count = 2;
+        c = fmt[++i] & 0xff;
+        if(c == 0)
+          break;
+      }
+    }
+
     switch(c){
     case 'd':
+      // 十进制有符号整数（默认 int）
       printint(va_arg(ap, int), 10, 1);
       break;
+    case 'u':
+      // 十进制无符号整数，支持 %u, %lu, %llu
+      if(long_count >= 1){
+        uint64 u64 = va_arg(ap, uint64);
+        printuint64(u64, 10);
+      } else {
+        // 从可变参数中以 unsigned int 读取，再以无符号打印
+        unsigned int u32 = va_arg(ap, unsigned int);
+        printint((int)u32, 10, 0);
+      }
+      break;
     case 'x':
-      printint(va_arg(ap, int), 16, 1);
+      // 十六进制整数，支持 %x, %lx, %llx
+      if(long_count >= 1){
+        uint64 u64x = va_arg(ap, uint64);
+        printuint64(u64x, 16);
+      } else {
+        printint(va_arg(ap, int), 16, 1);
+      }
       break;
     case 'p':
       printptr(va_arg(ap, uint64));
+      break;
+    case 'f':
+      // 浮点数（double）
+      printdouble(va_arg(ap, double));
       break;
     case 's':
       if((s = va_arg(ap, char*)) == 0)

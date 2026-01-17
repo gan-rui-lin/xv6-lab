@@ -18,6 +18,7 @@
 #define ECHILD  10  /* No child processes */
 #define ENOEXEC 8   /* Exec format error */
 #define E2BIG   7   /* Argument list too long */
+#define ENOSYS  38  /* Function not implemented */
 #define ENOTSUP 95  /* Operation not supported */
 
 #endif

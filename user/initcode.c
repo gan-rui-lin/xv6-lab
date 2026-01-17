@@ -33,14 +33,17 @@ void test_(char *name)
     }
 }
 
-void test_busybox()
+void test_busybox_musl()
 {
     printf("=== Testing busybox ===\n");
+    chdir("/musl/");
+
     int pid = fork();
     if (pid == 0)
     {
-        char *argv[] = {"busybox", "echo", "Hello from busybox!", 0};
-        exec("busybox", argv);
+        char *argv[] = {"sh", "/musl/busybox_testcode.sh", 0};
+        char *envp[] = {"PATH=/bin:/musl", 0}; // ?应该没用
+        execve("/musl/busybox", argv, envp);
         printf("Exec busybox failed!\n");
         syscall(SYS_exit, -1);
     }
@@ -97,6 +100,7 @@ int main()
     // printf("r2 = %d\n", r2)
 
     // test_basic();
+    test_busybox_musl();
     // printf("Hello, xv6 world!\n");
 
     // test_("getppid");

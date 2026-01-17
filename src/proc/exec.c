@@ -36,12 +36,12 @@ int flags2perm(int flags)
 static int loadseg(pagetable_t pagetable, uint64 va, struct inode *ip, uint offset, uint sz);
 
 int
-exec(char *path, char **argv)
+exec(char *path, char **argv, char **envp)
 {
   char *s, *last;
   int i, off;
   uint64 argc, sz, sp, stackbase;
-  uint64 ustack[MAXARG + 1 + 1 + (AUXV_ENTRIES + 1) * 2];
+  uint64 ustack[MAXARG * 2 + 2 + (AUXV_ENTRIES + 1) * 2];
   struct elfhdr elf;
   struct inode *ip;
   struct proghdr ph;
@@ -136,9 +136,25 @@ exec(char *path, char **argv)
     ustack[argc] = sp;
   }
   ustack[argc] = 0; // argv[argc] = NULL
+
+  int envc = 0;
   int envp_idx = argc + 1;
-  ustack[envp_idx] = 0; // envp[0] = NULL
-  int auxv_idx = envp_idx + 1;
+  if(envp){
+    for(envc = 0; envp[envc]; envc++){
+      if(envc >= MAXARG)
+        goto bad;
+      sp -= strlen(envp[envc]) + 1;
+      sp -= sp % 16;
+      if(sp < stackbase)
+        goto bad;
+      if(copyout(pagetable, sp, envp[envc], strlen(envp[envc]) + 1) < 0)
+        goto bad;
+      ustack[envp_idx + envc] = sp;
+    }
+  }
+  ustack[envp_idx + envc] = 0; // envp[envc] = NULL
+
+  int auxv_idx = envp_idx + envc + 1;
   uint64 phdr = load_bias + elf.phoff;
   ustack[auxv_idx++] = AT_PHDR;   ustack[auxv_idx++] = phdr;
   ustack[auxv_idx++] = AT_PHENT;  ustack[auxv_idx++] = sizeof(struct proghdr);

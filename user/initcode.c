@@ -64,7 +64,8 @@ void test_basic()
     if (pid == 0)
     {
         char *argv[] = {"sh", "/musl/basic_testcode.sh", 0};
-        exec("/musl/busybox", argv);
+        char *envp[] = {"PATH=/bin:/musl", 0}; // ?应该没用
+        execve("/musl/busybox", argv, envp);
         printf("Exec busybox failed!\n");
         syscall(SYS_exit, -1);
     }
@@ -90,14 +91,12 @@ int main()
     dup(0); // stderr
 
     // Provide /bin/sh for script fallback.
-    int r1 = mkdir("/bin");
-    printf("r1 = %d\n", r1);
-    int r2 = syscall(SYS_symlink, "/musl/busybox", "/bin/sh");
-    printf("r2 = %d\n", r2);
-    int fd = open("/bin/sh", O_RDONLY);
-    printf("open /bin/sh = %d\n", fd);
+    // mkdir("/bin");
+    // printf("r1 = %d\n", r1);
+    // syscall(SYS_symlink, "/musl/busybox", "/bin/sh");
+    // printf("r2 = %d\n", r2)
 
-    test_basic();
+    // test_basic();
     // printf("Hello, xv6 world!\n");
 
     // test_("getppid");

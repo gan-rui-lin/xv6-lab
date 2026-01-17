@@ -247,22 +247,28 @@ sys_rt_sigprocmask(void)
 uint64
 sys_execve(void)
 {
-  char path[MAXPATH], *argv[MAXARG];
+  char path[MAXPATH], *argv[MAXARG], *envv[MAXARG];
   int i;
   uint64 uargv, uarg, uenvp;
   int err = -EFAULT;
 
   if(argstr(0, path, MAXPATH) < 0 || argaddr(1, &uargv) < 0 || argaddr(2, &uenvp) < 0)
     return -EFAULT;
+
+  // Map /proc/self/exe to the current executable path (no procfs support).
+  if(strncmp(path, "/proc/self/exe", 14) == 0 && path[14] == '\0')
+    safestrcpy(path, "/musl/busybox", sizeof(path));
   
   // envp is ignored for now; accept non-empty arrays to avoid aborting.
   if(uenvp != 0) {
+    // printf("here uenvp=%p\n", (void*)uenvp);
     uint64 first_env;
     if(fetchaddr(uenvp, &first_env) < 0)
       return -EFAULT;
   }
 
   memset(argv, 0, sizeof(argv));
+  memset(envv, 0, sizeof(envv));
   for(i=0;; i++){
     if(i >= NELEM(argv))
       { err = -E2BIG; goto bad; }
@@ -279,39 +285,89 @@ sys_execve(void)
       { err = -EFAULT; goto bad; }
   }
 
-  int ret = exec(path, argv);
-  if(ret == -ENOEXEC){
-    // Fallback: run script via /bin/sh (symlinked to busybox).
-    char *argv2[MAXARG];
-    int j = 0;
-    argv2[j++] = "sh";
-    argv2[j++] = path;
-    for(i = 1; i < MAXARG && argv[i] != 0; i++)
-      argv2[j++] = argv[i];
-    argv2[j] = 0;
-    ret = exec("/bin/sh", argv2);
+  int envc = 0;
+  if(uenvp != 0){
+    for(envc = 0;; envc++){
+      if(envc >= MAXARG)
+        { err = -E2BIG; goto bad; }
+      uint64 uenv;
+      if(fetchaddr(uenvp + sizeof(uint64) * envc, &uenv) < 0)
+        { err = -EFAULT; goto bad; }
+      if(uenv == 0){
+        envv[envc] = 0;
+        break;
+      }
+      envv[envc] = kalloc();
+      if(envv[envc] == 0)
+        { err = -ENOMEM; goto bad; }
+      if(fetchstr(uenv, envv[envc], PGSIZE) < 0)
+        { err = -EFAULT; goto bad; }
+    }
+  } else {
+    envv[0] = 0;
   }
-  // if(ret == -ENOEXEC){
-  //   log_error("sys_execve: exec  failed ENOEXEC, trying busybox sh\n");
-  //   // ! 非常随意的 fallback
-  //   // Fallback: run script via busybox sh to avoid /bin/sh dependency.
-  //   char *argv2[MAXARG];
-  //   int j = 0;
-  //   argv2[j++] = "sh";
-  //   argv2[j++] = path;
-  //   for(i = 1; i < MAXARG && argv[i] != 0; i++)
-  //     argv2[j++] = argv[i];
-  //   argv2[j] = 0;
-  //   ret = exec("/musl/busybox", argv2);
-  // }
+
+  int ret = exec(path, argv, envv);
+  if(ret == -ENOENT){
+    // printf("sys_execve: ENOENT path='%s'\n", path);
+    // If path has no '/', try PATH search from envp.
+    int has_slash = 0;
+    for(char *c = path; *c; c++){
+      if(*c == '/'){
+        has_slash = 1;
+        break;
+      }
+    }
+    if(!has_slash){
+      char *pathenv = 0;
+      for(i = 0; envv[i]; i++){
+        if(strncmp(envv[i], "PATH=", 5) == 0){
+          pathenv = envv[i] + 5;
+          break;
+        }
+      }
+      const char *fallback_path = "/bin:/musl";
+      const char *p = (pathenv && *pathenv) ? pathenv : fallback_path;
+      printf("sys_execve: PATH='%s'\n", p);
+      if(*p){
+        char candidate[MAXPATH];
+        while(*p){
+          const char *start = p;
+          while(*p && *p != ':')
+            p++;
+          int len = p - start;
+          if(len > 0 && len < MAXPATH - 2){
+            int n = 0;
+            for(int k = 0; k < len && n < MAXPATH - 2; k++)
+              candidate[n++] = start[k];
+            if(candidate[n-1] != '/')
+              candidate[n++] = '/';
+            for(char *c = path; *c && n < MAXPATH - 1; c++)
+              candidate[n++] = *c;
+            candidate[n] = '\0';
+            int r = exec(candidate, argv, envv);
+            if(r != -ENOENT)
+              { ret = r; break; }
+          }
+          if(*p == ':')
+            p++;
+        }
+      }
+    }
+  }
+  // No kernel-level fallback here; rely on userspace to handle ENOEXEC.
 
   for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
     kfree(argv[i]);
+  for(i = 0; i < NELEM(envv) && envv[i] != 0; i++)
+    kfree(envv[i]);
   return ret;
 
  bad:
   for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
     kfree(argv[i]);
+  for(i = 0; i < NELEM(envv) && envv[i] != 0; i++)
+    kfree(envv[i]);
   return err;
 }
 

@@ -252,7 +252,7 @@ int tf_store(void);
 int tf_init(void);
 
 // exec.c
-int exec(char *path, char **argv);
+int exec(char *path, char **argv, char **envp);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

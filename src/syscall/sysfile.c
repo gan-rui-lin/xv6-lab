@@ -1280,7 +1280,7 @@ sys_getcwd(void)
   int len = strlen(cwd) + 1;
   if(len > size)
     return -1;
-  if(copyout(p->pagetable, buf, cwd, len) < 0)
+  if(copyout(p->pagetable, buf, (char *)cwd, len) < 0)
     return -1;
   return buf;
 }

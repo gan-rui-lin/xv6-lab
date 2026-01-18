@@ -14,10 +14,11 @@
 #define AT_PHENT 4
 #define AT_PHNUM 5
 #define AT_PAGESZ 6
+#define AT_BASE 7
 #define AT_ENTRY 9
 #endif
 
-#define AUXV_ENTRIES 5
+#define AUXV_ENTRIES 6
 
 // map ELF program header flags (PF_X=0x1, PF_W=0x2, PF_R=0x4)
 // to PTE permission bits.
@@ -44,11 +45,17 @@ exec(char *path, char **argv, char **envp)
   uint64 ustack[MAXARG * 2 + 2 + (AUXV_ENTRIES + 1) * 2];
   struct elfhdr elf;
   struct inode *ip;
+  struct inode *ip_interp = 0;
   struct proghdr ph;
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
   uint64 load_bias = 0;
   int first_load = 1;
+  int interp_op = 0;
+  int have_interp = 0;
+  char interp_path[MAXPATH];
+  uint64 interp_base = 0;
+  uint64 interp_entry = 0;
   int err = -EIO;
 
   begin_op(ROOTDEV);
@@ -74,13 +81,30 @@ exec(char *path, char **argv, char **envp)
   if((pagetable = proc_pagetable(p)) == 0)
     { err = -ENOMEM; goto bad; }
 
-  // Load program into memory.
+  memset(interp_path, 0, sizeof(interp_path));
+
+  // 加载主程序，同时读取 .interp 以便支持动态链接器。
   sz = 0;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph)){
       log_error("exec: read phdr %d failed for %s", i, path);
       err = -EIO;
       goto bad;
+    }
+    if(ph.type == ELF_PROG_INTERP){
+      if(ph.filesz == 0 || ph.filesz >= sizeof(interp_path)){
+        log_error("exec: bad interp size for %s", path);
+        err = -ENOEXEC;
+        goto bad;
+      }
+      if(readi(ip, 0, (uint64)interp_path, ph.off, ph.filesz) != ph.filesz){
+        log_error("exec: read interp failed for %s", path);
+        err = -EIO;
+        goto bad;
+      }
+      interp_path[ph.filesz] = '\0';
+      have_interp = 1;
+      continue;
     }
     if(ph.type != ELF_PROG_LOAD)
       continue;
@@ -112,6 +136,87 @@ exec(char *path, char **argv, char **envp)
 
   p = myproc();
   uint64 oldsz = p->sz;
+
+  if(have_interp){
+    struct elfhdr interp_elf;
+    begin_op(ROOTDEV);
+    interp_op = 1;
+    log_debug("exec: try interp %s", interp_path);
+    ip_interp = namei(interp_path);
+    if(ip_interp == 0 && strncmp(interp_path, "/lib/", 5) == 0){
+      //! 兼容 musl 镜像：把 /lib/ld-musl-* 重定向到 /musl/lib/ld-musl-*
+      char alt_path[MAXPATH];
+      int n = 0;
+      const char *prefix = "/musl/lib/";
+      for(const char *c = prefix; *c && n < MAXPATH - 1; c++)
+        alt_path[n++] = *c;
+      for(const char *c = interp_path + 5; *c && n < MAXPATH - 1; c++)
+        alt_path[n++] = *c;
+      alt_path[n] = '\0';
+      log_debug("exec: try alt interp %s", alt_path);
+      ip_interp = namei(alt_path);
+      if(ip_interp != 0){
+        safestrcpy(interp_path, alt_path, sizeof(interp_path));
+      }
+    }
+    if(ip_interp == 0 && strcmp(interp_path, "/lib/ld-musl-riscv64-sf.so.1") == 0){
+      // 比赛镜像缺少该解释器，约定转发到 /musl/lib/libc.so
+      const char *fallback = "/musl/lib/libc.so";
+      log_debug("exec: try fallback interp %s", fallback);
+      ip_interp = namei((char *)fallback);
+      if(ip_interp != 0){
+        safestrcpy(interp_path, fallback, sizeof(interp_path));
+      }
+    }
+    if(ip_interp == 0){
+      log_error("exec: interp not found: %s", interp_path);
+      err = -ENOENT;
+      goto bad;
+    }
+    ilock(ip_interp);
+    if(readi(ip_interp, 0, (uint64)&interp_elf, 0, sizeof(interp_elf)) != sizeof(interp_elf)){
+      log_error("exec: read interp elf failed: %s", interp_path);
+      err = -EIO;
+      goto bad;
+    }
+    if(interp_elf.magic != ELF_MAGIC){
+      log_error("exec: bad interp magic: %s", interp_path);
+      err = -ENOEXEC;
+      goto bad;
+    }
+
+    // 动态链接器通常是 ET_DYN，这里选择一个简单的基址直接映射。
+    interp_base = PGROUNDUP(sz);
+    for(i = 0, off = interp_elf.phoff; i < interp_elf.phnum; i++, off += sizeof(ph)){
+      if(readi(ip_interp, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph)){
+        log_error("exec: read interp phdr %d failed: %s", i, interp_path);
+        err = -EIO;
+        goto bad;
+      }
+      if(ph.type != ELF_PROG_LOAD)
+        continue;
+      if(ph.memsz < ph.filesz){
+        log_error("exec: interp memsz < filesz: %s", interp_path);
+        err = -ENOEXEC;
+        goto bad;
+      }
+      if(ph.vaddr + ph.memsz < ph.vaddr){
+        log_error("exec: interp vaddr overflow: %s", interp_path);
+        err = -ENOEXEC;
+        goto bad;
+      }
+      uint64 va_end = PGROUNDUP(interp_base + ph.vaddr + ph.memsz);
+      if((sz = uvmalloc(pagetable, sz, va_end, flags2perm(ph.flags))) == 0)
+        { err = -ENOMEM; goto bad; }
+      if(loadseg(pagetable, interp_base + ph.vaddr, ip_interp, ph.off, ph.filesz) < 0)
+        { err = -EIO; goto bad; }
+    }
+    iunlockput(ip_interp);
+    end_op(ROOTDEV);
+    interp_op = 0;
+    ip_interp = 0;
+    interp_entry = interp_base + interp_elf.entry;
+  }
 
   // Allocate user stack pages plus a guard page at the bottom.
   sz = PGROUNDUP(sz);
@@ -161,6 +266,9 @@ exec(char *path, char **argv, char **envp)
   ustack[auxv_idx++] = AT_PHNUM;  ustack[auxv_idx++] = elf.phnum;
   ustack[auxv_idx++] = AT_PAGESZ; ustack[auxv_idx++] = PGSIZE;
   ustack[auxv_idx++] = AT_ENTRY;  ustack[auxv_idx++] = elf.entry;
+  if(have_interp){
+    ustack[auxv_idx++] = AT_BASE;  ustack[auxv_idx++] = interp_base;
+  }
   ustack[auxv_idx++] = AT_NULL;   ustack[auxv_idx++] = 0;
 
   // push the array of argv[] pointers.
@@ -197,7 +305,8 @@ exec(char *path, char **argv, char **envp)
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
   p->sz = sz;
-  p->trapframe->epc = elf.entry;  // initial program counter = main
+  // 如果是动态链接，先跳转到解释器入口，解释器负责加载主程序。
+  p->trapframe->epc = have_interp ? interp_entry : elf.entry;
   p->trapframe->sp = sp; // initial stack pointer (points to argc)
   proc_freepagetable(oldpagetable, oldsz);
 
@@ -208,6 +317,13 @@ exec(char *path, char **argv, char **envp)
     proc_freepagetable(pagetable, sz);
   if(ip){
     iunlockput(ip);
+    end_op(ROOTDEV);
+  }
+  if(ip_interp){
+    iunlockput(ip_interp);
+    if(interp_op)
+      end_op(ROOTDEV);
+  } else if(interp_op){
     end_op(ROOTDEV);
   }
   return err;

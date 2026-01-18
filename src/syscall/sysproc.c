@@ -302,6 +302,93 @@ sys_rt_sigprocmask(void)
   return 0;
 }
 
+// rt_sigtimedwait: 最小实现，按需睡眠后返回成功，避免用户态失败
+uint64
+sys_rt_sigtimedwait(void)
+{
+  uint64 set;
+  uint64 info;
+  uint64 timeout;
+  uint64 sigsetsize;
+
+  if(argaddr(0, &set) < 0 || argaddr(1, &info) < 0 ||
+     argaddr(2, &timeout) < 0 || argaddr(3, &sigsetsize) < 0)
+    return -EINVAL;
+
+  (void)set;
+  (void)info;
+  (void)sigsetsize;
+
+  if(timeout != 0){
+    struct { long sec; long nsec; } tmo;
+    if(copyin(myproc()->pagetable, (char *)&tmo, timeout, sizeof(tmo)) < 0)
+      return -EFAULT;
+    if(tmo.sec < 0 || tmo.nsec < 0 || tmo.nsec >= 1000000000L)
+      return -EINVAL;
+    unsigned long long total_ns = (unsigned long long)tmo.sec * 1000000000ULL
+                                + (unsigned long long)tmo.nsec;
+    const long TICK_NS = 1000000L;
+    int n_ticks = (int)((total_ns + TICK_NS - 1) / TICK_NS);
+    if(n_ticks > 0)
+      sleep_ticks(n_ticks);
+  }
+
+  return 0;
+}
+
+// kill(pid, sig): 兼容 SYS_kill_signal，忽略信号号的细节
+uint64
+sys_kill_signal(void)
+{
+  int pid, sig;
+  argint(0, &pid);
+  argint(1, &sig);
+
+  if(sig == 0){
+    // sig==0 仅用于探测进程是否存在
+    struct proc *p;
+    for(p = proc; p < &proc[NPROC]; p++){
+      acquire(&p->lock);
+      if(p->pid == pid){
+        release(&p->lock);
+        return 0;
+      }
+      release(&p->lock);
+    }
+    return -ESRCH;
+  }
+
+  return kill(pid);
+}
+
+// prlimit64: 简化为返回默认限制，忽略设置
+uint64
+sys_prlimit64(void)
+{
+  int pid, resource;
+  uint64 new_limit;
+  uint64 old_limit;
+  struct proc *p = myproc();
+
+  if(argint(0, &pid) < 0 || argint(1, &resource) < 0 ||
+     argaddr(2, &new_limit) < 0 || argaddr(3, &old_limit) < 0)
+    return -EINVAL;
+
+  (void)pid;
+  (void)resource;
+  (void)new_limit;
+
+  if(old_limit != 0){
+    struct { uint64 rlim_cur; uint64 rlim_max; } lim;
+    lim.rlim_cur = 1024;
+    lim.rlim_max = 1024;
+    if(copyout(p->pagetable, old_limit, (char *)&lim, sizeof(lim)) < 0)
+      return -EFAULT;
+  }
+
+  return 0;
+}
+
 // Linux execve(path, argv, envp)
 // We currently do not support envp; we silently ignore it if it's empty (first element is NULL).
 uint64
@@ -630,6 +717,51 @@ sys_mmap(void)
 
   // 剩余部分已由 uvmalloc 清零
   return base;
+}
+
+// mprotect: 修改用户态内存页的权限（用于 RELRO 等场景）
+uint64
+sys_mprotect(void)
+{
+  uint64 addr;
+  uint64 length;
+  int prot;
+
+  if(argaddr(0, &addr) < 0 || argaddr(1, &length) < 0 || argint(2, &prot) < 0)
+    return -EINVAL;
+
+  if(length == 0)
+    return 0;
+
+  struct proc *p = myproc();
+  uint64 start = PGROUNDDOWN(addr);
+  uint64 end = PGROUNDUP(addr + length);
+
+  if(end > p->sz || start >= end)
+    return -EINVAL;
+
+  int perm = PTE_U;
+  if(prot & PROT_READ)
+    perm |= PTE_R;
+  if(prot & PROT_WRITE)
+    perm |= PTE_W;
+  if(prot & PROT_EXEC)
+    perm |= PTE_X;
+
+  // 逐页更新权限，保留 V/A/D 等标志
+  for(uint64 va = start; va < end; va += PGSIZE){
+    pte_t *pte = walk(p->pagetable, va, 0);
+    if(pte == 0 || (*pte & PTE_V) == 0)
+      return -EINVAL;
+    uint64 pa = PTE2PA(*pte);
+    uint64 flags = PTE_FLAGS(*pte);
+    flags &= ~(PTE_R | PTE_W | PTE_X);
+    flags |= perm;
+    *pte = PA2PTE(pa) | flags;
+  }
+
+  sfence_vma();
+  return 0;
 }
 
 uint64

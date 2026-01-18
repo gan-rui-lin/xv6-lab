@@ -140,6 +140,7 @@ extern uint64 sys_set_tid_address(void);
 extern uint64 sys_brk(void);
 extern uint64 sys_mmap(void);
 extern uint64 sys_munmap(void);
+extern uint64 sys_mprotect(void);
 extern uint64 sys_openat(void);
 extern uint64 sys_sched_yield(void);
 extern uint64 sys_dup3(void);
@@ -159,6 +160,9 @@ extern uint64 sys_fcntl(void);
 extern uint64 sys_writev(void);
 extern uint64 sys_rt_sigaction(void);
 extern uint64 sys_rt_sigprocmask(void);
+extern uint64 sys_rt_sigtimedwait(void);
+extern uint64 sys_kill_signal(void);
+extern uint64 sys_prlimit64(void);
 extern uint64 sys_symlink(void);
 extern uint64 sys_symlinkat(void);
 extern uint64 sys_sendfile(void);
@@ -210,6 +214,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_openat]      sys_openat,
 [SYS_munmap]      sys_munmap,
 [SYS_mmap]        sys_mmap,
+[SYS_mprotect]    sys_mprotect,
 [SYS_sched_yield] sys_sched_yield,
 [SYS_chdir]       sys_chdir,
 [SYS_pipe2]       sys_pipe2,
@@ -221,6 +226,9 @@ static uint64 (*syscalls[])(void) = {
 [SYS_sendfile]    sys_sendfile,
 [SYS_rt_sigaction] sys_rt_sigaction,
 [SYS_rt_sigprocmask] sys_rt_sigprocmask,
+[SYS_rt_sigtimedwait] sys_rt_sigtimedwait,
+[SYS_kill_signal] sys_kill_signal,
+[SYS_prlimit64]   sys_prlimit64,
 [SYS_symlink]     sys_symlink,
 [SYS_symlinkat]   sys_symlinkat,
 [SYS_ppoll]       sys_ppoll,

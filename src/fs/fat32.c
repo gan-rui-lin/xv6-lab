@@ -509,6 +509,9 @@ fat32_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen)
   if(p == 0)
     return -1;
 
+  log_debug("fat32_getdents64: start off=%u maxlen=%p\n",
+            offp ? *offp : 0, (void *)maxlen);
+
   uint32 dir_clus = dp->addrs[0];
   if(dir_clus == 0)
     dir_clus = fat.root_clus;
@@ -580,7 +583,8 @@ fat32_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen)
         memset(&ent, 0, sizeof(ent));
 
         ent.d_ino = startc ? startc : 1;
-        ent.d_off = 0; // not used by current tests
+        // 使用递增的目录项序号作为 d_off，保证用户态能前进
+        ent.d_off = count + 1;
         ent.d_reclen = sizeof(struct linux_dirent64);
         ent.d_type = (attr & 0x10) ? 4 : 8; // 4=DT_DIR, 8=DT_REG (Linux values)
 
@@ -639,6 +643,7 @@ fat32_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen)
 done:
   if(offp)
     *offp = count;
+  log_debug("fat32_getdents64: end count=%u written=%d\n", count, written);
   return written;
 }
 
@@ -1250,5 +1255,3 @@ struct inode* fat32_create(char *path, short type, int major, int minor)
   end_op(fat.dev);
   return ip;
 }
-
-

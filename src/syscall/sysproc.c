@@ -502,6 +502,23 @@ sys_execve(void)
       }
     }
   }
+  // Busybox 兼容：如果 PATH 也找不到，尝试用 busybox 作为 applet 入口
+  if(ret == -ENOENT){
+    int has_slash = 0;
+    for(char *c = path; *c; c++){
+      if(*c == '/'){
+        has_slash = 1;
+        break;
+      }
+    }
+    if(!has_slash){
+      int r = exec("/musl/busybox", argv, envv);
+      if(r == -ENOENT)
+        r = exec("/busybox", argv, envv);
+      if(r != -ENOENT)
+        ret = r;
+    }
+  }
   // No kernel-level fallback here; rely on userspace to handle ENOEXEC.
 
   for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)

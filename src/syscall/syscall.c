@@ -484,7 +484,7 @@ syscall_handler(void)
 
 
     if (trace) {
-      log_debug("[syscall] pid=%d name=%s num=%d (%s) args=[%p,%p,%p,%p,%p,%p]\n",
+      log_trace("[syscall] pid=%d name=%s num=%d (%s) args=[%p,%p,%p,%p,%p,%p]\n",
              p->pid, p->name, num, sysname(num),
              (void *)args[0], (void *)args[1], (void *)args[2],
              (void *)args[3], (void *)args[4], (void *)args[5]);
@@ -493,11 +493,6 @@ syscall_handler(void)
     // 系统函数返回值放在 p->trapframe->a0
     uint64 ret = syscalls[num]();
     p->trapframe->a0 = ret;
-
-    if (trace) {
-      log_debug("[syscall] pid=%d name=%s num=%d (%s) ret=%p\n",
-             p->pid, p->name, num, sysname(num), (void*)ret);
-    }
   } else {
     printf("%d %s: unimplemented sys call %s\n",
             p->pid, p->name, sysname(num));

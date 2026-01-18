@@ -1207,6 +1207,9 @@ sys_getdents64(void)
     return -1;
   int n = 0;
 
+  log_debug("sys_getdents64: fd=%d off=%u len=%p ip_major=%d fat32=%d ext4=%d\n",
+            fd, f->off, (void *)len, f->ip->major, fat32_mode, ext4_mode);
+
   // Currently only FAT32-backed directories are supported
   if(fat32_mode && f->ip->major == FAT32_INODE_TAG){
     uint off_entries = f->off; // logical directory entry index

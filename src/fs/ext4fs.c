@@ -577,22 +577,24 @@ int ext4_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen) {
   if(!p)
     return -1;
 
+  log_debug("ext4_getdents64: start off=%u maxlen=%p path=%s\n",
+            offp ? *offp : 0, (void *)maxlen, dp->ext4_path);
+
   ext4_dir dir;
   if(ext4_dir_open(&dir, dp->ext4_path) != EOK)
     return -1;
-  ext4_dir_entry_rewind(&dir);
-
-  uint skip = offp ? *offp : 0;
-  for(uint i = 0; i < skip; i++){
-    const ext4_direntry *tmp = ext4_dir_entry_next(&dir);
-    if(!tmp){
-      ext4_dir_close(&dir);
-      return 0;
-    }
+  // 使用文件偏移作为 ext4 目录偏移，避免每次从头跳过导致 O(n^2)
+  uint64 start_off = offp ? *offp : 0;
+  uint64 dir_size = (dp->ext_size > 0) ? dp->ext_size : dir.f.fsize;
+  // 如果偏移已超过目录大小，直接返回 EOF
+  if(start_off >= dir_size){
+    log_warn("ext4_getdents64:偏移超过目录大小, start_off = %ld, fsize = %ld\n", start_off, dir_size);
+    ext4_dir_close(&dir);
+    return 0;
   }
+  dir.next_off = start_off;
 
   int written = 0;
-  uint count = skip;
   const ext4_direntry *de;
   while((de = ext4_dir_entry_next(&dir)) != 0){
     if(written + (int)sizeof(struct linux_dirent64) > (int)maxlen)
@@ -601,7 +603,10 @@ int ext4_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen) {
     struct linux_dirent64 ent;
     memset(&ent, 0, sizeof(ent));
     ent.d_ino = de->inode;
-    ent.d_off = 0;
+    // 使用递增的目录项序号作为 d_off，保证用户态能前进
+    // 将 -1 终止偏移替换为目录大小，避免用户态看到异常偏移
+    uint64 next_off = (dir.next_off == (uint64)-1) ? dir_size : dir.next_off;
+    ent.d_off = next_off;
     ent.d_reclen = sizeof(struct linux_dirent64);
     ent.d_type = map_dir_type(de->inode_type);
 
@@ -616,12 +621,16 @@ int ext4_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen) {
       return -1;
     }
     written += sizeof(ent);
-    count++;
   }
 
   ext4_dir_close(&dir);
-  if(offp)
-    *offp = count;
+  if(offp){
+    if(dir.next_off == (uint64)-1)
+      *offp = dir_size;
+    else
+      *offp = dir.next_off;
+  }
+  log_debug("ext4_getdents64: end off=%u written=%d\n", offp ? *offp : 0, written);
   return written;
 }
 

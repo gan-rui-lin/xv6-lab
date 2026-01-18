@@ -42,13 +42,10 @@ void test_busybox_musl()
     if (pid == 0)
     {
         // 使用动态链接器运行 musl 测试（先尝试 /musl 目录结构）
-        char *argv1[] = {"sh", "/musl/run-dynamic.sh", 0};
+        // char *argv1[] = {"sh", "/musl/run-dynamic.sh", 0};
+        char *argv1[] = {"sh", "/musl/ltp_testcode.sh", 0};
         char *envp1[] = {"PATH=/musl:/bin", 0}; // ?应该没用
         execve("/musl/busybox", argv1, envp1);
-        // 兼容镜像把文件放在根目录的情况
-        char *argv2[] = {"sh", "/run-dynamic.sh", 0};
-        char *envp2[] = {"PATH=/:/bin:/musl", 0}; // ?应该没用
-        execve("/busybox", argv2, envp2);
         printf("Exec busybox failed!\n");
         syscall(SYS_exit, -1);
     }

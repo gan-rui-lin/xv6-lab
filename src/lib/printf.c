@@ -368,3 +368,18 @@ log_debug(char *fmt, ...)
     (void)fmt; // 避免未使用参数的编译警告
   #endif
 }
+
+void
+log_trace(char *fmt, ...)
+{
+  #ifdef LOG_TRACE_ENABLE
+    va_list ap;
+    va_start(ap, fmt);
+    printf_color(COLOR_MAGENTA, "[TRACE] ");
+    vprintf_internal(fmt, ap);
+    printf_color(COLOR_RESET, "");
+    va_end(ap);
+  #else
+    (void)fmt; // 避免未使用参数的编译警告
+  #endif
+}

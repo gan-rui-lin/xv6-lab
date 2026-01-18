@@ -159,13 +159,22 @@ exec(char *path, char **argv, char **envp)
         safestrcpy(interp_path, alt_path, sizeof(interp_path));
       }
     }
-    if(ip_interp == 0 && strcmp(interp_path, "/lib/ld-musl-riscv64-sf.so.1") == 0){
-      // 比赛镜像缺少该解释器，约定转发到 /musl/lib/libc.so
-      const char *fallback = "/musl/lib/libc.so";
-      log_debug("exec: try fallback interp %s", fallback);
-      ip_interp = namei((char *)fallback);
-      if(ip_interp != 0){
-        safestrcpy(interp_path, fallback, sizeof(interp_path));
+    // Fallback: 若是 musl 解释器族（/lib/ld-musl-*.so.1）仍未找到，使用 /musl/lib/libc.so 作为动态链接器。
+    if(ip_interp == 0){
+      int musl_ld = 0;
+      const char *p = interp_path;
+      if(strncmp(p, "/lib/ld-musl-", 12) == 0){
+        int L = strlen(p);
+        if(L > 8 && strcmp(p + (L - 5), ".so.1") == 0)
+          musl_ld = 1;
+      }
+      if(musl_ld){
+        const char *fallback = "/musl/lib/libc.so";
+        log_debug("exec: try musl fallback %s for %s", fallback, interp_path);
+        ip_interp = namei((char *)fallback);
+        if(ip_interp != 0){
+          safestrcpy(interp_path, fallback, sizeof(interp_path));
+        }
       }
     }
     if(ip_interp == 0){

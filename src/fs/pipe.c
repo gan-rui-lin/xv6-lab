@@ -125,3 +125,24 @@ piperead(struct pipe *pi, uint64 addr, int n)
   release(&pi->lock);
   return i;
 }
+
+// Helpers for non-blocking checks
+int pipe_is_empty(struct pipe *pi)
+{
+  return pi->nread == pi->nwrite;
+}
+
+int pipe_is_full(struct pipe *pi)
+{
+  return pi->nwrite == pi->nread + PIPESIZE;
+}
+
+int pipe_write_open(struct pipe *pi)
+{
+  return pi->writeopen;
+}
+
+int pipe_read_open(struct pipe *pi)
+{
+  return pi->readopen;
+}

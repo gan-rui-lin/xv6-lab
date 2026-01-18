@@ -11,6 +11,8 @@
 #include "spinlock.h"
 #include "sleeplock.h"
 #include "file.h"
+#include "errno.h"
+#include "fcntl.h"
 #include "stat.h"
 #include "proc.h"
 
@@ -37,6 +39,7 @@ filealloc(void)
   for(f = ftable.file; f < ftable.file + NFILE; f++){
     if(f->ref == 0){          // 仅查找引用计数为0的空闲文件
       f->ref = 1;             // 标记被占用
+      f->oflags = 0;          // 缺省无标志
       release(&ftable.lock);  // 释放锁
       return f;               // 返回分配好的文件结构体
     }
@@ -116,6 +119,11 @@ fileread(struct file *f, uint64 addr, int n)
     return -1;
 
   if(f->type == FD_PIPE){
+    // 非阻塞：若为空且写端仍开，返回 -EAGAIN
+    extern int pipe_is_empty(struct pipe *);
+    extern int pipe_write_open(struct pipe *);
+    if((f->oflags & O_NONBLOCK) && pipe_is_empty(f->pipe) && pipe_write_open(f->pipe))
+      return -EAGAIN;
     r = piperead(f->pipe, addr, n);    // 管道读
   } else if(f->type == FD_DEVICE){
     if(f->major < 0 || f->major >= NDEV || !devsw[f->major].read)
@@ -143,6 +151,11 @@ filewrite(struct file *f, uint64 addr, int n)
     return -1;
 
   if(f->type == FD_PIPE){
+    // 非阻塞：若已满且读端仍开，返回 -EAGAIN
+    extern int pipe_is_full(struct pipe *);
+    extern int pipe_read_open(struct pipe *);
+    if((f->oflags & O_NONBLOCK) && pipe_is_full(f->pipe) && pipe_read_open(f->pipe))
+      return -EAGAIN;
     ret = pipewrite(f->pipe, addr, n);    // 管道写
   } else if(f->type == FD_DEVICE){
     if(f->major < 0 || f->major >= NDEV || !devsw[f->major].write)

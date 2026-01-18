@@ -238,10 +238,18 @@ sys_fcntl(void)
       flags |= O_RDONLY;
     else
       flags |= O_WRONLY;
+    if(f->oflags & O_NONBLOCK)
+      flags |= O_NONBLOCK;
     return flags;
   }
-  case F_SETFL:
+  case F_SETFL: {
+    // 仅处理 O_NONBLOCK 位；其它忽略
+    if(arg & O_NONBLOCK)
+      f->oflags |= O_NONBLOCK;
+    else
+      f->oflags &= ~O_NONBLOCK;
     return 0;
+  }
   case F_GETFD:
     return 0;
   case F_SETFD:
@@ -1291,8 +1299,43 @@ sys_getcwd(void)
 uint64
 sys_pipe2(void)
 {
-  // For simplicity, same as sys_pipe
-  return sys_pipe();
+  uint64 fdarray;
+  int flags;
+  struct file *rf, *wf;
+  int fd0, fd1;
+  struct proc *p = myproc();
+
+  if(argaddr(0, &fdarray) < 0)
+    return -1;
+  if(argint(1, &flags) < 0)
+    return -1;
+  if(pipealloc(&rf, &wf) < 0)
+    return -1;
+
+  // 应用 O_NONBLOCK 到两端（与 Linux 行为一致）
+  if(flags & O_NONBLOCK){
+    rf->oflags |= O_NONBLOCK;
+    wf->oflags |= O_NONBLOCK;
+  }
+  // O_CLOEXEC 暂不实现（需在 exec 时处理），此处忽略但不报错
+
+  fd0 = -1;
+  if((fd0 = fdalloc(rf)) < 0 || (fd1 = fdalloc(wf)) < 0){
+    if(fd0 >= 0)
+      p->ofile[fd0] = 0;
+    fileclose(rf);
+    fileclose(wf);
+    return -1;
+  }
+  if(copyout(p->pagetable, fdarray, (char*)&fd0, sizeof(fd0)) < 0 ||
+     copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
+    p->ofile[fd0] = 0;
+    p->ofile[fd1] = 0;
+    fileclose(rf);
+    fileclose(wf);
+    return -1;
+  }
+  return 0;
 }
 
 uint64

@@ -651,14 +651,14 @@ exit(int status)
   if(p == initproc)
     panic("init exiting");
 
-  // // Close all open files.
-  // for(int fd = 0; fd < NOFILE; fd++){
-  //   if(p->ofile[fd]){
-  //     struct file *f = p->ofile[fd];
-  //     fileclose(f);
-  //     p->ofile[fd] = 0;
-  //   }
-  // }
+  // Close all open files to release resources (e.g., pipe write ends)
+  for(int fd = 0; fd < NOFILE; fd++){
+    if(p->ofile[fd]){
+      struct file *f = p->ofile[fd];
+      fileclose(f);
+      p->ofile[fd] = 0;
+    }
+  }
 
   // begin_op();
   // iput(p->cwd);

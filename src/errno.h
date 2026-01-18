@@ -14,6 +14,8 @@
 #define EACCES  13  /* Permission denied */
 #define EFAULT  14  /* Bad address */
 #define ENOMEM  12  /* Out of memory */
+#define EAGAIN  11  /* Resource temporarily unavailable */
+#define EWOULDBLOCK 11 /* Operation would block (same as EAGAIN) */
 #define EBADF   9   /* Bad file descriptor */
 #define ECHILD  10  /* No child processes */
 #define ESRCH   3   /* No such process */

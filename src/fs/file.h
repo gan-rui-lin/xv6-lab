@@ -7,6 +7,7 @@ struct file {
   int ref; // reference count
   char readable;
   char writable;
+  int oflags;     // per-fd flags (e.g., O_NONBLOCK)
   struct pipe *pipe; // FD_PIPE
   struct inode *ip;  // FD_INODE and FD_DEVICE
   uint off;          // FD_INODE and FD_DEVICE

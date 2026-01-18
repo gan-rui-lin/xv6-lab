@@ -44,7 +44,7 @@ void test_busybox_musl()
         // 使用动态链接器运行 musl 测试（先尝试 /musl 目录结构）
         // char *argv1[] = {"sh", "/musl/run-dynamic.sh", 0};
         char *argv1[] = {"sh", "/musl/ltp_testcode.sh", 0};
-        char *envp1[] = {"PATH=/musl:/bin", 0}; // ?应该没用
+        char *envp1[] = {"PATH=/musl:/bin:/usr/bin", 0};
         execve("/musl/busybox", argv1, envp1);
         printf("Exec busybox failed!\n");
         syscall(SYS_exit, -1);
@@ -53,6 +53,7 @@ void test_busybox_musl()
     {
         int status;
         wait(&status);
+        printf("busybox child exited, status=0x%x\n", status);
     }
     else
     {
@@ -69,7 +70,7 @@ void test_basic()
     if (pid == 0)
     {
         char *argv[] = {"sh", "/musl/basic_testcode.sh", 0};
-        char *envp[] = {"PATH=/bin:/musl", 0}; // ?应该没用
+        char *envp[] = {"PATH=/bin:/musl:/usr/bin", 0};
         execve("/musl/busybox", argv, envp);
         printf("Exec busybox failed!\n");
         syscall(SYS_exit, -1);

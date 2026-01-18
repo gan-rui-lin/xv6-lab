@@ -31,6 +31,48 @@ static int ext4_devno = 0;
 
 int ext4_mode = 0;
 
+// Helpers to create runtime symlinks to BusyBox applets ---------------------
+static int path_exists(const char *path) {
+  ext4_file fchk;
+  if(ext4_fopen2(&fchk, path, O_RDONLY) == EOK){
+    ext4_fclose(&fchk);
+    return 1;
+  }
+  ext4_dir dchk;
+  if(ext4_dir_open(&dchk, path) == EOK){
+    ext4_dir_close(&dchk);
+    return 1;
+  }
+  size_t rc = 0;
+  char tbuf[2];
+  if(ext4_readlink(path, tbuf, sizeof(tbuf), &rc) == EOK)
+    return 1;
+  return 0;
+}
+
+static int ensure_symlink(const char *linkpath, const char *target) {
+  if(path_exists(linkpath))
+    return 0;
+  int rr = ext4_fsymlink(target, linkpath);
+  if(rr == EOK){
+    log_info("ext4: created symlink %s -> %s", linkpath, target);
+    return 1;
+  } else {
+    log_warn("ext4: symlink create failed %d for %s -> %s", rr, linkpath, target);
+    return -1;
+  }
+}
+
+static void ensure_dir(const char *dirpath) {
+  if(path_exists(dirpath))
+    return;
+  int rr = ext4_dir_mk(dirpath);
+  if(rr == EOK)
+    log_info("ext4: created dir %s", dirpath);
+  else
+    log_warn("ext4: mkdir failed %d for %s", rr, dirpath);
+}
+
 // Avoid infinite loops when resolving symlinks.
 #define EXT4_MAX_SYMLINKS 8
 
@@ -284,6 +326,41 @@ void ext4fs_init(int dev) {
 
   ext4_mode = 1;
   log_info("ext4: mounted device %s", EXT4_DEV_NAME);
+
+  // Ensure essential applets are reachable even if the image lacks symlinks.
+  // We don't modify the image contents; we create runtime symlinks via lwext4.
+  // This specifically addresses the missing 'basename' used by ltp_testcode.sh.
+  const char *bb_candidates[] = { "/bin/busybox", "/usr/bin/busybox", "/musl/busybox", "/busybox" };
+  char bb_path[MAXPATH];
+  bb_path[0] = '\0';
+  for(int i = 0; i < (int)(sizeof(bb_candidates)/sizeof(bb_candidates[0])); i++){
+    if(path_exists(bb_candidates[i])){
+      safestrcpy(bb_path, bb_candidates[i], sizeof(bb_path));
+      break;
+    }
+  }
+  if(bb_path[0] == '\0'){
+    log_warn("ext4: busybox not found; cannot create applet symlinks");
+    return;
+  }
+
+  // Create common locations for 'basename'.
+  ensure_dir("/bin");
+  ensure_dir("/usr");
+  ensure_dir("/usr/bin");
+  // Common shells and applets
+  ensure_symlink("/bin/sh", bb_path);
+  ensure_symlink("/bin/basename", bb_path);
+  ensure_symlink("/usr/bin/basename", bb_path);
+  ensure_symlink("/musl/basename", bb_path);
+
+  // Ensure dynamic loader paths for musl-linked binaries.
+  // Many binaries reference /lib/ld-musl-riscv64.so.1. On this image, musl ships libc.so as the loader.
+  ensure_dir("/lib");
+  ensure_dir("/musl/lib");
+  // Create symlinks pointing loader name to libc.so so exec can open it.
+  ensure_symlink("/musl/lib/ld-musl-riscv64.so.1", "/musl/lib/libc.so");
+  ensure_symlink("/lib/ld-musl-riscv64.so.1", "/musl/lib/libc.so");
 }
 
 // Resolve ext4 path (absolute) and follow symlinks.
@@ -594,33 +671,61 @@ int ext4_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen) {
   }
   dir.next_off = start_off;
 
+  // 变长 linux_dirent64：
+  // header 布局为 d_ino(8) + d_off(8) + d_reclen(2) + d_type(1) + d_name[]
+  // 其中 d_name 以 '\0' 结尾，总记录长度按 8 字节对齐。
   int written = 0;
   const ext4_direntry *de;
   while((de = ext4_dir_entry_next(&dir)) != 0){
-    if(written + (int)sizeof(struct linux_dirent64) > (int)maxlen)
+    int namelen = (de->name_length > 0) ? de->name_length : 0;
+    // 不截断名称，按真实长度返回
+    // 计算记录长度：19(头部) + namelen + 1(终止符)，并按 8 对齐
+    int reclen = 19 + namelen + 1;
+    reclen = (reclen + 7) & ~7;
+    if(written + reclen > (int)maxlen)
       break;
 
-    struct linux_dirent64 ent;
-    memset(&ent, 0, sizeof(ent));
-    ent.d_ino = de->inode;
-    // 使用递增的目录项序号作为 d_off，保证用户态能前进
-    // 将 -1 终止偏移替换为目录大小，避免用户态看到异常偏移
+    uint64 entry_uaddr = uaddr + written;
+    uint64 d_ino = de->inode;
+    // 使用 lwext4 的 next_off 作为 d_off；若为 -1 则用目录大小表示 EOF
     uint64 next_off = (dir.next_off == (uint64)-1) ? dir_size : dir.next_off;
-    ent.d_off = next_off;
-    ent.d_reclen = sizeof(struct linux_dirent64);
-    ent.d_type = map_dir_type(de->inode_type);
+    uint16 d_reclen = (uint16)reclen;
+    uint8 d_type = map_dir_type(de->inode_type);
 
-    int namelen = de->name_length;
-    if(namelen >= DIRSIZ)
-      namelen = DIRSIZ - 1;
-    memmove(ent.d_name, de->name, namelen);
-    ent.d_name[namelen] = 0;
+    // 写入头部字段
+    if(copyout(p->pagetable, entry_uaddr + 0, (char *)&d_ino, sizeof(d_ino)) < 0)
+      goto copy_fail;
+    if(copyout(p->pagetable, entry_uaddr + 8, (char *)&next_off, sizeof(next_off)) < 0)
+      goto copy_fail;
+    if(copyout(p->pagetable, entry_uaddr + 16, (char *)&d_reclen, sizeof(d_reclen)) < 0)
+      goto copy_fail;
+    if(copyout(p->pagetable, entry_uaddr + 18, (char *)&d_type, sizeof(d_type)) < 0)
+      goto copy_fail;
 
-    if(copyout(p->pagetable, uaddr + written, (char *)&ent, sizeof(ent)) < 0){
-      ext4_dir_close(&dir);
-      return -1;
+    // 写入名称和终止符
+    if(namelen > 0){
+      if(copyout(p->pagetable, entry_uaddr + 19, (char *)de->name, namelen) < 0)
+        goto copy_fail;
     }
-    written += sizeof(ent);
+    char nul = 0;
+    if(copyout(p->pagetable, entry_uaddr + 19 + namelen, &nul, 1) < 0)
+      goto copy_fail;
+
+    // 将对齐填充区域置零（如果有）
+    int pad = reclen - (19 + namelen + 1);
+    if(pad > 0){
+      // 为了避免多次系统调用，限制 pad 较小场景下的零填充；pad 最大为 7
+      char zeros[8] = {0};
+      if(copyout(p->pagetable, entry_uaddr + 19 + namelen + 1, zeros, pad) < 0)
+        goto copy_fail;
+    }
+
+    written += reclen;
+    continue;
+
+copy_fail:
+    ext4_dir_close(&dir);
+    return -1;
   }
 
   ext4_dir_close(&dir);

@@ -4,6 +4,10 @@
 #define O_CREATE    0x200
 #define O_TRUNC     0x400
 #define O_DIRECTORY 0x10000
+// 非阻塞标志（与 Linux 保持一致的位值，便于用户态传递）
+#define O_NONBLOCK  0x00000800
+// close-on-exec 标志（用于 pipe2/fcntl，但当前内核不强制实现）
+#define O_CLOEXEC   0x02000000
 
 // Linux flags
 #define LINUX_O_CREAT    0x40

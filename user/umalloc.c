@@ -18,7 +18,6 @@ union header {
 
 typedef union header Header;
 
-static Header base;
 static Header *freep;
 
 void

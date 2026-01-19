@@ -124,7 +124,6 @@ exec(char *path, char **argv, char **envp)
       goto bad;
     }
     // Map the segment, allowing non-page-aligned vaddr by rounding.
-    uint64 va_start = PGROUNDDOWN(ph.vaddr);
     uint64 va_end = PGROUNDUP(ph.vaddr + ph.memsz);
     if((sz = uvmalloc(pagetable, sz, va_end, flags2perm(ph.flags))) == 0)
       { err = -ENOMEM; goto bad; }

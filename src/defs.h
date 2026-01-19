@@ -8,7 +8,9 @@
 #define THR 0  
 #define LSR 5
 #define TX_IDLE 0x20
+#ifndef NULL
 #define NULL (void*)0
+#endif
 
 struct buf;
 struct context;
@@ -57,6 +59,7 @@ void            log_info(char *fmt, ...);
 void            log_warn(char *fmt, ...);
 void            log_error(char *fmt, ...);
 void            log_debug(char *fmt, ...);
+void            log_trace(char *fmt, ...);
 void            print_ruos(void);
 
 // console.c
@@ -103,6 +106,8 @@ void*           memset(void*, int, uint);
 void*           memcpy(void *dst, const void *src, uint n);
 char*           strchr(const char*, char c);
 char*           strrchr(const char*, char c);
+int             strcmp(const char*, const char*);
+char*           strcpy(char*, const char*);
 int             strncasecmp(const char *s1, const char *s2, uint n);
 int             snprintf ( char * str, uint size, const char * format, ... );
 char*           safestrcpy(char*, const char*, int);

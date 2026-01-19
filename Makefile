@@ -84,6 +84,10 @@ endif
 # 包含头文件路径：添加各个源代码子目录
 INCLUDES := -I$(SRC) $(foreach dir,$(SRC_DIRS),-I$(SRC)/$(dir)) -I$(SRC)/fs/lwext4/include
 
+# lwext4 外部库源码：抑制编译警告
+LWEXT4_DIR := $(SRC)/fs/lwext4/src
+LWEXT4_CFLAGS := -w
+
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
 CFLAGS += -fno-pie -no-pie
@@ -102,7 +106,11 @@ dirs:
 # ===== 编译规则 =====
 $(BUILD_DIR)/%.o: $(SRC)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@
+	@if echo "$<" | grep -q "^$(LWEXT4_DIR)/"; then \
+	  $(CC) $(CFLAGS) $(INCLUDES) $(LWEXT4_CFLAGS) -MMD -MP -c $< -o $@; \
+	else \
+	  $(CC) $(CFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@; \
+	fi
 
 $(BUILD_DIR)/%.o: $(SRC)/%.S
 	@mkdir -p $(dir $@)

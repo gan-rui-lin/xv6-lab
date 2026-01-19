@@ -44,6 +44,11 @@ extern "C" {
 #include <stddef.h>
 #include "types.h"
 
+/**@brief   Include assert codes from ext4_debug or standard library.*/
+#ifndef CONFIG_HAVE_OWN_ASSERT
+#define CONFIG_HAVE_OWN_ASSERT 1
+#endif
+
 #if CONFIG_HAVE_OWN_ASSERT
 void ext4_assert(int expr);
 #endif
@@ -104,9 +109,6 @@ void ext4_assert(int expr);
 #endif
 
 /**@brief   Include assert codes from ext4_debug or standard library.*/
-#ifndef CONFIG_HAVE_OWN_ASSERT
-#define CONFIG_HAVE_OWN_ASSERT 1
-#endif
 
 /**@brief   Statistics of block device*/
 #ifndef CONFIG_BLOCK_DEV_ENABLE_STATS

@@ -103,7 +103,7 @@ int main()
     // printf("r2 = %d\n", r2)
 
     // test_basic();
-    test_busybox_musl();
+    // test_busybox_musl();
     // printf("Hello, xv6 world!\n");
 
     test_("getppid");

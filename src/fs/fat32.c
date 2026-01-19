@@ -1130,7 +1130,6 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
             // First, prepare SFN from name (8.3 upper)
             char sfn[11];
             memset(sfn, ' ', 11);
-            int len = namelen;
             int dot2 = dot;
             int name_len = base_len;
             int ext_len2 = ext_len;
@@ -1268,7 +1267,6 @@ struct inode* fat32_create(char *path, short type, int major, int minor)
   }
   // Find parent
   uint32 cur = fat.root_clus;
-  short cur_type = T_DIR;
   for(int i = 0; i < n - 1; i++){
     short typ; uint32 sz; uint32 st;
     int ok = dir_find(cur, comps[i], &typ, &sz, &st);

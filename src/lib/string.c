@@ -144,5 +144,7 @@ strncasecmp(const char *s1, const char *s2, uint n)
 int 
 snprintf ( char * str, uint size, const char * format, ... )
 {
-
+  if(size > 0 && str)
+    str[0] = '\0';
+  return 0;
 }

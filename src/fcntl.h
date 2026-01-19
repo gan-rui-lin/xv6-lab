@@ -18,6 +18,10 @@
 #define AT_FDCWD    (-100)
 // fstatat/faccessat 标志：不跟随符号链接（目前忽略）
 #define AT_SYMLINK_NOFOLLOW 0x100
+// accessat: use effective IDs
+#define AT_EACCESS 0x200
+// unlinkat: remove directory
+#define AT_REMOVEDIR 0x200
 // 兼容 Linux 的其他标志位（当前忽略）
 #define AT_NO_AUTOMOUNT 0x800
 #define AT_EMPTY_PATH   0x1000

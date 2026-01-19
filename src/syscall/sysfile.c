@@ -29,6 +29,8 @@ static int normalize_open_flags(int flags)
   if(flags & LINUX_O_TRUNC)    norm |= O_TRUNC;
   // Linux O_DIRECTORY=0x200000 → 内核 O_DIRECTORY=0x10000
   if(flags & LINUX_O_DIRECTORY) norm |= O_DIRECTORY;
+  // O_NONBLOCK 直接透传
+  if(flags & O_NONBLOCK) norm |= O_NONBLOCK;
   // 其余未映射位忽略
   return norm;
 }
@@ -158,6 +160,7 @@ fdalloc(struct file *f)
   for(fd = 0; fd < NOFILE; fd++){
     if(p->ofile[fd] == 0){
       p->ofile[fd] = f;
+      p->fdflags[fd] = 0;
       return fd;
     }
   }
@@ -213,7 +216,7 @@ sys_write(void)
   return filewrite(f, p, n);
 }
 
-// minimal fcntl: support F_GETFL/F_SETFL/F_GETFD/F_SETFD/F_DUPFD
+// fcntl: support F_GETFL/F_SETFL/F_GETFD/F_SETFD/F_DUPFD
 uint64
 sys_fcntl(void)
 {
@@ -226,7 +229,10 @@ sys_fcntl(void)
   int r = argfd(0, &fd, &f);
   if(r < 0)
     return r;
-  if(argint(1, &cmd) < 0 || argint(2, &arg) < 0)
+  if(argint(1, &cmd) < 0)
+    return -EINVAL;
+  // arg is only meaningful for some commands
+  if((cmd == F_SETFL || cmd == F_SETFD || cmd == F_DUPFD) && argint(2, &arg) < 0)
     return -EINVAL;
 
   switch(cmd){
@@ -243,7 +249,9 @@ sys_fcntl(void)
     return flags;
   }
   case F_SETFL: {
-    // 仅处理 O_NONBLOCK 位；其它忽略
+    // Only allow O_NONBLOCK; reject other flags to keep behavior strict.
+    if(arg & ~O_NONBLOCK)
+      return -EINVAL;
     if(arg & O_NONBLOCK)
       f->oflags |= O_NONBLOCK;
     else
@@ -251,15 +259,24 @@ sys_fcntl(void)
     return 0;
   }
   case F_GETFD:
-    return 0;
+    return (p->fdflags[fd] & FD_CLOEXEC) ? FD_CLOEXEC : 0;
   case F_SETFD:
+    if(arg & ~FD_CLOEXEC)
+      return -EINVAL;
+    if(arg & FD_CLOEXEC)
+      p->fdflags[fd] |= FD_CLOEXEC;
+    else
+      p->fdflags[fd] &= ~FD_CLOEXEC;
     return 0;
   case F_DUPFD: {
     if(arg < 0)
       return -EINVAL;
+    if(arg >= NOFILE)
+      return -EBADF;
     for(int newfd = arg; newfd < NOFILE; newfd++){
       if(p->ofile[newfd] == 0){
         p->ofile[newfd] = f;
+        p->fdflags[newfd] = 0;
         filedup(f);
         return newfd;
       }
@@ -448,6 +465,7 @@ sys_close(void)
   if(r < 0)
     return r;
   myproc()->ofile[fd] = 0;
+  myproc()->fdflags[fd] = 0;
   fileclose(f);
   return 0;
 }
@@ -629,9 +647,14 @@ sys_faccessat(void)
     return -EINVAL;
   }
 
-  (void)mode;
-  // 放宽 flags 检查，兼容 LTP 传入的扩展标志位
-  (void)flags;
+  if(dirfd < 0 && dirfd != AT_FDCWD)
+    return -EBADF;
+  if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_EMPTY_PATH | AT_EACCESS))
+    return -EINVAL;
+  if(mode & ~0x7)
+    return -EINVAL;
+  if(path[0] == '\0' && !(flags & AT_EMPTY_PATH))
+    return -ENOENT;
 
   begin_op(ROOTDEV);
   struct file *dirf = 0;
@@ -681,10 +704,14 @@ sys_fchownat(void)
      argint(2, &uid) < 0 || argint(3, &gid) < 0 || argint(4, &flags) < 0)
     return -EINVAL;
 
+  if(dirfd < 0 && dirfd != AT_FDCWD)
+    return -EBADF;
   (void)uid;
   (void)gid;
   if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_EMPTY_PATH))
     return -EINVAL;
+  if(path[0] == '\0' && !(flags & AT_EMPTY_PATH))
+    return -ENOENT;
 
   begin_op(ROOTDEV);
   struct file *dirf = 0;
@@ -734,9 +761,14 @@ sys_fchmodat(void)
      argint(2, &mode) < 0 || argint(3, &flags) < 0)
     return -EINVAL;
 
-  (void)mode;
-  // 放宽 flags 检查，兼容 LTP 传入的扩展标志位
-  (void)flags;
+  if(dirfd < 0 && dirfd != AT_FDCWD)
+    return -EBADF;
+  if(mode & ~07777)
+    return -EINVAL;
+  if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_NO_AUTOMOUNT | AT_EMPTY_PATH))
+    return -EINVAL;
+  if(path[0] == '\0' && !(flags & AT_EMPTY_PATH))
+    return -ENOENT;
   log_debug("sys_fchmodat: dirfd=%d path='%s' mode=%o flags=0x%x\n",
             dirfd, path, mode, flags);
 
@@ -789,6 +821,8 @@ sys_ftruncate(void)
     return -EBADF;
   if(f->type != FD_INODE)
     return -EINVAL;
+  if(!f->writable)
+    return -EACCES;
 
   ip = f->ip;
   if(ip == 0)
@@ -1005,6 +1039,10 @@ sys_open(void)
   if((n = argstr(0, path, MAXPATH)) < 0 || argint(1, &omode) < 0)
     return -EINVAL;
 
+  // Validate access mode bits (O_RDONLY=0, O_WRONLY=1, O_RDWR=2)
+  if((omode & 3) == 3)
+    return -EINVAL;
+
   int kflags = normalize_open_flags(omode);
   log_info("sys_open: path='%s' omode=0x%x kflags=0x%x", path, omode, kflags);
 
@@ -1034,6 +1072,15 @@ sys_open(void)
       }
       log_info("sys_open: opened directory");
     }
+    if((kflags & O_TRUNC) && ip->type == T_FILE){
+      if(ext4_mode && ip->major == EXT4_INODE_TAG){
+        if(ext4_truncate_to(ip, 0) < 0){
+          iunlockput(ip);
+          end_op(ROOTDEV);
+          return -EIO;
+        }
+      }
+    }
   }
 
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
@@ -1059,6 +1106,7 @@ sys_open(void)
   }
   f->ip = ip;
   f->off = 0;
+  f->oflags = (kflags & O_NONBLOCK);
   if(ip->type == T_DIR){
     f->readable = 1;
     f->writable = 0;
@@ -1066,6 +1114,9 @@ sys_open(void)
     f->readable = !(kflags & O_WRONLY);
     f->writable = (kflags & O_WRONLY) || (kflags & O_RDWR);
   }
+
+  if(omode & O_CLOEXEC)
+    myproc()->fdflags[fd] |= FD_CLOEXEC;
 
   iunlock(ip);
   end_op(ROOTDEV);
@@ -1089,6 +1140,9 @@ sys_openat(void)
   // 提取参数（Linux 布局）
   if(argint(0, &dirfd) < 0) return -EINVAL;
   if((n = argstr(1, path, MAXPATH)) < 0 || argint(2, &flags) < 0)
+    return -EINVAL;
+
+  if((flags & 3) == 3)
     return -EINVAL;
 
   int kflags = normalize_open_flags(flags);
@@ -1174,6 +1228,16 @@ sys_openat(void)
     }
   }
 
+  if((kflags & O_TRUNC) && ip->type == T_FILE){
+    if(ext4_mode && ip->major == EXT4_INODE_TAG){
+      if(ext4_truncate_to(ip, 0) < 0){
+        iunlockput(ip);
+        end_op(ROOTDEV);
+        return -EIO;
+      }
+    }
+  }
+
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
     iunlockput(ip);
     end_op(ROOTDEV);
@@ -1197,6 +1261,7 @@ sys_openat(void)
   }
   f->ip = ip;
   f->off = 0;
+  f->oflags = (kflags & O_NONBLOCK);
   if(ip->type == T_DIR){
     f->readable = 1;
     f->writable = 0;
@@ -1204,6 +1269,9 @@ sys_openat(void)
     f->readable = !(kflags & O_WRONLY);
     f->writable = (kflags & O_WRONLY) || (kflags & O_RDWR);
   }
+
+  if(flags & O_CLOEXEC)
+    myproc()->fdflags[fd] |= FD_CLOEXEC;
 
   iunlock(ip);
   end_op(ROOTDEV);
@@ -1388,6 +1456,8 @@ sys_pipe(void)
      copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
     p->ofile[fd0] = 0;
     p->ofile[fd1] = 0;
+    p->fdflags[fd0] = 0;
+    p->fdflags[fd1] = 0;
     fileclose(rf);
     fileclose(wf);
     return -1;
@@ -1426,32 +1496,41 @@ sys_dup3(void)
 
   // 获取参数
   if(argint(0, &oldfd) < 0 || argint(1, &newfd) < 0 || argint(2, &flags) < 0)
-    return -1;
+    return -EINVAL;
+
+  // Only O_CLOEXEC is supported in flags
+  if(flags & ~O_CLOEXEC)
+    return -EINVAL;
 
   // 检查oldfd是否有效
   if(oldfd < 0 || oldfd >= NOFILE || (f = p->ofile[oldfd]) == 0)
-    return -1;
+    return -EBADF;
 
   // dup2行为（flags=0）：如果oldfd==newfd，直接返回newfd
   // dup3行为（flags!=0）：如果oldfd==newfd，返回错误
   if(oldfd == newfd) {
     if(flags != 0)
-      return -1;  // dup3要求oldfd和newfd不能相同
+      return -EINVAL;  // dup3要求oldfd和newfd不能相同
     // dup2行为：oldfd和newfd相同时，直接返回newfd
     return newfd;
   }
 
   // 检查newfd范围是否有效
   if(newfd < 0 || newfd >= NOFILE)
-    return -1;
+    return -EBADF;
 
   // 如果newfd已经打开，先关闭它
-  if(p->ofile[newfd])
-    fileclose(p->ofile[newfd]);
+  if(p->ofile[newfd]){
+    struct file *oldf = p->ofile[newfd];
+    p->ofile[newfd] = 0;
+    p->fdflags[newfd] = 0;
+    fileclose(oldf);
+  }
 
   // 复制文件描述符
   p->ofile[newfd] = f;
   filedup(f);
+  p->fdflags[newfd] = (flags & O_CLOEXEC) ? FD_CLOEXEC : 0;
 
   return newfd;
 }
@@ -1464,11 +1543,11 @@ sys_getdents64(void)
   struct file *f;
 
   if(argint(0, &fd) < 0 || argaddr(1, &buf) < 0 || argaddr(2, &len) < 0)
-    return -1;
+    return -EINVAL;
   if(fd < 0 || fd >= NOFILE || (f = myproc()->ofile[fd]) == 0)
-    return -1;
+    return -EBADF;
   if(f->type != FD_INODE || f->ip->type != T_DIR)
-    return -1;
+    return -ENOTDIR;
   int n = 0;
 
   // log_debug("sys_getdents64: fd=%d off=%u len=%p ip_major=%d fat32=%d ext4=%d\n",
@@ -1487,7 +1566,7 @@ sys_getdents64(void)
       f->off = off_entries;
   } else {
     // non-FAT32 directories not yet supported
-    return -1;
+    return -ENOTSUP;
   }
 
   return n;
@@ -1504,22 +1583,36 @@ sys_mount(void)
 
   // copy args from user, minimal validation
   if(argstr(0, dev, sizeof(dev)) < 0)
-    return -1;
+    return -EINVAL;
   if(argstr(1, dir, sizeof(dir)) < 0)
-    return -1;
+    return -EINVAL;
   if(argstr(2, fstype, sizeof(fstype)) < 0)
-    return -1;
+    return -EINVAL;
   argint(3, &flags);
   argaddr(4, &data);
+
+  if(dev[0] == '\0' || dir[0] == '\0' || fstype[0] == '\0')
+    return -EINVAL;
+  (void)flags;
+  (void)data;
 
   // For now, accept mount for FAT32/vfat only; no-op mount
   // Validate mountpoint exists and is a directory when possible
   struct inode *ip = namei(dir);
-  if(ip == 0 || ip->type != T_DIR){
-    return -1;
+  if(ip == 0)
+    return -ENOENT;
+  if(ip->type != T_DIR){
+    iput(ip);
+    return -ENOTDIR;
   }
-  // ! No VFS layering; return success to satisfy tests
-  return 0;
+  iput(ip);
+
+  if(strcmp(fstype, "vfat") == 0 || strcmp(fstype, "fat") == 0 ||
+     strcmp(fstype, "msdos") == 0 || strcmp(fstype, "fat32") == 0 ||
+     strcmp(fstype, "ext4") == 0){
+    return 0;
+  }
+  return -ENODEV;
 }
 
 uint64
@@ -1528,9 +1621,21 @@ sys_umount2(void)
   char target[MAXPATH];
   int flags = 0;
   if(argstr(0, target, sizeof(target)) < 0)
-    return -1;
+    return -EINVAL;
   argint(1, &flags);
-  // !Minimal implementation: accept and return success
+  if(flags != 0)
+    return -EINVAL;
+  if(target[0] == '\0')
+    return -EINVAL;
+  struct inode *ip = namei(target);
+  if(ip == 0)
+    return -ENOENT;
+  if(ip->type != T_DIR){
+    iput(ip);
+    return -ENOTDIR;
+  }
+  iput(ip);
+  // No VFS layering; accept as no-op for now
   return 0;
 }
 
@@ -1562,11 +1667,13 @@ sys_pipe2(void)
   struct proc *p = myproc();
 
   if(argaddr(0, &fdarray) < 0)
-    return -1;
+    return -EINVAL;
   if(argint(1, &flags) < 0)
-    return -1;
+    return -EINVAL;
+  if(flags & ~(O_NONBLOCK | O_CLOEXEC))
+    return -EINVAL;
   if(pipealloc(&rf, &wf) < 0)
-    return -1;
+    return -EIO;
 
   // 应用 O_NONBLOCK 到两端（与 Linux 行为一致）
   if(flags & O_NONBLOCK){
@@ -1587,9 +1694,15 @@ sys_pipe2(void)
      copyout(p->pagetable, fdarray+sizeof(fd0), (char *)&fd1, sizeof(fd1)) < 0){
     p->ofile[fd0] = 0;
     p->ofile[fd1] = 0;
+    p->fdflags[fd0] = 0;
+    p->fdflags[fd1] = 0;
     fileclose(rf);
     fileclose(wf);
-    return -1;
+    return -EFAULT;
+  }
+  if(flags & O_CLOEXEC){
+    p->fdflags[fd0] |= FD_CLOEXEC;
+    p->fdflags[fd1] |= FD_CLOEXEC;
   }
   return 0;
 }
@@ -1632,7 +1745,7 @@ sys_unlinkat(void)
       return -1;
     char full[MAXPATH];
     safestrcpy(full, ip->ext4_path, sizeof(full));
-    int is_dir = ((flags & 0x200) != 0) || ip->type == T_DIR;
+    int is_dir = ((flags & AT_REMOVEDIR) != 0) || ip->type == T_DIR;
     iput(ip);
     return ext4_unlink_path(full, is_dir ? 1 : 0);
   }
@@ -1740,7 +1853,7 @@ sys_unlinkat(void)
   ilock(ip);
   if(ip->nlink < 1)
     panic("unlinkat: nlink < 1");
-  if((flags & 0x200) && ip->type != T_DIR){ // AT_REMOVEDIR
+  if((flags & AT_REMOVEDIR) && ip->type != T_DIR){ // AT_REMOVEDIR
     iunlockput(ip);
     iunlockput(dp);
     end_op(ROOTDEV);

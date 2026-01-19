@@ -140,6 +140,8 @@ found:
   p->priority = PRIO_DEFAULT;  // 设置默认优先级
   // 初始化信号相关状态
   signal_init(p);
+  memset(p->ofile, 0, sizeof(p->ofile));
+  memset(p->fdflags, 0, sizeof(p->fdflags));
 
 
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -284,6 +286,8 @@ freeproc(struct proc *p)
   p->xstate = 0;
   p->priority = PRIO_DEFAULT;  // 重置优先级
   signal_init(p);
+  memset(p->ofile, 0, sizeof(p->ofile));
+  memset(p->fdflags, 0, sizeof(p->fdflags));
   p->state = UNUSED;
 }
 
@@ -419,9 +423,14 @@ fork(void)
 
   // increment reference counts on open file descriptors.
   int i;
-  for(i = 0; i < NOFILE; i++)
-    if(p->ofile[i])
+  for(i = 0; i < NOFILE; i++){
+    if(p->ofile[i]){
       np->ofile[i] = filedup(p->ofile[i]);
+      np->fdflags[i] = p->fdflags[i];
+    } else {
+      np->fdflags[i] = 0;
+    }
+  }
   np->cwd = idup(p->cwd);
   safestrcpy(np->cwdpath, p->cwdpath, sizeof(np->cwdpath));
 
@@ -483,9 +492,14 @@ clone_fork(uint64 stack)
 
   // increment reference counts on open file descriptors.
   int i;
-  for(i = 0; i < NOFILE; i++)
-    if(p->ofile[i])
+  for(i = 0; i < NOFILE; i++){
+    if(p->ofile[i]){
       np->ofile[i] = filedup(p->ofile[i]);
+      np->fdflags[i] = p->fdflags[i];
+    } else {
+      np->fdflags[i] = 0;
+    }
+  }
   np->cwd = idup(p->cwd);
   safestrcpy(np->cwdpath, p->cwdpath, sizeof(np->cwdpath));
 
@@ -666,6 +680,7 @@ exit(int status)
       struct file *f = p->ofile[fd];
       fileclose(f);
       p->ofile[fd] = 0;
+      p->fdflags[fd] = 0;
     }
   }
 

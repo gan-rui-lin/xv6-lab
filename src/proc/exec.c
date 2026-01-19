@@ -7,6 +7,7 @@
 #include "defs.h"
 #include "elf.h"
 #include "errno.h"
+#include "fcntl.h"
 
 #ifndef AT_NULL
 #define AT_NULL 0
@@ -318,6 +319,16 @@ exec(char *path, char **argv, char **envp)
   p->trapframe->epc = have_interp ? interp_entry : elf.entry;
   p->trapframe->sp = sp; // initial stack pointer (points to argc)
   proc_freepagetable(oldpagetable, oldsz);
+
+  // Close file descriptors marked close-on-exec.
+  for(int fd = 0; fd < NOFILE; fd++){
+    if(p->ofile[fd] && (p->fdflags[fd] & FD_CLOEXEC)){
+      struct file *f = p->ofile[fd];
+      p->ofile[fd] = 0;
+      p->fdflags[fd] = 0;
+      fileclose(f);
+    }
+  }
 
   return argc; // ends up in a0 (argc)
 

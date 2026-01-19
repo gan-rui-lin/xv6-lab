@@ -105,6 +105,26 @@ static uint32 fat_alloc_clus(void)
   return 0;
 }
 
+static void fat_set_clus(uint32 clus, uint32 val)
+{
+  uint32 offset_bytes = clus * 4;
+  uint32 fat_sec = fat.fat_start_sec + (offset_bytes / fat.bps);
+  uint32 sec_off = offset_bytes % fat.bps;
+  uint8 sec[512];
+  read_sector512(fat.dev, fat_sec, sec);
+  *(uint32 *)(sec + sec_off) = (val & 0x0FFFFFFF);
+  write_sector512(fat.dev, fat_sec, sec);
+}
+
+static void fat_zero_cluster(uint32 clus)
+{
+  uint32 sec = clus_to_sec(clus);
+  uint8 zero[512];
+  memset(zero, 0, sizeof(zero));
+  for(uint s = 0; s < fat.spc; s++)
+    write_sector512(fat.dev, sec + s, zero);
+}
+
 // Compare path component against short 8.3 dir entry name
 static int match_sfn(const char *comp, const uint8 *name11)
 {
@@ -1053,12 +1073,6 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
   }
   log_info("fat32_createat: name='%s', type=%d", name, type);
   uint32 dir_clus = dp->addrs[0];
-  uint32 new_clus = fat_alloc_clus();
-  if(new_clus == 0){
-    log_warn("fat32_createat: no free cluster");
-    return NULL;
-  }
-   log_info("fat32_createat: allocated cluster %u", new_clus);
 
   // decide whether we need LFN entries (name not pure 8.3)
   int namelen = strlen(name);
@@ -1087,7 +1101,7 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
   if(need_lfn){
     log_info("fat32_createat: will write %d LFN entries for '%s'", lfn_entries, name);
   }
-  // Find free directory entry
+  // Find free directory entry, extending directory if needed
   uint32 cl = dir_clus;
   for(;;){
     uint32 sec = clus_to_sec(cl);
@@ -1105,6 +1119,13 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
           if(run_len >= needed_slots){
             // We found enough consecutive free entries starting at run_start_off
             uint8 *base = buf + run_start_off;
+
+            uint32 new_clus = fat_alloc_clus();
+            if(new_clus == 0){
+              log_warn("fat32_createat: no free cluster");
+              return NULL;
+            }
+            log_info("fat32_createat: allocated cluster %u", new_clus);
 
             // First, prepare SFN from name (8.3 upper)
             char sfn[11];
@@ -1207,8 +1228,20 @@ struct inode* fat32_createat(struct inode *dp, char *name, short type, int major
     }
     // Next cluster
     uint32 nxt = fat_next_clus(cl);
-    if(nxt >= 0x0FFFFFF8) break;
-    cl = nxt;
+    if(nxt >= 0x0FFFFFF8){
+      // extend directory by one cluster
+      uint32 newdir = fat_alloc_clus();
+      if(newdir == 0){
+        log_warn("fat32_createat: no free cluster for dir extend");
+        break;
+      }
+      fat_set_clus(cl, newdir);
+      fat_set_clus(newdir, 0x0FFFFFFF);
+      fat_zero_cluster(newdir);
+      cl = newdir;
+    } else {
+      cl = nxt;
+    }
   }
   log_warn("fat32_createat: no free directory entry");
   return NULL;

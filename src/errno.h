@@ -4,6 +4,7 @@
 // Minimal errno set for Linux-compatible syscall returns.
 #define EPERM   1   /* Operation not permitted */
 #define ENOENT  2   /* No such file or directory */
+#define EINTR   4   /* Interrupted system call */
 #define EIO     5   /* I/O error */
 #define ENODEV  19  /* No such device */
 #define ENOTDIR 20  /* Not a directory */

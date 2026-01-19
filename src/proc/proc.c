@@ -4,6 +4,7 @@
 #include "defs.h"
 #include "memlayout.h"
 #include "sleeplock.h"
+#include "errno.h"
 #include "../fs/fs.h"
 #include "../fs/file.h"
 
@@ -226,9 +227,8 @@ forkret(void)
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
     first = 0;
-    // ! 暂时还是使用 xv6 文件系统
     fsinit(minor(ROOTDEV));
-    // tf_init();
+
   }
 
   usertrapret();
@@ -538,7 +538,7 @@ wait(uint64 addr)
                                   sizeof(pp->xstate)) < 0) {
             release(&pp->lock);
             release(&wait_lock);
-            return -1;
+            return -EFAULT;
           }
           // 释放进程资源，返回子进程的 pid
           freeproc(pp);
@@ -551,9 +551,13 @@ wait(uint64 addr)
     }
 
     // No point waiting if we don't have any children.
-    if(!havekids || killed(p)){
+    if(!havekids){
       release(&wait_lock);
-      return -1;
+      return -ECHILD;
+    }
+    if(killed(p)){
+      release(&wait_lock);
+      return -EINTR;
     }
     
     // Wait for a child to exit.

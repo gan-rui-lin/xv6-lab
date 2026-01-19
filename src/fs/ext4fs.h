@@ -22,6 +22,7 @@ struct inode* ext4_nameiat(struct inode *base, char *path);
 int ext4_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n);
 int ext4_writei(struct inode *ip, int user_src, uint64 src, uint off, uint n);
 int ext4_truncate(struct inode *ip);
+int ext4_truncate_to(struct inode *ip, uint64 size);
 
 struct inode* ext4_createat(struct inode *dp, char *name, short type, short major, short minor);
 int ext4_symlink(const char *target, char *path);

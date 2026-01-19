@@ -99,6 +99,10 @@ usertrap(void)
     yield();
   }
     
+  // 处理用户态可见的待处理信号
+  signal_handle(p);
+  if(killed(p))
+    exit(-1);
 
   usertrapret();
 }

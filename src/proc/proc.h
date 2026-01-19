@@ -1,6 +1,7 @@
 #include "param.h"
 #include "types.h"
 #include "spinlock.h"
+#include "proc/signal.h"
 
 #if !defined(PROC_T)
 #define PROC_T
@@ -74,6 +75,11 @@ struct proc
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char cwdpath[MAXPATH];       // Current directory path string
+
+  // 信号处理相关
+  uint64 sigpending;           // pending signals bitmap
+  uint64 sigmask;              // blocked signals bitmap
+  struct sigaction sigactions[NSIG]; // per-signal handler settings
 };
 
 

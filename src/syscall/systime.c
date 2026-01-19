@@ -1,6 +1,7 @@
 #include "defs.h"
 #include "types.h"
 #include "memlayout.h"
+#include "errno.h"
 
 // return how many clock tick interrupts have occurred
 // since start.
@@ -42,6 +43,33 @@ sys_gettimeofday(void)
   if(copyout(myproc()->pagetable, tv_addr, (char*)&tv, sizeof(tv)) < 0)
     return -1;
 
+  return 0;
+}
+
+uint64
+sys_clock_gettime(void)
+{
+  int clock_id;
+  uint64 ts_addr;
+  struct {
+    uint64 tv_sec;
+    uint64 tv_nsec;
+  } ts;
+
+  if(argint(0, &clock_id) < 0 || argaddr(1, &ts_addr) < 0)
+    return -EINVAL;
+
+  // 仅支持 CLOCK_REALTIME(0) 与 CLOCK_MONOTONIC(1)
+  if(clock_id != 0 && clock_id != 1)
+    return -EINVAL;
+
+  uint64 cycles = r_time();
+  const uint64 TIMEBASE = 12500000ULL;
+  ts.tv_sec = cycles / TIMEBASE;
+  ts.tv_nsec = ((cycles % TIMEBASE) * 1000000000ULL) / TIMEBASE;
+
+  if(copyout(myproc()->pagetable, ts_addr, (char *)&ts, sizeof(ts)) < 0)
+    return -EFAULT;
   return 0;
 }
 

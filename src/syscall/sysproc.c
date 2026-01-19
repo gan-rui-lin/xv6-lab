@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "proc/signal.h"
 #include "fcntl.h"
 #include "errno.h"
 #include "../sync/sleeplock.h"
@@ -113,6 +114,45 @@ sleep_ticks(int n)
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
+  return 0;
+}
+
+// 复制用户态 sigset_t 的低 64bit
+static int
+sigset_copyin(uint64 addr, uint64 sigsetsize, uint64 *out)
+{
+  if(out == 0)
+    return -EINVAL;
+  *out = 0;
+  if(addr == 0 || sigsetsize == 0)
+    return 0;
+  if(sigsetsize < sizeof(uint64))
+    return -EINVAL;
+  if(copyin(myproc()->pagetable, (char *)out, addr, sizeof(uint64)) < 0)
+    return -EFAULT;
+  return 0;
+}
+
+// 将内核 mask 写回用户态 sigset_t（低 64bit + 其余清零）
+static int
+sigset_copyout(uint64 addr, uint64 sigsetsize, uint64 val)
+{
+  if(addr == 0 || sigsetsize == 0)
+    return 0;
+  if(sigsetsize < sizeof(uint64))
+    return -EINVAL;
+  if(copyout(myproc()->pagetable, addr, (char *)&val, sizeof(uint64)) < 0)
+    return -EFAULT;
+  uint64 off = sizeof(uint64);
+  uint64 zero = 0;
+  while(off < sigsetsize){
+    uint64 chunk = sigsetsize - off;
+    if(chunk > sizeof(zero))
+      chunk = sizeof(zero);
+    if(copyout(myproc()->pagetable, addr + off, (char *)&zero, chunk) < 0)
+      return -EFAULT;
+    off += chunk;
+  }
   return 0;
 }
 
@@ -261,42 +301,114 @@ sys_exit_group(void)
   return 0;
 }
 
-// rt_sigaction: minimal stub for musl/busybox
+// rt_sigaction: 处理用户态信号处理器设置
 uint64
 sys_rt_sigaction(void)
 {
-  // args: signum, act, oldact, sigsetsize
-  // We don't support signals yet; report success.
+  int signum;
+  uint64 act_addr;
+  uint64 oldact_addr;
+  uint64 sigsetsize;
+  struct proc *p = myproc();
+
+  if(argint(0, &signum) < 0 || argaddr(1, &act_addr) < 0 ||
+     argaddr(2, &oldact_addr) < 0 || argaddr(3, &sigsetsize) < 0)
+    return -EINVAL;
+
+  if(signum < 1 || signum > NSIG)
+    return -EINVAL;
+
+  if(sigsetsize != 0 && sigsetsize < sizeof(uint64))
+    return -EINVAL;
+
+  if(oldact_addr != 0){
+    struct sigaction oldact = p->sigactions[signum - 1];
+    if(copyout(p->pagetable, oldact_addr, (char *)&oldact.sa_handler,
+               sizeof(oldact.sa_handler)) < 0)
+      return -EFAULT;
+    if(copyout(p->pagetable, oldact_addr + sizeof(uint64),
+               (char *)&oldact.sa_flags, sizeof(oldact.sa_flags)) < 0)
+      return -EFAULT;
+    if(copyout(p->pagetable, oldact_addr + 2 * sizeof(uint64),
+               (char *)&oldact.sa_restorer, sizeof(oldact.sa_restorer)) < 0)
+      return -EFAULT;
+    if(sigset_copyout(oldact_addr + 3 * sizeof(uint64), sigsetsize,
+                      oldact.sa_mask.bits) < 0)
+      return -EFAULT;
+  }
+
+  if(act_addr != 0){
+    struct sigaction newact;
+    if(copyin(p->pagetable, (char *)&newact.sa_handler, act_addr,
+              sizeof(newact.sa_handler)) < 0)
+      return -EFAULT;
+    if(copyin(p->pagetable, (char *)&newact.sa_flags,
+              act_addr + sizeof(uint64), sizeof(newact.sa_flags)) < 0)
+      return -EFAULT;
+    if(copyin(p->pagetable, (char *)&newact.sa_restorer,
+              act_addr + 2 * sizeof(uint64), sizeof(newact.sa_restorer)) < 0)
+      return -EFAULT;
+    if(sigset_copyin(act_addr + 3 * sizeof(uint64), sigsetsize,
+                     &newact.sa_mask.bits) < 0)
+      return -EFAULT;
+
+    // SIGKILL/SIGSTOP 不能被捕获或忽略
+    if(signum == SIGKILL || signum == SIGSTOP){
+      if(newact.sa_handler != SIG_DFL)
+        return -EINVAL;
+    }
+    if(newact.sa_handler == SIG_ERR)
+      return -EINVAL;
+
+    p->sigactions[signum - 1] = newact;
+  }
+
   return 0;
 }
 
-// rt_sigprocmask: minimal stub that clears oldset if provided
+// rt_sigprocmask: 设置或读取当前屏蔽字
 uint64
 sys_rt_sigprocmask(void)
 {
   int how;
-  uint64 set;
-  uint64 oldset;
+  uint64 set_addr;
+  uint64 oldset_addr;
   uint64 sigsetsize;
+  struct proc *p = myproc();
 
-  if(argint(0, &how) < 0 || argaddr(1, &set) < 0 ||
-     argaddr(2, &oldset) < 0 || argaddr(3, &sigsetsize) < 0)
-    return -1;
+  if(argint(0, &how) < 0 || argaddr(1, &set_addr) < 0 ||
+     argaddr(2, &oldset_addr) < 0 || argaddr(3, &sigsetsize) < 0)
+    return -EINVAL;
 
-  (void)how;
-  (void)set;
+  if(sigsetsize != 0 && sigsetsize < sizeof(uint64))
+    return -EINVAL;
 
-  if(oldset != 0 && sigsetsize > 0){
-    uint64 zero = 0;
-    uint64 off = 0;
-    while(off < sigsetsize){
-      uint64 chunk = sigsetsize - off;
-      if(chunk > sizeof(zero))
-        chunk = sizeof(zero);
-      if(copyout(myproc()->pagetable, oldset + off, (char *)&zero, chunk) < 0)
-        return -1;
-      off += chunk;
+  if(oldset_addr != 0){
+    if(sigset_copyout(oldset_addr, sigsetsize, p->sigmask) < 0)
+      return -EFAULT;
+  }
+
+  if(set_addr != 0){
+    uint64 setmask;
+    if(sigset_copyin(set_addr, sigsetsize, &setmask) < 0)
+      return -EFAULT;
+
+    switch(how){
+    case SIG_BLOCK:
+      p->sigmask |= setmask;
+      break;
+    case SIG_UNBLOCK:
+      p->sigmask &= ~setmask;
+      break;
+    case SIG_SETMASK:
+      p->sigmask = setmask;
+      break;
+    default:
+      return -EINVAL;
     }
+    // SIGKILL/SIGSTOP 不可屏蔽
+    p->sigmask &= ~(1ULL << (SIGKILL - 1));
+    p->sigmask &= ~(1ULL << (SIGSTOP - 1));
   }
 
   return 0;
@@ -306,34 +418,68 @@ sys_rt_sigprocmask(void)
 uint64
 sys_rt_sigtimedwait(void)
 {
-  uint64 set;
-  uint64 info;
-  uint64 timeout;
+  uint64 set_addr;
+  uint64 info_addr;
+  uint64 timeout_addr;
   uint64 sigsetsize;
+  uint64 setmask = 0;
+  struct proc *p = myproc();
 
-  if(argaddr(0, &set) < 0 || argaddr(1, &info) < 0 ||
-     argaddr(2, &timeout) < 0 || argaddr(3, &sigsetsize) < 0)
+  if(argaddr(0, &set_addr) < 0 || argaddr(1, &info_addr) < 0 ||
+     argaddr(2, &timeout_addr) < 0 || argaddr(3, &sigsetsize) < 0)
     return -EINVAL;
 
-  (void)set;
-  (void)info;
-  (void)sigsetsize;
+  if(sigset_copyin(set_addr, sigsetsize, &setmask) < 0)
+    return -EFAULT;
 
-  if(timeout != 0){
-    struct { long sec; long nsec; } tmo;
-    if(copyin(myproc()->pagetable, (char *)&tmo, timeout, sizeof(tmo)) < 0)
-      return -EFAULT;
-    if(tmo.sec < 0 || tmo.nsec < 0 || tmo.nsec >= 1000000000L)
-      return -EINVAL;
-    unsigned long long total_ns = (unsigned long long)tmo.sec * 1000000000ULL
-                                + (unsigned long long)tmo.nsec;
-    const long TICK_NS = 1000000L;
-    int n_ticks = (int)((total_ns + TICK_NS - 1) / TICK_NS);
-    if(n_ticks > 0)
-      sleep_ticks(n_ticks);
+  acquire(&p->lock);
+  uint64 pending = p->sigpending & setmask;
+  if(pending == 0){
+    release(&p->lock);
+    if(timeout_addr != 0){
+      struct { long sec; long nsec; } tmo;
+      if(copyin(p->pagetable, (char *)&tmo, timeout_addr, sizeof(tmo)) < 0)
+        return -EFAULT;
+      if(tmo.sec < 0 || tmo.nsec < 0 || tmo.nsec >= 1000000000L)
+        return -EINVAL;
+      unsigned long long total_ns = (unsigned long long)tmo.sec * 1000000000ULL
+                                  + (unsigned long long)tmo.nsec;
+      const long TICK_NS = 1000000L;
+      int n_ticks = (int)((total_ns + TICK_NS - 1) / TICK_NS);
+      if(n_ticks > 0)
+        sleep_ticks(n_ticks);
+    }
+    return -EAGAIN;
   }
 
-  return 0;
+  int sig = 0;
+  for(int s = 1; s <= NSIG; s++){
+    if(pending & (1ULL << (s - 1))){
+      sig = s;
+      p->sigpending &= ~(1ULL << (s - 1));
+      break;
+    }
+  }
+  release(&p->lock);
+
+  if(sig == 0)
+    return -EAGAIN;
+
+  if(info_addr != 0){
+    struct { int signo; int errno_; int code; int pad[29]; } info;
+    memset(&info, 0, sizeof(info));
+    info.signo = sig;
+    if(copyout(p->pagetable, info_addr, (char *)&info, sizeof(info)) < 0)
+      return -EFAULT;
+  }
+  return sig;
+}
+
+uint64
+sys_rt_sigreturn(void)
+{
+  int ret = signal_return(myproc());
+  return ret;
 }
 
 // kill(pid, sig): 兼容 SYS_kill_signal，忽略信号号的细节
@@ -358,7 +504,27 @@ sys_kill_signal(void)
     return -ESRCH;
   }
 
-  return kill(pid);
+  return signal_send_pid(pid, sig);
+}
+
+uint64
+sys_tkill(void)
+{
+  int tid, sig;
+  argint(0, &tid);
+  argint(1, &sig);
+  return signal_send_pid(tid, sig);
+}
+
+uint64
+sys_tgkill(void)
+{
+  int tgid, tid, sig;
+  argint(0, &tgid);
+  argint(1, &tid);
+  argint(2, &sig);
+  (void)tgid;
+  return signal_send_pid(tid, sig);
 }
 
 // prlimit64: 简化为返回默认限制，忽略设置
@@ -831,6 +997,46 @@ sys_munmap(void)
 }
 
 uint64
+sys_msync(void)
+{
+  // 简化实现：忽略刷新请求，直接返回成功
+  return 0;
+}
+
+uint64
+sys_setpgid(void)
+{
+  int pid, pgid;
+  argint(0, &pid);
+  argint(1, &pgid);
+  (void)pid;
+  (void)pgid;
+  // 单进程模型下直接返回成功
+  return 0;
+}
+
+uint64
+sys_setitimer(void)
+{
+  int which;
+  uint64 newv;
+  uint64 oldv;
+  if(argint(0, &which) < 0 || argaddr(1, &newv) < 0 || argaddr(2, &oldv) < 0)
+    return -EINVAL;
+  (void)which;
+  (void)newv;
+  if(oldv != 0){
+    // 清零旧计时器信息，避免用户态读取失败
+    uint64 zero = 0;
+    for(uint64 off = 0; off < 4 * sizeof(uint64); off += sizeof(uint64)){
+      if(copyout(myproc()->pagetable, oldv + off, (char *)&zero, sizeof(uint64)) < 0)
+        return -EFAULT;
+    }
+  }
+  return 0;
+}
+
+uint64
 sys_sched_yield(void)
 {
     // 原始 C++ 风格的实现（已注释）：
@@ -852,6 +1058,46 @@ sys_sched_yield(void)
     sched();  // 切换到调度器，让出 CPU
     release(&p->lock);
     return 0;
+}
+
+// Minimal sched_getaffinity(pid, cpusetsize, mask): report available CPUs.
+// We ignore pid and always return affinity for the current system (0..NCPU-1).
+uint64
+sys_sched_getaffinity(void)
+{
+  int pid;
+  uint64 cpusetsize;
+  uint64 mask_addr;
+  struct proc *p = myproc();
+
+  if(argint(0, &pid) < 0 || argaddr(1, &cpusetsize) < 0 || argaddr(2, &mask_addr) < 0)
+    return -EINVAL;
+
+  // Require at least one long worth of space.
+  if(cpusetsize == 0)
+    return -EINVAL;
+
+  // Build a zeroed buffer and set bits for available CPUs.
+  char *kbuf = kalloc();
+  if(!kbuf)
+    return -ENOMEM;
+  int sz = (int)cpusetsize;
+  if(sz > PGSIZE) sz = PGSIZE; // cap to one page to avoid excessive copy
+  memset(kbuf, 0, sz);
+
+  // Set bits 0..NCPU-1
+  for(int cpu = 0; cpu < NCPU; cpu++){
+    int byte = cpu / 8;
+    int bit = cpu % 8;
+    if(byte < sz)
+      kbuf[byte] |= (1 << bit);
+  }
+
+  int r = copyout(p->pagetable, mask_addr, kbuf, sz);
+  kfree(kbuf);
+  if(r < 0)
+    return -EFAULT;
+  return 0;
 }
 
 // sys_waitpid () {

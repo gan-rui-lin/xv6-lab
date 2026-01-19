@@ -16,6 +16,11 @@
 
 // openat 特殊值：表示使用当前工作目录
 #define AT_FDCWD    (-100)
+// fstatat/faccessat 标志：不跟随符号链接（目前忽略）
+#define AT_SYMLINK_NOFOLLOW 0x100
+// 兼容 Linux 的其他标志位（当前忽略）
+#define AT_NO_AUTOMOUNT 0x800
+#define AT_EMPTY_PATH   0x1000
 
 // mmap protection flags
 #define PROT_NONE   0x0
@@ -42,3 +47,8 @@
 
 // fcntl flags
 #define FD_CLOEXEC 1
+
+// lseek whence
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2

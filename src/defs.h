@@ -142,6 +142,13 @@ void            wakeup(void*);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+// signal.c
+void            signal_init(struct proc *);
+void            signal_copy(struct proc *, struct proc *);
+int             signal_send(struct proc *, int);
+int             signal_send_pid(int, int);
+void            signal_handle(struct proc *);
+int             signal_return(struct proc *);
 
 // proc.c - global process table
 extern struct proc proc[];  // array of NPROC processes

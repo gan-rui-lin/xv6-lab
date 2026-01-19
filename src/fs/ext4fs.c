@@ -12,6 +12,7 @@
 #include "buf.h"
 #include "file.h"
 #include "fs.h"
+#include "procfs.h"
 #include "stat.h"
 #include "ext4fs.h"
 #include "string.h"
@@ -368,6 +369,12 @@ static struct inode* ext4_namei_internal(const char *full, int depth) {
   if(depth > EXT4_MAX_SYMLINKS)
     return 0;
 
+  // procfs interception: handle /proc/* paths via procfs
+  if(full && full[0] == '/' && full[1] == 'p' && full[2] == 'r' && full[3] == 'o' && full[4] == 'c'){
+    struct inode *pip = procfs_namei((char *)full);
+    if(pip) return pip;
+  }
+
   // special device: console (accept "console" or "/dev/console")
   if(strcmp(full, "console") == 0 || strcmp(full, "/console") == 0 ||
      strcmp(full, "/dev/console") == 0){
@@ -565,6 +572,23 @@ int ext4_truncate(struct inode *ip) {
   return 0;
 }
 
+// 将 ext4 文件截断/扩展到指定长度。
+int ext4_truncate_to(struct inode *ip, uint64 size) {
+  if(!ext4_mode || !ip || ip->major != EXT4_INODE_TAG)
+    return -1;
+
+  ext4_file f;
+  if(ext4_fopen2(&f, ip->ext4_path, O_RDWR) != EOK)
+    return -1;
+  int r = ext4_ftruncate(&f, size);
+  ext4_fclose(&f);
+  if(r != EOK)
+    return -1;
+  ip->ext_size = size;
+  ip->size = size > 0xFFFFFFFF ? 0xFFFFFFFF : (uint)size;
+  return 0;
+}
+
 // Create a symlink at path pointing to target.
 int ext4_symlink(const char *target, char *path) {
   if(!ext4_mode || !target || !path)
@@ -654,8 +678,8 @@ int ext4_getdents64(struct inode *dp, uint *offp, uint64 uaddr, uint64 maxlen) {
   if(!p)
     return -1;
 
-  log_debug("ext4_getdents64: start off=%u maxlen=%p path=%s\n",
-            offp ? *offp : 0, (void *)maxlen, dp->ext4_path);
+  // log_debug("ext4_getdents64: start off=%u maxlen=%p path=%s\n",
+  //           offp ? *offp : 0, (void *)maxlen, dp->ext4_path);
 
   ext4_dir dir;
   if(ext4_dir_open(&dir, dp->ext4_path) != EOK)

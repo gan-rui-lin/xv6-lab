@@ -137,6 +137,8 @@ found:
   p->pid = allocpid();
   p->state = USED; //TODO 有必要吗？
   p->priority = PRIO_DEFAULT;  // 设置默认优先级
+  // 初始化信号相关状态
+  signal_init(p);
 
 
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -281,6 +283,7 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->priority = PRIO_DEFAULT;  // 重置优先级
+  signal_init(p);
   p->state = UNUSED;
 }
 
@@ -408,6 +411,8 @@ fork(void)
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
+  // 继承信号处理设置（pending 不继承）
+  signal_copy(np, p);
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
@@ -672,13 +677,17 @@ exit(int status)
 
   // Parent might be sleeping in wait().
   wakeup(p->parent);
+  // 通知父进程 SIGCHLD
+  if(p->parent)
+    signal_send(p->parent, SIGCHLD);
   
   acquire(&p->lock);
 
   // Encode exit status in Linux wait format:
   // bits 8-15: exit status (for normal termination)
   // bits 0-7: signal number (0 for normal termination)
-  p->xstate = (status & 0xff) << 8;
+  if((p->xstate & 0x7f) == 0)
+    p->xstate = (status & 0xff) << 8;
   p->state = ZOMBIE;
 
   release(&wait_lock);

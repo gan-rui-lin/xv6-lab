@@ -24,6 +24,7 @@
 #include "proc.h"
 #include "sleeplock.h"
 #include "fs.h"
+#include "procfs.h"
 #include "buf.h"
 #include "file.h"
 #include "fs/fat32.h"
@@ -546,6 +547,10 @@ stati(struct inode *ip, struct stat *st)
 int
 readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
 {
+  // procfs: handle before generic/path-specific implementations
+  if(ip && ip->major == PROCFS_INODE_TAG){
+    return procfs_readi(ip, user_dst, dst, off, n);
+  }
   if(ext4_mode && ip && ip->major == EXT4_INODE_TAG){
     return ext4_readi(ip, user_dst, dst, off, n);
   }

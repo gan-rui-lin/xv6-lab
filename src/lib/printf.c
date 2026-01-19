@@ -227,6 +227,15 @@ vprintf_internal(char *fmt, va_list ap)
         printint(va_arg(ap, int), 16, 1);
       }
       break;
+    case 'o':
+      // 八进制整数，支持 %o, %lo, %llo
+      if(long_count >= 1){
+        uint64 u64o = va_arg(ap, uint64);
+        printuint64(u64o, 8);
+      } else {
+        printint(va_arg(ap, int), 8, 0);
+      }
+      break;
     case 'p':
       printptr(va_arg(ap, uint64));
       break;

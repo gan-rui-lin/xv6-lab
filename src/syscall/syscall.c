@@ -130,6 +130,11 @@ extern uint64 sys_dup(void);
 extern uint64 sys_exec(void);
 extern uint64 sys_fstat(void);
 extern uint64 sys_fstatat(void);
+extern uint64 sys_lseek(void);
+extern uint64 sys_faccessat(void);
+extern uint64 sys_fchownat(void);
+extern uint64 sys_fchmodat(void);
+extern uint64 sys_ftruncate(void);
 extern uint64 sys_mkdir(void);
 extern uint64 sys_clone(void);
 extern uint64 sys_execve(void);
@@ -141,6 +146,7 @@ extern uint64 sys_brk(void);
 extern uint64 sys_mmap(void);
 extern uint64 sys_munmap(void);
 extern uint64 sys_mprotect(void);
+extern uint64 sys_msync(void);
 extern uint64 sys_openat(void);
 extern uint64 sys_sched_yield(void);
 extern uint64 sys_dup3(void);
@@ -155,18 +161,26 @@ extern uint64 sys_mkdirat(void);
 extern uint64 sys_uname(void);
 extern uint64 sys_nanosleep(void);
 extern uint64 sys_times(void);
+extern uint64 sys_clock_gettime(void);
+extern uint64 sys_setpgid(void);
+extern uint64 sys_setitimer(void);
 extern uint64 sys_unlinkat(void);
 extern uint64 sys_fcntl(void);
 extern uint64 sys_writev(void);
 extern uint64 sys_rt_sigaction(void);
 extern uint64 sys_rt_sigprocmask(void);
 extern uint64 sys_rt_sigtimedwait(void);
+extern uint64 sys_rt_sigreturn(void);
 extern uint64 sys_kill_signal(void);
+extern uint64 sys_tkill(void);
+extern uint64 sys_tgkill(void);
 extern uint64 sys_prlimit64(void);
 extern uint64 sys_symlink(void);
 extern uint64 sys_symlinkat(void);
 extern uint64 sys_sendfile(void);
 extern uint64 sys_ppoll(void);
+extern uint64 sys_ioctl(void);
+extern uint64 sys_sched_getaffinity(void);
 
 extern uint64 sys_setpriority(void);
 extern uint64 sys_getpriority(void);
@@ -211,10 +225,14 @@ static uint64 (*syscalls[])(void) = {
 [SYS_brk]         sys_brk,
 [SYS_fstat]       sys_fstat,
 [SYS_fcntl]       sys_fcntl,
+[SYS_ioctl]       sys_ioctl,
 [SYS_openat]      sys_openat,
+[SYS_lseek]       sys_lseek,
 [SYS_munmap]      sys_munmap,
 [SYS_mmap]        sys_mmap,
 [SYS_mprotect]    sys_mprotect,
+[SYS_msync]       sys_msync,
+[SYS_sched_getaffinity] sys_sched_getaffinity,
 [SYS_sched_yield] sys_sched_yield,
 [SYS_chdir]       sys_chdir,
 [SYS_pipe2]       sys_pipe2,
@@ -222,16 +240,26 @@ static uint64 (*syscalls[])(void) = {
 [SYS_uname]       sys_uname,
 [SYS_unlinkat]     sys_unlinkat,
 [SYS_fstatat]      sys_fstatat,
+[SYS_faccessat]    sys_faccessat,
+[SYS_fchownat]     sys_fchownat,
+[SYS_fchmodat]     sys_fchmodat,
+[SYS_ftruncate]    sys_ftruncate,
 [SYS_writev]      sys_writev,
 [SYS_sendfile]    sys_sendfile,
 [SYS_rt_sigaction] sys_rt_sigaction,
 [SYS_rt_sigprocmask] sys_rt_sigprocmask,
 [SYS_rt_sigtimedwait] sys_rt_sigtimedwait,
+[SYS_rt_sigreturn] sys_rt_sigreturn,
 [SYS_kill_signal] sys_kill_signal,
+[SYS_tkill]      sys_tkill,
+[SYS_tgkill]     sys_tgkill,
 [SYS_prlimit64]   sys_prlimit64,
 [SYS_symlink]     sys_symlink,
 [SYS_symlinkat]   sys_symlinkat,
 [SYS_ppoll]       sys_ppoll,
+[SYS_clock_gettime] sys_clock_gettime,
+[SYS_setpgid]     sys_setpgid,
+[SYS_setitimer]   sys_setitimer,
 };
 
 // sysname - return the name of the system call for debugging.
@@ -482,17 +510,17 @@ syscall_handler(void)
       p->trapframe->a3, p->trapframe->a4, p->trapframe->a5
     };
 
-
+    uint64 ret = syscalls[num]();
     if (trace) {
-      log_trace("[syscall] pid=%d name=%s num=%d (%s) args=[%p,%p,%p,%p,%p,%p]\n",
+      log_trace("[syscall] pid=%d name=%s num=%d (%s) args=[%p,%p,%p,%p,%p,%p], ret = %lld\n",
              p->pid, p->name, num, sysname(num),
              (void *)args[0], (void *)args[1], (void *)args[2],
-             (void *)args[3], (void *)args[4], (void *)args[5]);
+             (void *)args[3], (void *)args[4], (void *)args[5], ret);
     }
 
-    // 系统函数返回值放在 p->trapframe->a0
-    uint64 ret = syscalls[num]();
-    p->trapframe->a0 = ret;
+    // 系统函数返回值放在 p->trapframe->a0（rt_sigreturn 需要保留恢复的 a0）
+    if(num != SYS_rt_sigreturn)
+      p->trapframe->a0 = ret;
   } else {
     printf("%d %s: unimplemented sys call %s\n",
             p->pid, p->name, sysname(num));

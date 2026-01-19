@@ -141,7 +141,7 @@ exec(char *path, char **argv, char **envp)
     struct elfhdr interp_elf;
     begin_op(ROOTDEV);
     interp_op = 1;
-    log_debug("exec: try interp %s", interp_path);
+    log_debug("exec: try interp %s\n", interp_path);
     ip_interp = namei(interp_path);
     if(ip_interp == 0 && strncmp(interp_path, "/lib/", 5) == 0){
       //! 兼容 musl 镜像：把 /lib/ld-musl-* 重定向到 /musl/lib/ld-musl-*

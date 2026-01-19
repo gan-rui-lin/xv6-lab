@@ -86,6 +86,37 @@ void test_basic()
     }
 }
 
+static void
+test_cow(void)
+{
+    printf("=== Testing COW ===\n");
+    char *p = (char *)(syscall(SYS_xv6_sbrk, 4096));
+    if (p == (char *)-1) {
+        printf("sbrk failed\n");
+        return;
+    }
+
+    p[0] = 'P';
+    p[1] = '0';
+
+    int pid = fork();
+    if (pid < 0) {
+        printf("fork failed\n");
+        return;
+    }
+
+    if (pid == 0) {
+        p[0] = 'C';
+        p[1] = '1';
+        printf("child sees %c%c\n", p[0], p[1]);
+        syscall(SYS_exit, 0);
+    }
+
+    int status;
+    wait(&status);
+    printf("parent sees %c%c\n", p[0], p[1]);
+}
+
 int main()
 {
     if (open("console", O_RDWR) < 0)
@@ -102,6 +133,7 @@ int main()
     // syscall(SYS_symlink, "/musl/busybox", "/bin/sh");
     // printf("r2 = %d\n", r2)
 
+    // test_cow();
     // test_basic();
     // test_busybox_musl();
     // printf("Hello, xv6 world!\n");

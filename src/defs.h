@@ -98,6 +98,7 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+int             cow_alloc(pagetable_t, uint64);
 
 // string.c
 int             memcmp(const void*, const void*, uint);
@@ -122,6 +123,9 @@ void            kfree(void *);
 void            kinit(void);
 void*           kmalloc(uint64);
 void            kmfree(void *);
+void            kref_inc(uint64);
+int             kref_dec(uint64);
+int             kref_get(uint64);
 
 // proc.c
 int             cpuid(void);

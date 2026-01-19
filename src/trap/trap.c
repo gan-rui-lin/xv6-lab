@@ -85,9 +85,22 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    setkilled(p);
+    uint64 scause = r_scause();
+    if (scause == ECODE_STORE_PAGE_FAULT) {
+      uint64 va = r_stval();
+      if (va < p->sz && cow_alloc(p->pagetable, va) == 0) {
+        // log_info("handled cow\n");
+        // handled COW fault
+      } else {
+        printf("usertrap(): store page fault scause=%p pid=%d\n", scause, p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        setkilled(p);
+      }
+    } else {
+      printf("usertrap(): unexpected scause %p pid=%d\n", scause, p->pid);
+      printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+      setkilled(p);
+    }
   }
 
   if(killed(p))

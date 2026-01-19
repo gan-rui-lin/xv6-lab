@@ -362,6 +362,8 @@ enum SysNum
     SYS_xv6_mknod = 1 + 1000,
 
     SYS_xv6_shutdown = 2 + 1000,
+
+    SYS_xv6_sbrk = 3 + 1000,
 };
 
 #endif // __ASSEMBLER__/__ASSEMBLY__

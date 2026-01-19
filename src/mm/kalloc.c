@@ -42,6 +42,7 @@ struct buddy_page {
     uint32 index;
     uint8 order;
     uint8 is_free;
+    uint16 refcnt;
 };
 
 struct buddy_area {
@@ -133,6 +134,10 @@ static void slab_destroy_page(struct slab_page *slab);
 static struct slab_page *slab_from_addr(void *addr);
 static void slab_free_object(struct slab_page *slab, void *addr);
 
+void kref_inc(uint64 pa);
+int  kref_dec(uint64 pa);
+int  kref_get(uint64 pa);
+
 void
 kinit(void)
 {
@@ -165,6 +170,7 @@ buddy_init(void)
         buddy_pages[i].index = i;
         buddy_pages[i].order = 0;
         buddy_pages[i].is_free = 0;
+        buddy_pages[i].refcnt = 0;
     }
 
     buddy_top_order = 0;
@@ -298,6 +304,8 @@ kalloc(void)
     void *pa = buddy_alloc_pages_internal(0);
     if (pa)
         memset(pa, 5, PGSIZE);
+    if (pa)
+        kref_inc((uint64)pa);
     return pa;
 }
 
@@ -316,8 +324,59 @@ kfree(void *pa)
     if (page->slab)
         panic("kfree slab page");
 
+    int ref = kref_get((uint64)pa);
+    if (ref > 1) {
+        kref_dec((uint64)pa);
+        return;
+    }
+    if (ref == 1)
+        kref_dec((uint64)pa);
+
     memset(pa, 1, PGSIZE);
     buddy_free_pages_internal(pa, 0);
+}
+
+void
+kref_inc(uint64 pa)
+{
+    if ((pa % PGSIZE) != 0 || pa < kmem.managed_start || pa >= kmem.managed_end)
+        panic("kref_inc");
+
+    acquire(&kmem.lock);
+    struct buddy_page *page = pa2page(pa);
+    if (page->refcnt == 0 && page->is_free)
+        panic("kref_inc free");
+    page->refcnt++;
+    release(&kmem.lock);
+}
+
+int
+kref_dec(uint64 pa)
+{
+    if ((pa % PGSIZE) != 0 || pa < kmem.managed_start || pa >= kmem.managed_end)
+        panic("kref_dec");
+
+    acquire(&kmem.lock);
+    struct buddy_page *page = pa2page(pa);
+    if (page->refcnt == 0)
+        panic("kref_dec underflow");
+    page->refcnt--;
+    int ref = page->refcnt;
+    release(&kmem.lock);
+    return ref;
+}
+
+int
+kref_get(uint64 pa)
+{
+    if ((pa % PGSIZE) != 0 || pa < kmem.managed_start || pa >= kmem.managed_end)
+        panic("kref_get");
+
+    acquire(&kmem.lock);
+    struct buddy_page *page = pa2page(pa);
+    int ref = page->refcnt;
+    release(&kmem.lock);
+    return ref;
 }
 
 static struct slab_page *

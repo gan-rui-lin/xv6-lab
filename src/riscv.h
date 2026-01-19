@@ -365,6 +365,7 @@ typedef uint64 *pagetable_t; // 512 PTEs
 #define PTE_G (1 << 5) // global
 #define PTE_A (1 << 6) // accessed
 #define PTE_D (1 << 7) // dirty
+#define PTE_COW (1 << 8) // copy-on-write
 
 // shift a physical address to the right place for a PTE.
 #define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)

@@ -609,16 +609,12 @@ cleanup_partial_copy(pagetable_t new_table, uint64 copied_size)
 }
 
 // 给定父进程的页表，复制其内存到子进程的页表
-// 复制页表和物理内存
-// 成功返回0，失败返回-1
-// 失败时释放任何已分配的页面
-//TODO 未实现写时拷贝
+// 写时拷贝：共享物理页，写入时再复制
 int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
     pte_t *pte;
     uint64 pa, current_va;
     uint flags;
-    char *mem;
 
     for (current_va = 0; current_va < sz; current_va += PGSIZE)
     {
@@ -632,20 +628,87 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
         pa = PTE2PA(*pte);
         flags = PTE_FLAGS(*pte);
 
-        if (copy_physical_page(pa, &mem) != 0)
-            goto err;
-
-        if (mappages(new, current_va, PGSIZE, (uint64)mem, flags) != 0)
-        {
-            kfree(mem);
-            goto err;
+        if (flags & PTE_W) {
+            flags = (flags & ~PTE_W) | PTE_COW;
+            *pte = PA2PTE(pa) | flags;
         }
+
+        kref_inc(pa);
+
+        if (mappages(new, current_va, PGSIZE, pa, flags) != 0)
+            goto err;
     }
+    sfence_vma();
     return 0;
 
 err:
     cleanup_partial_copy(new, current_va);
     return -1;
+}
+
+// 处理写时拷贝：为虚拟地址 va 分配私有可写页
+// TODO 并发保护机制 DIRTY COW
+int
+cow_alloc(pagetable_t pagetable, uint64 va)
+{
+    pte_t *pte;          // 页表项指针
+    uint64 pa;           // 物理地址
+    uint flags;          // 页表项标志位
+
+    // 1. 对齐地址：获取该虚拟地址所在页的起始地址
+    // （因为COW操作总是以页为单位的）
+    va = PGROUNDDOWN(va);
+    
+    // 2. 查找页表项：在页表中找到该虚拟地址对应的PTE
+    pte = walk(pagetable, va, 0);
+    if (pte == 0)
+        return -1;       // 页表项不存在，可能是无效地址
+        
+    // 3. 权限验证：确保PTE有效且是用户态可访问的
+    if (!is_pte_valid(*pte) || ((*pte & PTE_U) == 0))
+        return -1;       // 页表项无效或非用户页
+        
+    // 4. COW标志检查：确认此页确实标记为COW页
+    // （只有COW页才需要分配私有副本）
+    if ((*pte & PTE_COW) == 0)
+        return -1;       // 不是COW页，不应该调用此函数
+
+    // 5. 提取信息：从PTE中获取物理地址和原始标志位
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+
+    /**
+     * 6. 引用计数优化：检查当前物理页是否只有当前进程在引用
+     *    如果是，则不需要复制，直接升级权限即可
+     *    这是COW的关键优化：避免不必要的内存复制
+     */
+    if (kref_get(pa) == 1) {
+        // 只有一个引用，直接复用原物理页
+        // 清除COW标志，添加写权限，更新页表项
+        *pte = PA2PTE(pa) | ((flags | PTE_W) & ~PTE_COW);
+        return 0;        // 成功：无需复制，直接升级权限
+    }
+
+    /**
+     * 7. 需要真正的复制：当前物理页被多个进程共享
+     *    必须分配新页并复制内容
+     */
+    char *mem = kalloc();          // 分配新的物理页
+    if (mem == 0)
+        return -1;                 // 内存不足，分配失败
+
+    // 8. 复制内容：将原物理页的内容复制到新页
+    memmove(mem, (void *)pa, PGSIZE);
+    
+    // 9. 更新页表：将新物理页映射到原虚拟地址
+    //    清除COW标志，添加写权限
+    *pte = PA2PTE((uint64)mem) | ((flags | PTE_W) & ~PTE_COW);
+    
+    // 10. 减少原物理页的引用计数
+    //    当最后一个引用释放时，原页会被自动回收
+    kref_dec(pa);
+    
+    return 0;
 }
 
 // 清除PTE的用户访问位
@@ -683,13 +746,28 @@ bytes_to_copy_in_page(uint64 va, uint64 remaining_len)
 int copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
     uint64 bytes_to_copy, page_va, page_pa;
+    pte_t *pte;
 
     while (len > 0)
     {
         page_va = PGROUNDDOWN(dstva);
-        page_pa = walkaddr(pagetable, page_va);
-        if (page_pa == 0)
-            return -1; // 页面映射不存在或不可访问
+        pte = walk(pagetable, page_va, 0);
+        if (pte == 0)
+            return -1;
+        if (!is_user_accessible_page(*pte))
+            return -1;
+
+        if (((*pte & PTE_W) == 0) && (*pte & PTE_COW)) {
+            if (cow_alloc(pagetable, page_va) < 0)
+                return -1;
+            pte = walk(pagetable, page_va, 0);
+            if (pte == 0 || (*pte & PTE_W) == 0)
+                return -1;
+        } else if ((*pte & PTE_W) == 0) {
+            return -1;
+        }
+
+        page_pa = PTE2PA(*pte);
 
         bytes_to_copy = bytes_to_copy_in_page(dstva, len);
 

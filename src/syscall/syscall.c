@@ -182,6 +182,8 @@ extern uint64 sys_ppoll(void);
 extern uint64 sys_ioctl(void);
 extern uint64 sys_sched_getaffinity(void);
 
+extern uint64 sys_sbrk(void);
+
 extern uint64 sys_setpriority(void);
 extern uint64 sys_getpriority(void);
 // An array mapping syscall numbers from syscall.h
@@ -260,6 +262,7 @@ static uint64 (*syscalls[])(void) = {
 [SYS_clock_gettime] sys_clock_gettime,
 [SYS_setpgid]     sys_setpgid,
 [SYS_setitimer]   sys_setitimer,
+[SYS_xv6_sbrk]        sys_sbrk,
 };
 
 // sysname - return the name of the system call for debugging.

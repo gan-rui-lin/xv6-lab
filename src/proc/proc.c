@@ -8,6 +8,11 @@
 #include "../fs/fs.h"
 #include "../fs/file.h"
 
+// clone flags used in proc.c (keep in sync with sysproc.c)
+#define CLONE_SETTLS        0x00080000ULL
+#define CLONE_CHILD_CLEARTID 0x00200000ULL
+#define CLONE_CHILD_SETTID  0x01000000ULL
+
 static int nextpid = 1;  // 下一个分配的 PID
 struct proc* initproc;  // 用于 reparent 子进程等操作
 struct cpu cpus[NCPU];
@@ -138,6 +143,8 @@ found:
   p->pid = allocpid();
   p->state = USED;
   p->priority = PRIO_DEFAULT;  // 设置默认优先级
+  p->clear_child_tid = 0;
+  p->exit_signal = SIGCHLD;
   // 初始化信号相关状态
   signal_init(p);
   memset(p->ofile, 0, sizeof(p->ofile));
@@ -281,6 +288,8 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->priority = PRIO_DEFAULT;  // 重置优先级
+  p->clear_child_tid = 0;
+  p->exit_signal = SIGCHLD;
   signal_init(p);
   memset(p->ofile, 0, sizeof(p->ofile));
   memset(p->fdflags, 0, sizeof(p->fdflags));
@@ -414,6 +423,10 @@ fork(void)
   // 继承信号处理设置（pending 不继承）
   signal_copy(np, p);
 
+  // fork 语义：默认 SIGCHLD，清除 clear_child_tid
+  np->exit_signal = SIGCHLD;
+  np->clear_child_tid = 0;
+
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
 
@@ -455,7 +468,7 @@ fork(void)
 // Clone version of fork with custom stack support
 // If stack != 0, sets the child's stack pointer to the provided value
 int
-clone_fork(uint64 stack)
+clone_fork(uint64 stack, uint64 flags, uint64 tls, uint64 ctid, int exit_signal)
 {
   int pid;
   struct proc *np;
@@ -476,6 +489,8 @@ clone_fork(uint64 stack)
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
+  // 继承信号处理设置（pending 不继承）
+  signal_copy(np, p);
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
@@ -484,6 +499,28 @@ clone_fork(uint64 stack)
   // This must be done BEFORE making the child RUNNABLE
   if(stack != 0) {
     np->trapframe->sp = stack;
+  }
+
+  // 设置线程本地存储 (RISC-V tp)
+  if(flags & CLONE_SETTLS){
+    np->trapframe->tp = tls;
+  }
+
+  // 记录退出信号与 clear_child_tid
+  np->exit_signal = exit_signal;
+  if(flags & CLONE_CHILD_CLEARTID){
+    np->clear_child_tid = ctid;
+  } else {
+    np->clear_child_tid = 0;
+  }
+
+  // 在子进程地址空间写入 tid（CLONE_CHILD_SETTID）
+  if((flags & CLONE_CHILD_SETTID) && ctid != 0){
+    if(copyout(np->pagetable, ctid, (char *)&np->pid, sizeof(np->pid)) < 0){
+      freeproc(np);
+      release(&np->lock);
+      return -1;
+    }
   }
 
   // increment reference counts on open file descriptors.
@@ -687,6 +724,13 @@ exit(int status)
     }
   }
 
+  // CLONE_CHILD_CLEARTID: clear and (optionally) futex-wake (not implemented)
+  if(p->clear_child_tid != 0){
+    int zero = 0;
+    copyout(p->pagetable, p->clear_child_tid, (char *)&zero, sizeof(zero));
+    p->clear_child_tid = 0;
+  }
+
   // begin_op();
   // iput(p->cwd);
   // end_op();
@@ -699,9 +743,9 @@ exit(int status)
 
   // Parent might be sleeping in wait().
   wakeup(p->parent);
-  // 通知父进程 SIGCHLD
-  if(p->parent)
-    signal_send(p->parent, SIGCHLD);
+  // 通知父进程退出信号
+  if(p->parent && p->exit_signal != 0)
+    signal_send(p->parent, p->exit_signal);
   
   acquire(&p->lock);
 

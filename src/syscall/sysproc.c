@@ -17,6 +17,18 @@
 #define WNOHANG 1
 #endif
 
+// clone flags (Linux-compatible values)
+#define CLONE_VM            0x00000100ULL
+#define CLONE_FS            0x00000200ULL
+#define CLONE_FILES         0x00000400ULL
+#define CLONE_SIGHAND       0x00000800ULL
+#define CLONE_PARENT        0x00008000ULL
+#define CLONE_THREAD        0x00010000ULL
+#define CLONE_SETTLS        0x00080000ULL
+#define CLONE_PARENT_SETTID 0x00100000ULL
+#define CLONE_CHILD_CLEARTID 0x00200000ULL
+#define CLONE_CHILD_SETTID  0x01000000ULL
+
 uint64
 sys_exit(void)
 {
@@ -38,10 +50,9 @@ sys_fork(void)
   return fork();
 }
 
-// Minimal Linux-compatible clone: only supports SIGCHLD exit signal, no threads/TLS.
+// Linux-compatible clone (subset): supports TLS + parent/child TID semantics.
 // Args (as passed from userspace on RISC-V):
 // a0: flags, a1: stack, a2: ptid, a3: tls, a4: ctid
-// Unsupported options will panic to avoid silent misbehavior.
 uint64
 sys_clone(void)
 {
@@ -53,24 +64,49 @@ sys_clone(void)
   argaddr(3, &tls);
   argaddr(4, &ctid);
 
-  // only allow pure fork semantics: exit signal must be SIGCHLD and no other flags
-  // Linux SIGCHLD commonly 17. We only accept (flags & ~0x7f)==0 and (flags & 0x7f)==17
-  if (((flags & ~((uint64)0x7f)) != 0) || ((flags & 0x7f) != SIGCHLD))
-    panic("sys_clone: unsupported flags");
-  
-  if (ptid != 0 || tls != 0 || ctid != 0){
-    //TODO 实现 ptid/tls/ctid 支持
-    // 不过目前先打印调试信息
-    #ifdef LOG_DEBUG
-    log_debug("sys_clone: ptid/tls/ctid unsupported (ptid=%p, tls=%p, ctid=%p)\n", ptid, tls, ctid);
-    #endif
-  }
-  
-  // Use clone_fork which supports custom stack
+  // We only support a small subset of clone flags.
+  const uint64 allowed = 0x7fULL | CLONE_SETTLS | CLONE_PARENT_SETTID |
+                         CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID;
+  if(flags & ~allowed)
+    return -EINVAL;
+
+  // Exit signal is in low 7 bits.
+  int exit_signal = (int)(flags & 0x7fULL);
+  if(exit_signal != 0 && exit_signal != SIGCHLD)
+    return -EINVAL;
+
+  // Reject thread/shared-VM style flags (not supported in this kernel).
+  if(flags & (CLONE_VM | CLONE_FS | CLONE_FILES | CLONE_SIGHAND | CLONE_THREAD | CLONE_PARENT))
+    return -EINVAL;
+
+  // Sanitize optional arguments if caller didn't pass them (or flags don't use them)
+  if(!(flags & CLONE_PARENT_SETTID))
+    ptid = 0;
+  if(!(flags & (CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID)))
+    ctid = 0;
+  if(!(flags & CLONE_SETTLS))
+    tls = 0;
+
+  if((flags & (CLONE_CHILD_SETTID | CLONE_CHILD_CLEARTID)) && ctid == 0)
+    return -EINVAL;
+  if((flags & CLONE_PARENT_SETTID) && ptid == 0)
+    return -EINVAL;
+
+  // Use clone_fork which supports custom stack and clone args
   // If stack != 0, the child's stack pointer will be set to the provided stack
   // The userspace __clone wrapper has already saved the function pointer
   // and argument on this stack before making the syscall.
-  return clone_fork(stack);
+  int pid = clone_fork(stack, flags, tls, ctid, exit_signal);
+  if(pid < 0)
+    return pid;
+
+  // Parent TID write-back
+  if(flags & CLONE_PARENT_SETTID){
+    if(copyout(myproc()->pagetable, ptid, (char *)&pid, sizeof(pid)) < 0)
+      return -EFAULT;
+  }
+
+  return pid;
 }
 
 uint64
@@ -214,6 +250,9 @@ sys_set_tid_address(void)
   uint64 addr;
   argaddr(0, &addr);
   struct proc *p = myproc();
+
+  // Record clear_child_tid address for CLONE_CHILD_CLEARTID semantics
+  p->clear_child_tid = addr;
 
   // Mirror Linux by returning the thread id (here, pid).
   // We also attempt to write the tid to the provided address if non-null.

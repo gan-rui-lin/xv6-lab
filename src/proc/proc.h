@@ -81,6 +81,10 @@ struct proc
   uint64 sigpending;           // pending signals bitmap
   uint64 sigmask;              // blocked signals bitmap
   struct sigaction sigactions[NSIG]; // per-signal handler settings
+
+  // clone/线程相关（简化）
+  uint64 clear_child_tid;       // user addr to clear on exit (CLONE_CHILD_CLEARTID)
+  int exit_signal;              // signal to parent on exit (0 for none)
 };
 
 

@@ -4,6 +4,78 @@
 #define TEST_SYSCALLS
 #include "../src/syscall/syscall.h"
 
+void test_(char *name);
+void test_busybox_musl();
+void test_basic();
+static void test_cow(void);
+
+int main()
+{
+    if (open("console", O_RDWR) < 0)
+    {
+        mknod("console", 1, 1);
+        open("console", O_RDWR);
+    }
+    dup(0); // stdout
+    dup(0); // stderr
+
+    // Provide /bin/sh for script fallback.
+    // mkdir("/bin");
+    // printf("r1 = %d\n", r1);
+    // syscall(SYS_symlink, "/musl/busybox", "/bin/sh");
+    // printf("r2 = %d\n", r2)
+
+    // test_cow();
+    // test_basic();
+    // test_busybox_musl();
+    // printf("Hello, xv6 world!\n");
+
+    test_("getppid");
+
+    test_("chdir");
+    test_("times");
+    test_("sleep");
+    test_("fork");
+    test_("gettimeofday");
+
+    test_("open");
+    test_("read");
+    test_("brk");
+
+    test_("getcwd");
+
+    test_("openat");
+    test_("getpid");
+    test_("exit");
+    test_("wait");
+    test_("execve");
+    test_("clone");
+    test_("yield");
+    test_("waitpid");
+
+    test_("getcwd");
+    test_("dup");
+    test_("close");
+    test_("mkdir_");
+
+    test_("getdents");
+    test_("pipe");
+    test_("fstat");
+    test_("write");
+    test_("uname");
+    test_("mmap");
+    test_("munmap");
+
+    test_("unlink");
+    test_("fstat");
+    test_("dup2");
+
+    // test_busybox();
+    shutdown();
+    return 0;
+}
+
+
 void test_(char *name)
 {
 
@@ -115,70 +187,4 @@ test_cow(void)
     int status;
     wait(&status);
     printf("parent sees %c%c\n", p[0], p[1]);
-}
-
-int main()
-{
-    if (open("console", O_RDWR) < 0)
-    {
-        mknod("console", 1, 1);
-        open("console", O_RDWR);
-    }
-    dup(0); // stdout
-    dup(0); // stderr
-
-    // Provide /bin/sh for script fallback.
-    // mkdir("/bin");
-    // printf("r1 = %d\n", r1);
-    // syscall(SYS_symlink, "/musl/busybox", "/bin/sh");
-    // printf("r2 = %d\n", r2)
-
-    // test_cow();
-    // test_basic();
-    // test_busybox_musl();
-    // printf("Hello, xv6 world!\n");
-
-    test_("getppid");
-
-    test_("chdir");
-    test_("times");
-    test_("sleep");
-    test_("fork");
-    test_("gettimeofday");
-
-    test_("open");
-    test_("read");
-    test_("brk");
-
-    test_("getcwd");
-
-    test_("openat");
-    test_("getpid");
-    test_("exit");
-    test_("wait");
-    test_("execve");
-    test_("clone");
-    test_("yield");
-    test_("waitpid");
-
-    test_("getcwd");
-    test_("dup");
-    test_("close");
-    test_("mkdir_");
-
-    test_("getdents");
-    test_("pipe");
-    test_("fstat");
-    test_("write");
-    test_("uname");
-    test_("mmap");
-    test_("munmap");
-
-    test_("unlink");
-    test_("fstat");
-    test_("dup2");
-
-    // test_busybox();
-    shutdown();
-    return 0;
 }

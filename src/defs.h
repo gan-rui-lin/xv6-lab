@@ -131,7 +131,7 @@ int             kref_get(uint64);
 int             cpuid(void);
 void            exit(int);
 int             fork(void);
-int             clone_fork(uint64 stack);  // fork with custom stack support
+int             clone_fork(uint64 stack, uint64 flags, uint64 tls, uint64 ctid, int exit_signal);  // fork with clone args
 int             growproc(int);
 void            proc_mapstacks(pagetable_t);
 pagetable_t     proc_pagetable(struct proc *);

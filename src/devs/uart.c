@@ -19,6 +19,7 @@ extern volatile int panicked; // from printf.c
 
 /* FCR bits */
 #define FCR_FIFO_ENABLE 0x07
+#define FCR_TRIGGER_14  0xC0
 
 /* IER bits */
 #define IER_RX_ENABLE 0x01
@@ -97,8 +98,8 @@ void uartinit(){
     UART_WRITE_REG(1, 0x00); // divisor MSB
     UART_WRITE_REG(UART_REG_LCR, LCR_EIGHT_BITS);
 
-    // 启用 FIFO
-    UART_WRITE_REG(UART_REG_FCR, FCR_FIFO_ENABLE);
+    // 启用 FIFO，并将 RX 触发阈值设为 14 字节，减少单字符中断
+    UART_WRITE_REG(UART_REG_FCR, FCR_FIFO_ENABLE | FCR_TRIGGER_14);
     // 启用发送中断和接收中断
     UART_WRITE_REG(UART_REG_IER, IER_TX_ENABLE | IER_RX_ENABLE);
 

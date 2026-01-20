@@ -136,7 +136,7 @@ struct proc* allocproc(void)
 found:  
 
   p->pid = allocpid();
-  p->state = USED; //TODO 有必要吗？
+  p->state = USED;
   p->priority = PRIO_DEFAULT;  // 设置默认优先级
   // 初始化信号相关状态
   signal_init(p);
@@ -213,8 +213,7 @@ proc_pagetable(struct proc *p)
   return pagetable;
 }
 
-// @todo 暂时忽略锁机制；到进程调度阶段再考虑
-// 直接在 trap 中准备返回到 USER 态的环境
+
 void
 forkret(void)
 {
@@ -224,10 +223,7 @@ forkret(void)
   release(&myproc()->lock);
 
   if (first) {
-    //? 进程的第一次返回到用户态时，初始化文件系统 为什么是这样呢？ 
-    // File system initialization must be run in the context of a
-    // regular process (e.g., because it calls sleep), and thus cannot
-    // be run from main().
+    // 文件系统初始化函数 fsinit()内部会调用 sleep()函数。而 sleep()函数正常工作需要一个已完全初始化的进程环境
     first = 0;
     fsinit(minor(ROOTDEV));
 
@@ -443,12 +439,12 @@ fork(void)
 
   release(&np->lock);
 
-  //? 锁机制搞不懂
-  //TODO 后来再看 
+  // wait_lock 保护 parent 字段
   acquire(&wait_lock);
   np->parent = p;
   release(&wait_lock);
 
+  // 设置子进程状态为可运行
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
@@ -525,6 +521,13 @@ clone_fork(uint64 stack)
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
+// 执行 wait 的进程 p 被 wakeup 的 **前提** 是自己进入 SLEEPING 状态，这与子进程 pp 进入 ZOMBIE 状态（比如 exit)是**两个独立的动作**，需要通过 wait_lock 锁来保证这两个动作的有序性，防止 lost wakeup 问题的出现。
+
+// 1.父进程扫描进程表，但是没有发现ZOMBIE态的子进程，准备进入休眠。但是在安全进入SLEEPING状态之前，子进程就执行了wakeup操作，父进程在此wakeup操作发生之后才进入了SLEEPING状态，导致错过了wakeup动作。
+
+// 2.父进程扫描进程表，但是没有发现ZOMBIE态的进程，且已经安全进入了SLEEPING状态。此时子进程唤醒了父进程，由于缺乏wait_lock锁的保护，醒来的父进程即刻开始扫描进程表，而此时子进程还没有安全进入ZOMBIE状态，导致父进程再一次进入SLEEPING状态，此后将不再会有wakeup操作来唤醒父进程了。
+
+// 从上面提及的两种错误情况来看，wait_lock本质上规避了lost wakeup问题，因此不可以去掉wait_lock。除此之外，wait_lock还是进程结构体种parent字段的保护锁，每当涉及到修改进程的父进程信息时，都需要先持有wait_lock才可以修改parent字段，例如fork函数以及reparent函数中的相应代码片段。所以，wait_lock既是用来保证同步的条件锁，又是某些数据结构的保护锁，请仔细品味。
 int
 wait(uint64 addr)
 {
@@ -540,7 +543,7 @@ wait(uint64 addr)
     for(pp = proc; pp < &proc[NPROC]; pp++){
       if(pp->parent == p){
         // make sure the child isn't still in exit() or swtch().
-        //TODO 这又是为啥上锁
+        
         acquire(&pp->lock);
 
         havekids = 1;
@@ -640,7 +643,7 @@ sleep(void *chan, struct spinlock *lk)
   p->chan = 0;
 
   // Reacquire original lock.
-  //? 不能在持有 lk 时持有 p->lock，否则有死锁风险
+  // 不能在持有 lk 时持有 p->lock，否则有死锁风险
   release(&p->lock);
   acquire(lk);
 }

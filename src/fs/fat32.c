@@ -381,7 +381,7 @@ static void lfn_extract_append(uint8 *de, char *buf, int *len)
     }
     
     // 比较重要的 log_info 输出
-    log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
+    //! log_info("lfn_extract_append: final LFN='%s' (len=%d)\n\n", buf, *len);
   }
 }
 
@@ -396,7 +396,6 @@ static int str_eq(const char *a, const char *b)
 
 static int dir_find(uint32 dir_clus, const char *comp, short *out_type, uint32 *out_size, uint32 *out_clus)
 {
-  log_info("111\n");
   // log_info("dir_find: looking for '%s' in dir cluster %d", comp, dir_clus);
   uint32 cl = dir_clus;
   // log_info("dir_find: looking for '%s' in dir cluster %d", comp, dir_clus);
@@ -1066,7 +1065,6 @@ int fat32_writei(struct inode *ip, int user_src, uint64 src, uint off, uint n)
 }
 struct inode* fat32_createat(struct inode *dp, char *name, short type, int major, int minor)
 {
-    log_info("222\n");
   if(!dp || dp->major != FAT32_INODE_TAG || dp->type != T_DIR){
     log_warn("fat32_createat: invalid dp");
     return NULL;

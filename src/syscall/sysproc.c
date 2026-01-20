@@ -11,6 +11,7 @@
 #include "../sync/sleeplock.h"
 #include "../fs/fs.h"
 #include "../fs/file.h"
+#include "signal.h"
 
 #ifndef WNOHANG
 #define WNOHANG 1
@@ -54,8 +55,7 @@ sys_clone(void)
 
   // only allow pure fork semantics: exit signal must be SIGCHLD and no other flags
   // Linux SIGCHLD commonly 17. We only accept (flags & ~0x7f)==0 and (flags & 0x7f)==17
-  #define LINUX_SIGCHLD 17
-  if (((flags & ~((uint64)0x7f)) != 0) || ((flags & 0x7f) != LINUX_SIGCHLD))
+  if (((flags & ~((uint64)0x7f)) != 0) || ((flags & 0x7f) != SIGCHLD))
     panic("sys_clone: unsupported flags");
   
   if (ptid != 0 || tls != 0 || ctid != 0){

@@ -98,8 +98,6 @@ filestat(struct file *f, uint64 addr)
   if(f->type == FD_INODE || f->type == FD_DEVICE){
     ilock(f->ip);                   // 加锁 inode，防止并发修改
     stati(f->ip, &st);              // 获取 inode 的元信息
-    // TODO 实际修改问题，现在直接修改 nlink
-    st.nlink = 1;
     iunlock(f->ip);                 // 解锁
     if(copyout(p->pagetable, addr, (char *)&st, sizeof(st)) < 0)  // 拷贝给用户空间
       return -1;

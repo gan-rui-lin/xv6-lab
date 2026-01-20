@@ -212,7 +212,7 @@ sys_write(void)
      return -EINVAL;
   }
    
-  // log_debug("sys_write: fd=%d, p=%p, n=%d\n", f, p, n); // TODO 调试信息
+  // log_debug("sys_write: fd=%d, p=%p, n=%d\n", f, p, n);
   return filewrite(f, p, n);
 }
 

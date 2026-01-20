@@ -15,6 +15,10 @@ initlock(struct spinlock *lk, char *name)
 
 // Acquire the lock.
 // Loops (spins) until the lock is acquired.
+// “禁止在线程切换的时候加锁”​ 是XV6最根本的死锁避免策略。acquire通过关闭中断来物理上实现这一策略：
+// 关中断​ 确保了：一旦一个内核线程开始获取锁，在它释放锁之前，绝对不会有**定时器中断**来强制切换走它。
+// 这就保证了：内核中持有锁的代码段是不可分割、不可被抢占的原子操作。
+// 因此，不会出现“A拿着锁被切走，B又来申请同一把锁”这种导致死锁的经典场景。
 void
 acquire(struct spinlock *lk)
 {

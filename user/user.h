@@ -26,6 +26,14 @@ int uptime(void);
 int shutdown(void);
 int gettimeofday(struct timeval *tv);
 int fstat(int fd, struct stat*);
+// socket (minimal)
+int socket(int domain, int type, int protocol);
+int bind(int sockfd, const char *ip, int port);
+int connect(int sockfd, const char *ip, int port);
+int sendto(int sockfd, const void *buf, int len, const char *ip, int port);
+int recvfrom(int sockfd, void *buf, int len, uint32 *ip, uint16 *port);
+int listen(int sockfd, int backlog);
+int accept(int sockfd, uint32 *ip, uint16 *port, int waitsecs);
 
 
 // ulib.c

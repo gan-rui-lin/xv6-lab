@@ -167,6 +167,8 @@ void            sched(void);
 void            reparent(struct proc *);
 void            yield(void);
 int             getpid(void);
+int             kthread_create(void (*fn)(void *), void *arg, const char *name, int priority);
+void            kthread_exit(void);
 
 
 // swtch.S
@@ -237,6 +239,15 @@ struct inode*   iget_pub(uint dev, uint inum);
 void            virtio_disk_init(int);
 void            virtio_disk_rw(int, struct buf *, int);
 void            virtio_disk_intr(int);
+
+// virtio_net.c
+int             virtio_net_init(int, uint8 mac[6]);
+int             virtio_net_transmit(const uint8 *data, int len);
+void            virtio_net_intr(void);
+
+// network
+void            net_init(void);
+void            net_rx_deliver(const uint8 *data, int len);
 
 // log.c
 void            initlog(int, struct superblock*);

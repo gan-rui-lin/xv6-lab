@@ -290,6 +290,9 @@ freeproc(struct proc *p)
   p->priority = PRIO_DEFAULT;  // 重置优先级
   p->clear_child_tid = 0;
   p->exit_signal = SIGCHLD;
+  p->is_kthread = 0;
+  p->kthread_fn = 0;
+  p->kthread_arg = 0;
   signal_init(p);
   memset(p->ofile, 0, sizeof(p->ofile));
   memset(p->fdflags, 0, sizeof(p->fdflags));

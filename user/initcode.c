@@ -8,17 +8,28 @@ void test_(char *name);
 void test_busybox_musl();
 void test_basic();
 static void test_cow(void);
+static int socket_test();
+
+#define HOST_IP "10.0.2.2"
+#define HOST_PORT 12345
+#define LOCAL_IP "10.0.2.15"
+#define ECHO_PORT 9090
+
+
+
 
 int main()
 {
     if (open("console", O_RDWR) < 0)
     {
+        printf("trying mknod");
         mknod("console", 1, 1);
         open("console", O_RDWR);
     }
     dup(0); // stdout
     dup(0); // stderr
-
+    socket_test();
+    while(1);
     // Provide /bin/sh for script fallback.
     // mkdir("/bin");
     // printf("r1 = %d\n", r1);
@@ -187,4 +198,119 @@ test_cow(void)
     int status;
     wait(&status);
     printf("parent sees %c%c\n", p[0], p[1]);
+}
+
+static int
+u8_to_dec(unsigned char v, char *out)
+{
+  int n = 0;
+  if(v >= 100){
+    out[n++] = '0' + (v / 100);
+    v %= 100;
+  }
+  if(v >= 10 || n > 0){
+    out[n++] = '0' + (v / 10);
+    v %= 10;
+  }
+  out[n++] = '0' + v;
+  return n;
+}
+
+static void
+ip_to_str(uint32 ip, char *out)
+{
+  unsigned char *p = (unsigned char *)&ip;
+  int n = 0;
+  n += u8_to_dec(p[0], out + n);
+  out[n++] = '.';
+  n += u8_to_dec(p[1], out + n);
+  out[n++] = '.';
+  n += u8_to_dec(p[2], out + n);
+  out[n++] = '.';
+  n += u8_to_dec(p[3], out + n);
+  out[n] = '\0';
+}
+
+static uint32
+ip_bswap32(uint32 ip)
+{
+  return ((ip & 0x000000ffU) << 24) |
+         ((ip & 0x0000ff00U) << 8) |
+         ((ip & 0x00ff0000U) >> 8) |
+         ((ip & 0xff000000U) >> 24);
+}
+
+int
+socket_test()
+{
+  printf("======== test socket (UDP loopback) ==========\n");
+  int srv = socket(2, 2, 0); // AF_INET=2, SOCK_DGRAM=2
+  if(srv < 0){
+    printf("socket failed\n");
+    return -1;
+  }
+
+  if(bind(srv, LOCAL_IP, ECHO_PORT) < 0){
+    printf("bind failed\n");
+    close(srv);
+    return -1;
+  }
+
+  int pid = fork();
+  if(pid < 0){
+    printf("fork failed\n");
+    close(srv);
+    return -1;
+  }
+
+  if(pid == 0){
+    unsigned char buf[256];
+    uint32 from_ip = 0;
+    uint16 from_port = 0;
+    int r = recvfrom(srv, buf, sizeof(buf), &from_ip, &from_port);
+    if(r > 0){
+      char ipbuf[32];
+      ip_to_str(from_ip, ipbuf);
+      int sret = sendto(srv, buf, r, ipbuf, from_port);
+      if(sret < 0){
+        uint32 swapped = ip_bswap32(from_ip);
+        ip_to_str(swapped, ipbuf);
+        sret = sendto(srv, buf, r, ipbuf, from_port);
+        if(sret < 0)
+          printf("server sendto failed\n");
+      }
+    }
+    close(srv);
+    exit(0);
+  }
+
+  close(srv);
+  int cli = socket(2, 2, 0);
+  if(cli < 0){
+    printf("socket failed\n");
+    return -1;
+  }
+
+  const char *msg = "udp loopback";
+  int n = sendto(cli, msg, strlen(msg), LOCAL_IP, ECHO_PORT);
+  if(n < 0){
+    printf("sendto failed\n");
+    close(cli);
+    return -1;
+  }
+
+  char rbuf[256];
+  uint32 rip = 0;
+  uint16 rport = 0;
+  int r = recvfrom(cli, rbuf, sizeof(rbuf) - 1, &rip, &rport);
+  if(r > 0){
+    rbuf[r] = '\0';
+    printf("recv %d bytes: %s\n", r, rbuf);
+  } else {
+    printf("recvfrom failed\n");
+  }
+
+  close(cli);
+  wait(0);
+  return 0;
 }

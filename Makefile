@@ -19,6 +19,11 @@ BUILD_DIR := build
 # 收集 src 目录下各子目录的源文件
 SRCS := $(shell find $(SRC) -type f \( -name "*.c" -o -name "*.S" \))
 
+# open-npstack：禁用未启用的可选模块（与 sys_config.h 保持一致）
+SRCS := $(filter-out $(SRC)/network/open-npstack/ppp/%,$(SRCS))
+SRCS := $(filter-out $(SRC)/network/open-npstack/net_tools/%,$(SRCS))
+SRCS := $(filter-out $(SRC)/network/open-npstack/port/telnet/%,$(SRCS))
+
 $(info === SRCS collected ===)
 $(info $(SRCS))
 
@@ -61,6 +66,7 @@ OBJDUMP = $(TOOLPREFIX)objdump
 
 CFLAGS = -Wall  -O -fno-omit-frame-pointer -ggdb -gdwarf-2
 CFLAGS += -MD
+CFLAGS += -DONPS_KERNEL
 CFLAGS += -mcmodel=medany
 CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I. -I$(SRC)
@@ -82,7 +88,8 @@ endif
 # CFLAGS += -DLOG_DEBUG
 
 # 包含头文件路径：添加各个源代码子目录
-INCLUDES := -I$(SRC) $(foreach dir,$(SRC_DIRS),-I$(SRC)/$(dir)) -I$(SRC)/fs/lwext4/include
+INCLUDES := -I$(SRC) $(foreach dir,$(SRC_DIRS),-I$(SRC)/$(dir)) -I$(SRC)/fs/lwext4/include \
+	-I$(SRC)/network/open-npstack/include -I$(SRC)/network/open-npstack/port/include
 
 # lwext4 外部库源码：抑制编译警告
 LWEXT4_DIR := $(SRC)/fs/lwext4/src
@@ -252,6 +259,9 @@ QEMUOPTS = -machine virt -bios none -kernel $K/kernel -m 128M -smp $(CPUS) -nogr
 # 磁盘相关的 QEMU 选项
 QEMUOPTS += -drive file=fs.img,if=none,format=raw,id=x0
 QEMUOPTS += -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0
+# 网络相关（user-mode 网络）
+QEMUOPTS += -netdev user,id=net0
+QEMUOPTS += -device virtio-net-device,netdev=net0
 
 qemu: $K/kernel fs.img
 	$(QEMU) $(QEMUOPTS)

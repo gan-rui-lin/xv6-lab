@@ -27,6 +27,7 @@
 #define VIRTIO_MMIO_INTERRUPT_STATUS	0x060 // read-only
 #define VIRTIO_MMIO_INTERRUPT_ACK	0x064 // write-only
 #define VIRTIO_MMIO_STATUS		0x070 // read/write
+#define VIRTIO_MMIO_CONFIG		0x100 // device-specific config space
 
 // status register bits, from qemu virtio_config.h
 #define VIRTIO_CONFIG_S_ACKNOWLEDGE	1
@@ -42,6 +43,10 @@
 #define VIRTIO_F_ANY_LAYOUT         27
 #define VIRTIO_RING_F_INDIRECT_DESC 28
 #define VIRTIO_RING_F_EVENT_IDX     29
+
+// virtio-net feature bits
+#define VIRTIO_NET_F_MAC             5
+#define VIRTIO_NET_F_STATUS          16
 
 // this many virtio descriptors.
 // must be a power of two.

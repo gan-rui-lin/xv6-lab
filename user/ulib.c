@@ -186,6 +186,41 @@ int open(const char *path, int flags)
     return syscall(SYS_openat, AT_FDCWD, path, flags, O_RDWR);
 }
 
+int socket(int domain, int type, int protocol)
+{
+  return syscall(SYS_socket, domain, type, protocol);
+}
+
+int bind(int sockfd, const char *ip, int port)
+{
+  return syscall(SYS_bind, sockfd, ip, port);
+}
+
+int connect(int sockfd, const char *ip, int port)
+{
+  return syscall(SYS_connect, sockfd, ip, port);
+}
+
+int sendto(int sockfd, const void *buf, int len, const char *ip, int port)
+{
+  return syscall(SYS_sendto, sockfd, buf, len, ip, port);
+}
+
+int recvfrom(int sockfd, void *buf, int len, uint32 *ip, uint16 *port)
+{
+  return syscall(SYS_recvfrom, sockfd, buf, len, ip, port);
+}
+
+int listen(int sockfd, int backlog)
+{
+  return syscall(SYS_listen, sockfd, backlog);
+}
+
+int accept(int sockfd, uint32 *ip, uint16 *port, int waitsecs)
+{
+  return syscall(SYS_accept, sockfd, ip, port, waitsecs);
+}
+
 int chdir(const char *path)
 {
     return syscall(SYS_chdir, path);

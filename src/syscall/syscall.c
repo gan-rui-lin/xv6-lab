@@ -62,14 +62,15 @@ should_trace(struct proc *p)
   if(syscall_trace_all)
     return 1;
 
-  // 默认只跟踪 busybox 进程，帮助定位其系统调用实现问题。
-  return (p->name[0] == 'b' &&
-          p->name[1] == 'u' &&
-          p->name[2] == 's' &&
-          p->name[3] == 'y' &&
-          p->name[4] == 'b' &&
-          p->name[5] == 'o' &&
-          p->name[6] == 'x');
+  return 1;
+  // // 默认只跟踪 busybox 进程，帮助定位其系统调用实现问题。
+  // return (p->name[0] == 'b' &&
+  //         p->name[1] == 'u' &&
+  //         p->name[2] == 's' &&
+  //         p->name[3] == 'y' &&
+  //         p->name[4] == 'b' &&
+  //         p->name[5] == 'o' &&
+  //         p->name[6] == 'x');
 }
 
 // 全局开关，默认关闭，便于 GDB 手动打开。
@@ -181,6 +182,13 @@ extern uint64 sys_sendfile(void);
 extern uint64 sys_ppoll(void);
 extern uint64 sys_ioctl(void);
 extern uint64 sys_sched_getaffinity(void);
+extern uint64 sys_socket(void);
+extern uint64 sys_bind(void);
+extern uint64 sys_connect(void);
+extern uint64 sys_sendto(void);
+extern uint64 sys_recvfrom(void);
+extern uint64 sys_listen(void);
+extern uint64 sys_accept(void);
 
 extern uint64 sys_sbrk(void);
 
@@ -262,6 +270,13 @@ static uint64 (*syscalls[])(void) = {
 [SYS_clock_gettime] sys_clock_gettime,
 [SYS_setpgid]     sys_setpgid,
 [SYS_setitimer]   sys_setitimer,
+[SYS_socket]      sys_socket,
+[SYS_bind]        sys_bind,
+[SYS_connect]     sys_connect,
+[SYS_sendto]      sys_sendto,
+[SYS_recvfrom]    sys_recvfrom,
+[SYS_listen]      sys_listen,
+[SYS_accept]      sys_accept,
 [SYS_xv6_sbrk]        sys_sbrk,
 };
 

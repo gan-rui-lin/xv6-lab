@@ -15,6 +15,7 @@
 #include "fcntl.h"
 #include "stat.h"
 #include "proc.h"
+#include "bsd/socket.h"
 
 struct devsw devsw[NDEV];  // 设备操作表，登记各种设备的操作函数
 struct {
@@ -39,6 +40,8 @@ filealloc(void)
   for(f = ftable.file; f < ftable.file + NFILE; f++){
     if(f->ref == 0){          // 仅查找引用计数为0的空闲文件
       f->ref = 1;             // 标记被占用
+      f->type = FD_NONE;
+      f->sock = -1;
       f->oflags = 0;          // 缺省无标志
       release(&ftable.lock);  // 释放锁
       return f;               // 返回分配好的文件结构体
@@ -85,6 +88,8 @@ fileclose(struct file *f)
     begin_op(ff.ip->dev);             // 开始文件系统操作（log记录事务边界）
     iput(ff.ip);                      // 释放 inode
     end_op(ff.ip->dev);               // 结束 log 操作
+  } else if(ff.type == FD_SOCKET){
+    close(ff.sock);
   }
 }
 
@@ -132,6 +137,8 @@ fileread(struct file *f, uint64 addr, int n)
     if((r = readi(f->ip, 1, addr, f->off, n)) > 0)  // 读数据并更新文件偏移
       f->off += r;
     iunlock(f->ip); // 解锁 inode
+  } else if(f->type == FD_SOCKET){
+    return -ENOTSUP;
   } else {
     panic("fileread"); // 未知类型出错
   }
@@ -182,6 +189,8 @@ filewrite(struct file *f, uint64 addr, int n)
       i += r;
     }
     ret = (i == n ? n : -1);      // 返回写入总长度或 -1
+  } else if(f->type == FD_SOCKET){
+    return -ENOTSUP;
   } else {
     panic("filewrite");            // 未知类型出错
   }

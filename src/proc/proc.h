@@ -85,6 +85,11 @@ struct proc
   // clone/线程相关（简化）
   uint64 clear_child_tid;       // user addr to clear on exit (CLONE_CHILD_CLEARTID)
   int exit_signal;              // signal to parent on exit (0 for none)
+
+  // 内核线程相关
+  int is_kthread;
+  void (*kthread_fn)(void *);
+  void *kthread_arg;
 };
 
 

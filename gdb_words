@@ -1,5 +1,10 @@
 gdb-multiarch -ex "target remote:1234"
 
+
+gdb-multiarch -ex "file /home/grl/codeRepo/xv6-lab/kernel-qemu" \
+  -ex "set architecture riscv:rv64" \
+  -ex "target remote localhost:1234" \
+
 gdb-multiarch -ex "file busybox/musl/busybox" -ex "set architecture riscv:rv64" -ex "target remote:1234"
 
 gdb-multiarch -ex "file /home/grl/codeRepo/xv6-lab/kernel-qemu" \

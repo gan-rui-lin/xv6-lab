@@ -26,6 +26,7 @@ static struct {
 
 // 数字转换时使用的字符表（支持 16 进制）
 static char digits[] = "0123456789abcdef";
+static char digits_upper[] = "0123456789ABCDEF";
 
 // 打印整数到控制台
 // 参数：
@@ -178,32 +179,45 @@ vprintf_internal(char *fmt, va_list ap)
   if (fmt == 0)
     panic("null fmt");
 
-  for(i = 0; (c = fmt[i] & 0xff) != 0; i++){
-    if(c != '%'){
+  for(i = 0; (c = fmt[i] & 0xff) != 0; i++) {
+    if (c != '%') {
       consputc(c);
       continue;
     }
-    
-    // 解析长度修饰符（l / ll）
+
+    // 解析宽度和标志
+    int width = 0;
+    int pad_zero = 0;
     int long_count = 0;
-    c = fmt[++i] & 0xff;
-    if(c == 0)
+    int j = i + 1;
+    int ch = fmt[j] & 0xff;
+    if (ch == 0)
       break;
-    if(c == 'l'){
+
+    if (ch == '0') {
+      pad_zero = 1;
+      ch = fmt[++j] & 0xff;
+    }
+    while (ch >= '0' && ch <= '9') {
+      width = width * 10 + (ch - '0');
+      ch = fmt[++j] & 0xff;
+    }
+
+    // 解析长度修饰符（l / ll）
+    if (ch == 'l') {
       long_count = 1;
-      c = fmt[++i] & 0xff;
-      if(c == 0)
-        break;
-      if(c == 'l'){
+      ch = fmt[++j] & 0xff;
+      if (ch == 'l') {
         long_count = 2;
-        c = fmt[++i] & 0xff;
-        if(c == 0)
-          break;
+        ch = fmt[++j] & 0xff;
       }
     }
 
-    switch(c){
-    case 'd':
+    c = ch;
+    i = j;
+
+    switch (c) {
+        case 'd':
       // 十进制有符号整数（默认 int）
       printint(va_arg(ap, int), 10, 1);
       break;
@@ -218,15 +232,40 @@ vprintf_internal(char *fmt, va_list ap)
         printint((int)u32, 10, 0);
       }
       break;
-    case 'x':
-      // 十六进制整数，支持 %x, %lx, %llx
-      if(long_count >= 1){
-        uint64 u64x = va_arg(ap, uint64);
-        printuint64(u64x, 16);
-      } else {
-        printint(va_arg(ap, int), 16, 1);
+    case 'x': {
+      // 十六进制整数，支持 %x, %lx, %llx，并支持宽度/前导零
+      uint64 u64x = (long_count >= 1) ? va_arg(ap, uint64) : (uint64)va_arg(ap, unsigned int);
+      char buf[32];
+      int len = 0;
+      do {
+        buf[len++] = digits[u64x & 0xF];
+        u64x >>= 4;
+      } while (u64x);
+      while (len < width) {
+        consputc(pad_zero ? '0' : ' ');
+        width--;
       }
+      while (len > 0)
+        consputc(buf[--len]);
       break;
+    }
+    case 'X': {
+      // 十六进制整数（大写），支持 %X, %lX, %llX，并支持宽度/前导零
+      uint64 u64x = (long_count >= 1) ? va_arg(ap, uint64) : (uint64)va_arg(ap, unsigned int);
+      char buf[32];
+      int len = 0;
+      do {
+        buf[len++] = digits_upper[u64x & 0xF];
+        u64x >>= 4;
+      } while (u64x);
+      while (len < width) {
+        consputc(pad_zero ? '0' : ' ');
+        width--;
+      }
+      while (len > 0)
+        consputc(buf[--len]);
+      break;
+    }
     case 'o':
       // 八进制整数，支持 %o, %lo, %llo
       if(long_count >= 1){

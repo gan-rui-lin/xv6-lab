@@ -1,0 +1,402 @@
+/*
+ * Copyright 2022-2024 The Onps Project Author All Rights Reserved.
+ *
+ * Author：Neo-T
+ *
+ * Licensed under the Apache License 2.0 (the "License").  You may not use
+ * this file except in compliance with the License.  You can obtain a copy
+ * in the file LICENSE in the source distribution or at
+ * http://www.onps.org.cn/apache2.0.txt
+ *
+ */
+#include "port/datatype.h"
+#include "port/sys_config.h"
+#include "onps_errors.h"
+#include "port/os_datatype.h"
+#include "one_shot_timer.h"
+#include "onps_utils.h"
+#include "protocols.h"
+#include "onps_input.h"
+
+#if SUPPORT_PPP
+#include "ppp/negotiation_storage.h"
+#include "ppp/ppp.h"
+#endif
+
+#include "ip/tcp.h"
+
+#ifdef ONPS_KERNEL
+#include "spinlock.h"
+#include "param.h"
+#include "memlayout.h"
+#include "proc.h"
+#include "defs.h"
+#endif
+
+#define SYMBOL_GLOBALS
+#include "port/os_adapter.h"
+#undef SYMBOL_GLOBALS
+
+#if SUPPORT_PPP
+//* 在此指定连接modem的串行口，以此作为tty终端进行ppp通讯，其存储索引应与os_open_tty()返回的tty句柄值一一对应
+const CHAR *or_pszaTTY[PPP_NETLINK_NUM] = { "SCP3" };
+const ST_DIAL_AUTH_INFO or_staDialAuth[PPP_NETLINK_NUM] = {
+    { "4gnet", "card", "any_char" },  /* 注意ppp账户和密码尽量控制在20个字节以内，太长需要需要修改chap.c中send_response()函数的szData数组容量及 */
+                                      /* pap.c中pap_send_auth_request()函数的ubaPacket数组的容量，确保其能够封装一个完整的响应报文              */
+};
+ST_PPPNEGORESULT o_staNegoResult[PPP_NETLINK_NUM] = {
+    {
+        { 0, PPP_MRU, ACCM_INIT,{ PPP_CHAP, 0x05 /* 对于CHAP协议来说，0-4未使用，0x05代表采用MD5算法 */ }, TRUE, TRUE, FALSE, FALSE },
+        { IP_ADDR_INIT, DNS_ADDR_INIT, DNS_ADDR_INIT, IP_ADDR_INIT, MASK_INIT }, 0
+    },
+
+    /* 系统存在几路ppp链路，就在这里添加几路的协商初始值，如果不确定，可以直接将上面预定义的初始值直接复制过来即可 */
+};
+#endif
+
+#if SUPPORT_ETHERNET
+const CHAR *or_pszaEthName[ETHERNET_NUM] = {
+    "eth0"
+};
+#endif
+
+#ifdef ONPS_KERNEL
+#define ONPS_MUTEX_MAX 64
+#define ONPS_SEM_MAX 64
+
+static struct {
+	struct spinlock lock;
+	int used;
+	struct cpu *owner;
+	int recursion;
+} g_mutex_pool[ONPS_MUTEX_MAX];
+
+static struct {
+	struct spinlock lock;
+	int used;
+	int value;
+	int max;
+} g_sem_pool[ONPS_SEM_MAX];
+
+static int g_onps_pool_inited = 0;
+
+static void onps_os_pool_init_once(void)
+{
+	if (g_onps_pool_inited)
+		return;
+
+	for (int i = 0; i < ONPS_MUTEX_MAX; i++) {
+		initlock(&g_mutex_pool[i].lock, "onps_mtx");
+		g_mutex_pool[i].used = 0;
+		g_mutex_pool[i].owner = 0;
+		g_mutex_pool[i].recursion = 0;
+	}
+
+	for (int i = 0; i < ONPS_SEM_MAX; i++) {
+		initlock(&g_sem_pool[i].lock, "onps_sem");
+		g_sem_pool[i].used = 0;
+		g_sem_pool[i].value = 0;
+		g_sem_pool[i].max = 0;
+	}
+
+	g_onps_pool_inited = 1;
+}
+#endif
+
+//* 协议栈内部工作线程列表
+const static STCB_PSTACKTHREAD lr_stcbaPStackThread[] = {
+	{ thread_one_shot_timer_count, NULL}, 	
+#if SUPPORT_PPP
+	//* 在此按照顺序建立ppp工作线程，入口函数为thread_ppp_handler()，线程入口参数为os_open_tty()返回的tty句柄值
+	//* 其直接强行进行数据类型转换即可，即作为线程入口参数时直接以如下形式传递：
+	//* (void *)nPPPIdx
+	//* 不要传递参数地址，即(void *)&nPPPIdx，这种方式是错误的
+#endif
+
+#if SUPPORT_SACK
+    { thread_tcp_handler, NULL },
+#endif
+}; 
+
+/* 用户自定义变量声明区 */
+/* …… */
+
+//* 当前线程休眠指定的秒数，参数unSecs指定要休眠的秒数
+void os_sleep_secs(UINT unSecs)
+{
+#ifdef ONPS_KERNEL
+	acquire(&tickslock);
+	uint ticks0 = ticks;
+	uint target = unSecs * 1000;
+	while ((ticks - ticks0) < target) {
+		sleep(&ticks, &tickslock);
+	}
+	release(&tickslock);
+#else
+	#error os_sleep_secs() cannot be empty
+#endif
+}
+
+//* 当前线程休眠指定的毫秒数，单位：毫秒 
+void os_sleep_ms(UINT unMSecs)
+{
+#ifdef ONPS_KERNEL
+	acquire(&tickslock);
+	uint ticks0 = ticks;
+	uint target = unMSecs;
+	while ((ticks - ticks0) < target) {
+		sleep(&ticks, &tickslock);
+	}
+	release(&tickslock);
+#else
+	#error os_sleep_ms() cannot be empty
+#endif
+}
+
+//* 获取系统启动以来已运行的秒数（从0开始）
+UINT os_get_system_secs(void)
+{
+#ifdef ONPS_KERNEL
+	return ticks / 1000;
+#else
+	#error os_get_system_secs() cannot be empty
+	return 0;
+#endif
+}
+
+//* 获取系统启动以来已运行的毫秒数（从0开始）
+UINT os_get_system_msecs(void)
+{
+#ifdef ONPS_KERNEL
+	return ticks;
+#else
+	#error os_get_system_msecs() cannot be empty
+	return 0;
+#endif
+}
+
+void os_thread_onpstack_start(void *pvParam)
+{
+#ifdef ONPS_KERNEL
+    extern int kthread_create(void (*fn)(void *), void *arg, const char *name, int priority);
+    (void)pvParam;
+
+	//* 建立工作线程
+	INT i; 
+	for (i = 0; i < sizeof(lr_stcbaPStackThread) / sizeof(STCB_PSTACKTHREAD); i++)
+	{
+		//* 在此按照顺序建立工作线程
+		kthread_create(lr_stcbaPStackThread[i].pfunThread, lr_stcbaPStackThread[i].pvParam, "onps", PRIO_DEFAULT);
+	}
+
+	/* 用户自定义代码 */
+	/* …… */
+#else
+    #error os_thread_onpstack_start() cannot be empty
+#endif
+}
+
+HMUTEX os_thread_mutex_init(void)
+{
+#ifdef ONPS_KERNEL
+	onps_os_pool_init_once();
+
+	for (int i = 0; i < ONPS_MUTEX_MAX; i++) {
+		if (!g_mutex_pool[i].used) {
+			g_mutex_pool[i].used = 1;
+			g_mutex_pool[i].owner = 0;
+			g_mutex_pool[i].recursion = 0;
+			return (HMUTEX)i;
+		}
+	}
+
+	return INVALID_HMUTEX;
+#else
+	#error os_thread_mutex_init() cannot be empty
+	return INVALID_HMUTEX;
+#endif
+}
+
+void os_thread_mutex_lock(HMUTEX hMutex)
+{
+#ifdef ONPS_KERNEL
+	onps_os_pool_init_once();
+	if (hMutex < 0 || hMutex >= ONPS_MUTEX_MAX)
+		return;
+	if (g_mutex_pool[hMutex].owner == mycpu()) {
+		g_mutex_pool[hMutex].recursion++;
+		return;
+	}
+	acquire(&g_mutex_pool[hMutex].lock);
+	g_mutex_pool[hMutex].owner = mycpu();
+	g_mutex_pool[hMutex].recursion = 1;
+#else
+	#error os_thread_mutex_lock() cannot be empty
+#endif
+}
+
+void os_thread_mutex_unlock(HMUTEX hMutex)
+{
+#ifdef ONPS_KERNEL
+	onps_os_pool_init_once();
+	if (hMutex < 0 || hMutex >= ONPS_MUTEX_MAX)
+		return;
+	if (g_mutex_pool[hMutex].owner != mycpu())
+		return;
+	if (g_mutex_pool[hMutex].recursion > 1) {
+		g_mutex_pool[hMutex].recursion--;
+		return;
+	}
+	g_mutex_pool[hMutex].owner = 0;
+	g_mutex_pool[hMutex].recursion = 0;
+	release(&g_mutex_pool[hMutex].lock);
+#else
+	#error os_thread_mutex_unlock() cannot be empty
+#endif
+}
+
+void os_thread_mutex_uninit(HMUTEX hMutex)
+{
+#ifdef ONPS_KERNEL
+	onps_os_pool_init_once();
+	if (hMutex < 0 || hMutex >= ONPS_MUTEX_MAX)
+		return;
+	g_mutex_pool[hMutex].used = 0;
+	g_mutex_pool[hMutex].owner = 0;
+	g_mutex_pool[hMutex].recursion = 0;
+#else
+	#error os_thread_mutex_uninit() cannot be empty
+#endif
+}
+
+HSEM os_thread_sem_init(UINT unInitVal, UINT unCount)
+{
+#ifdef ONPS_KERNEL
+	onps_os_pool_init_once();
+
+	for (int i = 0; i < ONPS_SEM_MAX; i++) {
+		if (!g_sem_pool[i].used) {
+			g_sem_pool[i].used = 1;
+			g_sem_pool[i].value = (int)unInitVal;
+			g_sem_pool[i].max = (int)unCount;
+			return (HSEM)i;
+		}
+	}
+
+	return INVALID_HSEM;
+#else
+	#error os_thread_sem_init() cannot be empty
+	return INVALID_HSEM;
+#endif
+}
+
+void os_thread_sem_post(HSEM hSem)
+{
+#ifdef ONPS_KERNEL
+	onps_os_pool_init_once();
+	if (hSem < 0 || hSem >= ONPS_SEM_MAX)
+		return;
+	acquire(&g_sem_pool[hSem].lock);
+	if (g_sem_pool[hSem].value < g_sem_pool[hSem].max)
+		g_sem_pool[hSem].value++;
+	wakeup(&g_sem_pool[hSem]);
+	release(&g_sem_pool[hSem].lock);
+#else
+	#error os_thread_sem_post() cannot be empty
+#endif
+}
+
+INT os_thread_sem_pend(HSEM hSem, INT nWaitSecs)
+{
+#ifdef ONPS_KERNEL
+	onps_os_pool_init_once();
+	if (hSem < 0 || hSem >= ONPS_SEM_MAX)
+		return -1;
+
+	if (nWaitSecs <= 0) {
+		acquire(&g_sem_pool[hSem].lock);
+		while (g_sem_pool[hSem].value == 0)
+			sleep(&g_sem_pool[hSem], &g_sem_pool[hSem].lock);
+		g_sem_pool[hSem].value--;
+		release(&g_sem_pool[hSem].lock);
+		return 0;
+	}
+
+	while (nWaitSecs-- > 0) {
+		acquire(&g_sem_pool[hSem].lock);
+		if (g_sem_pool[hSem].value > 0) {
+			g_sem_pool[hSem].value--;
+			release(&g_sem_pool[hSem].lock);
+			return 0;
+		}
+		release(&g_sem_pool[hSem].lock);
+		os_sleep_secs(1);
+	}
+
+	return 1;
+#else
+	#error os_thread_sem_pend() cannot be empty
+	return -1;
+#endif
+}
+
+void os_thread_sem_uninit(HSEM hSem)
+{
+#ifdef ONPS_KERNEL
+	onps_os_pool_init_once();
+	if (hSem < 0 || hSem >= ONPS_SEM_MAX)
+		return;
+	g_sem_pool[hSem].used = 0;
+	g_sem_pool[hSem].value = 0;
+	g_sem_pool[hSem].max = 0;
+#else
+	#error os_thread_sem_uninit() cannot be empty
+#endif
+}
+
+#ifdef ONPS_KERNEL
+void os_critical_enter(void)
+{
+	push_off();
+}
+
+void os_critical_exit(void)
+{
+	pop_off();
+}
+#endif
+
+#if SUPPORT_PPP
+HTTY os_open_tty(const CHAR *pszTTYName)
+{
+#error os_open_tty() cannot be empty
+
+	return INVALID_HTTY; 
+}
+
+void os_close_tty(HTTY hTTY)
+{
+#error os_close_tty() cannot be empty
+}
+
+INT os_tty_send(HTTY hTTY, UCHAR *pubData, INT nDataLen)
+{
+#error os_tty_send() cannot be empty
+
+	return 0; 
+}
+
+INT os_tty_recv(HTTY hTTY, UCHAR *pubRcvBuf, INT nRcvBufLen, INT nWaitSecs)
+{
+#error os_tty_recv() cannot be empty
+
+	return 0;
+}
+
+void os_modem_reset(HTTY hTTY)
+{
+	/* 用户自定义代码，不需要复位modem设备则这里可以不进行任何操作 */
+	/* …… */
+}
+#endif
+

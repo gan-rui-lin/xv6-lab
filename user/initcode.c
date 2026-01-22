@@ -9,11 +9,16 @@ void test_busybox_musl();
 void test_basic();
 static void test_cow(void);
 static int socket_test();
+static int udp_dns_test();
+static int udp_host_echo_test();
 
 #define HOST_IP "10.0.2.2"
 #define HOST_PORT 12345
 #define LOCAL_IP "10.0.2.15"
 #define ECHO_PORT 9090
+#define DNS_IP "10.0.2.3"
+#define DNS_PORT 53
+#define TEST_UDP_HOST_ECHO 0
 
 
 
@@ -28,7 +33,12 @@ int main()
     }
     dup(0); // stdout
     dup(0); // stderr
-    socket_test();
+    // socket_test();
+    // udp_dns_test();
+    #define TEST_UDP_HOST_ECHO 1
+#if TEST_UDP_HOST_ECHO
+    udp_host_echo_test();
+#endif
     while(1);
     // Provide /bin/sh for script fallback.
     // mkdir("/bin");
@@ -250,7 +260,7 @@ socket_test()
     return -1;
   }
 
-  if(bind(srv, LOCAL_IP, ECHO_PORT) < 0){
+  if(bind(srv, "0.0.0.0", ECHO_PORT) < 0){
     printf("bind failed\n");
     close(srv);
     return -1;
@@ -291,7 +301,7 @@ socket_test()
     return -1;
   }
 
-  const char *msg = "udp loopback";
+  const char *msg = "udp loopback hhh";
   int n = sendto(cli, msg, strlen(msg), LOCAL_IP, ECHO_PORT);
   if(n < 0){
     printf("sendto failed\n");
@@ -312,5 +322,114 @@ socket_test()
 
   close(cli);
   wait(0);
+  return 0;
+}
+
+// 测试 xv6 UDP 栈向 DNS 服务器发送查询并接收应答
+// 期望行为：成功发送一个最小 A 记录查询到 DNS_IP (10.0.2.3)，recvfrom 能收到正确的 DNS reply，ID 和 QR 位匹配
+static int
+udp_dns_test()
+{
+  printf("======== test socket (UDP DNS) ==========\n");
+  int fd = socket(2, 2, 0); // AF_INET=2, SOCK_DGRAM=2
+  if(fd < 0){
+    printf("socket failed\n");
+    return -1;
+  }
+
+  // Minimal DNS query for A record of "example.com".
+  unsigned char buf[256];
+  int i = 0;
+  unsigned short id = 0x1234;
+  buf[i++] = (id >> 8) & 0xff;
+  buf[i++] = id & 0xff;
+  buf[i++] = 0x01; // flags: recursion desired
+  buf[i++] = 0x00;
+  buf[i++] = 0x00; // qdcount = 1
+  buf[i++] = 0x01;
+  buf[i++] = 0x00; // ancount
+  buf[i++] = 0x00;
+  buf[i++] = 0x00; // nscount
+  buf[i++] = 0x00;
+  buf[i++] = 0x00; // arcount
+  buf[i++] = 0x00;
+
+  buf[i++] = 7; // "example"
+  memmove(&buf[i], "example", 7);
+  i += 7;
+  buf[i++] = 3; // "com"
+  memmove(&buf[i], "com", 3);
+  i += 3;
+  buf[i++] = 0; // end of name
+  buf[i++] = 0x00; // qtype A
+  buf[i++] = 0x01;
+  buf[i++] = 0x00; // qclass IN
+  buf[i++] = 0x01;
+
+  int n = sendto(fd, buf, i, DNS_IP, DNS_PORT);
+  if(n < 0){
+    printf("sendto failed\n");
+    close(fd);
+    return -1;
+  }
+
+  uint32 from_ip = 0;
+  uint16 from_port = 0;
+  int r = recvfrom(fd, buf, sizeof(buf), &from_ip, &from_port);
+  if(r >= 12){
+    unsigned short rid = ((unsigned short)buf[0] << 8) | buf[1];
+    int qr = (buf[2] & 0x80) != 0;
+    if(rid == id && qr){
+      printf("dns reply ok: %d bytes\n", r);
+    } else {
+      printf("dns reply invalid: id=0x%x qr=%d\n", rid, qr);
+    }
+  } else {
+    printf("recvfrom failed\n");
+  }
+
+  close(fd);
+  return 0;
+}
+
+// 测试 xv6 UDP 栈向 host 发送回显消息并接收应答
+// 期望行为：发送字符串 "hello from xv6" 到 HOST_IP:HOST_PORT，recvfrom 能收到同样的内容，说明 UDP TX/RX 正常
+// 回包到达 guest，但 socket table 没匹配 → recvfrom failed
+static int
+udp_host_echo_test()
+{
+  printf("======== test socket (UDP host echo) ==========\n");
+  int fd = socket(2, 2, 0); // AF_INET=2, SOCK_DGRAM=2
+  if(fd < 0){
+    printf("socket failed\n");
+    return -1;
+  }
+
+  if(bind(fd, "0.0.0.0", HOST_PORT) < 0){
+    printf("bind failed\n");
+    close(fd);
+    return -1;
+  }
+
+  const char *msg = "hello from xv6";
+  int n = sendto(fd, msg, strlen(msg), HOST_IP, HOST_PORT);
+  if(n < 0){
+    printf("sendto failed\n");
+    close(fd);
+    return -1;
+  }
+
+  char buf[256];
+  uint32 from_ip = 0;
+  uint16 from_port = 0;
+  int r = recvfrom(fd, buf, sizeof(buf) - 1, &from_ip, &from_port);
+  if(r > 0){
+    buf[r] = '\0';
+    printf("recv %d bytes: %s\n", r, buf);
+  } else {
+    printf("recvfrom failed\n");
+  }
+
+  close(fd);
   return 0;
 }

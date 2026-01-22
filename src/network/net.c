@@ -41,6 +41,13 @@ net_emac_send(SHORT sBufListHead, UCHAR *pubErr)
   }
 
   buf_list_merge_packet(sBufListHead, (UCHAR *)pkt);
+  if (len >= 14) {
+    uint8 *b = (uint8 *)pkt;
+    log_info("net: tx eth dst=%02x:%02x:%02x:%02x:%02x:%02x src=%02x:%02x:%02x:%02x:%02x:%02x type=0x%02x%02x\n",
+             b[0], b[1], b[2], b[3], b[4], b[5],
+             b[6], b[7], b[8], b[9], b[10], b[11],
+             b[12], b[13]);
+  }
   int ret = virtio_net_transmit((const uint8 *)pkt, (int)len);
   if (ret < 0) {
     kmfree(pkt);

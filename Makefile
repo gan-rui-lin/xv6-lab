@@ -65,6 +65,7 @@ OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
 CFLAGS = -Wall  -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+CFLAGS += -fsigned-char
 CFLAGS += -MD
 CFLAGS += -DONPS_KERNEL
 CFLAGS += -mcmodel=medany

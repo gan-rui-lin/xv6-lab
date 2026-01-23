@@ -22,6 +22,8 @@
 #include "ip/tcp.h"
 #include "ip/udp.h"
 
+extern void consputc(int c);
+
 SOCKET socket(INT family, INT type, INT protocol, EN_ONPSERR *penErr)
 {
     if (AF_INET != family
@@ -99,39 +101,53 @@ void close(SOCKET socket)
     onps_input_free((INT)socket); 
 }
 
+__attribute__((noinline))
 static int socket_tcp_connect(SOCKET socket, PST_TCPUDP_HANDLE pstHandle, HSEM hSem, void *srv_ip, unsigned short srv_port, int nConnTimeout)
 {     
 	EN_ONPSERR enErr = ERRNO; 
 
+    // consputc('C');
 #if SUPPORT_IPV6
 	INT nRtnVal;
 	if (AF_INET == pstHandle->bFamily)
-		nRtnVal = tcp_send_syn((INT)socket, *((in_addr_t *)srv_ip), srv_port, nConnTimeout); 
+	{
+		in_addr_t dst = *((in_addr_t *)srv_ip);
+		UCHAR *d = (UCHAR *)&dst;
+		printf("socket_tcp_connect: send syn -> %d.%d.%d.%d:%d timeout=%d\n", d[0], d[1], d[2], d[3], srv_port, nConnTimeout);
+        // consputc('T');
+		nRtnVal = tcp_send_syn((INT)socket, dst, srv_port, nConnTimeout);
+        // consputc('t');
+	}
 	else				
 		nRtnVal = tcpv6_send_syn((INT)socket, (UCHAR *)srv_ip, srv_port, nConnTimeout);	
 #else
-	INT nRtnVal = tcp_send_syn((INT)socket, *((in_addr_t *)srv_ip), srv_port, nConnTimeout);
+	in_addr_t dst = *((in_addr_t *)srv_ip);
+	UCHAR *d = (UCHAR *)&dst;
+	printf("socket_tcp_connect: send syn -> %d.%d.%d.%d:%d timeout=%d\n", d[0], d[1], d[2], d[3], srv_port, nConnTimeout);
+    // consputc('T');
+	INT nRtnVal = tcp_send_syn((INT)socket, dst, srv_port, nConnTimeout);
+    // consputc('t');
 #endif    
 
     if (nRtnVal > 0)
     {            
-__lblWait: 
-        //* 等待信号到达：超时或者收到syn ack同时本地回馈的syn ack的ack发送成功
-        if (os_thread_sem_pend(hSem, 0) < 0)
-        {         
-            onps_set_last_error((INT)socket, ERRINVALIDSEM);
-            return -1;
-        }        
-        
-        EN_TCPLINKSTATE enLinkState;
-        if (!onps_input_get((INT)socket, IOPT_GETTCPLINKSTATE, &enLinkState, &enErr))
-        {         
-            onps_set_last_error((INT)socket, enErr);
-            return -1;
-        }        
-
-        if (TLSSYNSENT == enLinkState)
-            goto __lblWait;         
+        INT waited = 0;
+        EN_TCPLINKSTATE enLinkState = TLSSYNSENT;
+        //* 轮询等待链接状态变化，避免信号量等待在某些环境下卡死
+        for (;;)
+        {
+            if (!onps_input_get((INT)socket, IOPT_GETTCPLINKSTATE, &enLinkState, &enErr))
+            {
+                onps_set_last_error((INT)socket, enErr);
+                return -1;
+            }
+            if (TLSSYNSENT != enLinkState)
+                break;
+            if (waited >= nConnTimeout)
+                break;
+            os_sleep_secs(1);
+            waited++;
+        }
 
         switch (enLinkState)
         {
@@ -155,7 +171,11 @@ __lblWait:
         }
     }
     else
-        return -1;   
+    {
+        EN_ONPSERR last = onps_get_last_error_code((INT)socket);
+        printf("socket_tcp_connect: syn send failed err=%d (%s)\n", last, onps_error(last));
+        return -1;
+    }
 }
 
 static int socket_tcp_connect_nb(SOCKET socket, PST_TCPUDP_HANDLE pstHandle, void *srv_ip, unsigned short srv_port, EN_TCPLINKSTATE enLinkState)
@@ -202,13 +222,16 @@ static int socket_tcp_connect_nb(SOCKET socket, PST_TCPUDP_HANDLE pstHandle, voi
     }
 }
 
+__attribute__((noinline))
 static int socket_connect(SOCKET socket, PST_TCPUDP_HANDLE pstHandleInput, void *srv_ip, unsigned short srv_port, int nConnTimeout)
 {
+    // consputc('X');
     PST_TCPUDP_HANDLE pstHandle = pstHandleInput; 
     EN_ONPSERR enErr;
     EN_IPPROTO enProto;    
     if (!onps_input_get((INT)socket, IOPT_GETIPPROTO, &enProto, &enErr))
         goto __lblErr;    
+    // consputc('I');
 
     onps_set_last_error((INT)socket, ERRNO);
 
@@ -225,11 +248,14 @@ static int socket_connect(SOCKET socket, PST_TCPUDP_HANDLE pstHandleInput, void 
         EN_TCPLINKSTATE enLinkState;
         if (!onps_input_get((INT)socket, IOPT_GETTCPLINKSTATE, &enLinkState, &enErr))
             goto __lblErr;		
+        // consputc('L');
 
         //* 无效，意味着当前TCP连接链路尚未申请一个tcp link节点，需要在这里申请
         if (TLSINVALID == enLinkState)
         {
+            // consputc('G');
             PST_TCPLINK pstLink = tcp_link_get(&enErr); 
+            // consputc('g');
             if(pstLink)
             {                 
                 if (!onps_input_set((INT)socket, IOPT_SETATTACH, pstLink, &enErr))
@@ -254,6 +280,7 @@ static int socket_connect(SOCKET socket, PST_TCPUDP_HANDLE pstHandleInput, void 
                 goto __lblErr;
             }            
 
+            // consputc('Y');
             return socket_tcp_connect(socket, pstHandle, hSem, srv_ip, srv_port, nConnTimeout);
         }
         else
@@ -873,7 +900,7 @@ EN_ONPSERR socket_get_last_error_code(SOCKET socket)
 #if SUPPORT_ETHERNET
 INT listen(SOCKET socket, USHORT backlog)
 {
-    EN_ONPSERR enErr;
+    EN_ONPSERR enErr = ERRNO;
     EN_IPPROTO enProto;
     if (!onps_input_get((INT)socket, IOPT_GETIPPROTO, &enProto, &enErr))
         goto __lblErr; 

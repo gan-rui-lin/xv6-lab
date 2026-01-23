@@ -64,6 +64,18 @@ static INT netif_ip_send(PST_NETIF pstNetif, UCHAR *pubDstMacAddr, in_addr_t unS
     BOOL blNetifFreedEn = TRUE; 
 
     os_critical_init();
+    {
+        UCHAR *src = (UCHAR *)&unSrcAddr;
+        UCHAR *dst = (UCHAR *)&unDstAddr;
+        UCHAR *arp = (UCHAR *)&unArpDstAddr;
+        UINT len = buf_list_get_len(sBufListHead);
+        log_info("netif_ip_send: proto=%d src=%d.%d.%d.%d dst=%d.%d.%d.%d arp=%d.%d.%d.%d len=%u\n",
+               enProtocol,
+               src[0], src[1], src[2], src[3],
+               dst[0], dst[1], dst[2], dst[3],
+               arp[0], arp[1], arp[2], arp[3],
+               len);
+    }
 
     ST_IP_HDR stHdr;
     stHdr.bitHdrLen = sizeof(ST_IP_HDR) / sizeof(UINT); //* IP头长度，单位：UINT
@@ -117,6 +129,7 @@ static INT netif_ip_send(PST_NETIF pstNetif, UCHAR *pubDstMacAddr, in_addr_t unS
 		{
 			UCHAR ubaDstMac[ETH_MAC_ADDR_LEN];            
 			nRtnVal = arp_get_mac_ext(pstNetif, unSrcAddr, unArpDstAddr, ubaDstMac, sBufListHead, &blNetifFreedEn, penErr); 
+            log_info("netif_ip_send: arp_get_mac_ext ret=%d err=%d\n", nRtnVal, penErr ? *penErr : 0);
 			if (!nRtnVal) //* 存在该条目，则直接调用ethernet接口注册的发送函数即可			
 			{
 				PST_NETIFEXTRA_ETH pstExtra = (PST_NETIFEXTRA_ETH)pstNetif->pvExtra;
@@ -135,6 +148,7 @@ static INT netif_ip_send(PST_NETIF pstNetif, UCHAR *pubDstMacAddr, in_addr_t unS
 #if SUPPORT_ETHERNET
     }    
 #endif
+    log_info("netif_ip_send: send ret=%d err=%d\n", nRtnVal, penErr ? *penErr : 0);
 
     //* 如果不需要等待arp查询结果，则立即释放对网卡的使用权
     if (blNetifFreedEn)
@@ -179,6 +193,10 @@ INT ip_send_ext(in_addr_t unSrcAddr, in_addr_t unDstAddr, EN_NPSPROTOCOL enProto
         if (penErr)
             *penErr = ERRADDRESSING;
 
+        {
+            UCHAR *dst = (UCHAR *)&unDstAddr;
+            log_info("ip_send_ext: no route to %d.%d.%d.%d\n", dst[0], dst[1], dst[2], dst[3]);
+        }
         return -1;
     }
 
@@ -190,6 +208,15 @@ INT ip_send_ext(in_addr_t unSrcAddr, in_addr_t unDstAddr, EN_NPSPROTOCOL enProto
         if (penErr)
             *penErr = ERRROUTEADDRMATCH;
 
+        {
+            UCHAR *src = (UCHAR *)&unSrcAddr;
+            UCHAR *route = (UCHAR *)&unRouteSrcAddr;
+            UCHAR *dst = (UCHAR *)&unDstAddr;
+            log_info("ip_send_ext: route mismatch src=%d.%d.%d.%d route=%d.%d.%d.%d dst=%d.%d.%d.%d\n",
+                   src[0], src[1], src[2], src[3],
+                   route[0], route[1], route[2], route[3],
+                   dst[0], dst[1], dst[2], dst[3]);
+        }
         return -1; 
     }
 

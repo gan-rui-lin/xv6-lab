@@ -26,6 +26,51 @@ getsockfd(int fd, struct file **pf)
   return 0;
 }
 
+static int
+onps_err_to_errno(EN_ONPSERR err)
+{
+  switch(err){
+  case ERRNO:
+    return 0;
+  case ERRNOPAGENODE:
+  case ERRREQMEMTOOLARGE:
+  case ERRNOFREEMEM:
+    return -ENOMEM;
+  case ERRSOCKETTYPE:
+    return -ENOTSUP;
+  case ERRADDRFAMILIES:
+  case ERRUNSUPPORTEDFAMILY:
+  case ERRFAMILYINCONSISTENT:
+    return -ENOTSUP;
+  case ERRPORTOCCUPIED:
+    return -EINVAL;
+  case ERRNOTBINDADDR:
+  case ERRPORTEMPTY:
+    return -EINVAL;
+  case ERRADDRESSING:
+  case ERRNETUNREACHABLE:
+    return -EIO;
+  case ERRROUTEADDRMATCH:
+    return -EINVAL;
+  case ERRTCPCONNTIMEOUT:
+    return -EAGAIN;
+  case ERRTCPCONNRESET:
+    return -EIO;
+  case ERRTCPCONNCLOSED:
+  case ERRTCPNOTCONNECTED:
+    return -EIO;
+  case ERRTCPBACKLOGFULL:
+    return -EAGAIN;
+  case ERRDATAEMPTY:
+  case ERRSENDZEROBYTES:
+    return -EINVAL;
+  case ERRNETIFNOTFOUND:
+    return -ENODEV;
+  default:
+    return -EIO;
+  }
+}
+
 uint64
 sys_socket(void)
 {
@@ -42,7 +87,7 @@ sys_socket(void)
   if(s < 0){
     f->ref = 0;
     f->type = FD_NONE;
-    return -EIO;
+    return (err != ERRNO) ? onps_err_to_errno(err) : -EIO;
   }
 
   f->type = FD_SOCKET;
@@ -88,7 +133,12 @@ sys_bind(void)
   }
 
   int ret = bind((SOCKET)f->sock, ip, (USHORT)port);
-  return (ret < 0) ? -EIO : 0;
+  if(ret < 0){
+    EN_ONPSERR err = socket_get_last_error_code((SOCKET)f->sock);
+    int kerr = onps_err_to_errno(err);
+    return (kerr != 0) ? kerr : -EIO;
+  }
+  return 0;
 }
 
 uint64
@@ -108,8 +158,17 @@ sys_connect(void)
   if(fetchstr(uip, ipbuf, sizeof(ipbuf)) < 0)
     return -EFAULT;
 
-  int ret = connect((SOCKET)f->sock, ipbuf, (USHORT)port, 3);
-  return (ret < 0) ? -EIO : 0;
+  log_info("sys_connect: fd=%d dst=%s:%d timeout=%d\n", fd, ipbuf, port, 1);
+  int ret = connect((SOCKET)f->sock, ipbuf, (USHORT)port, 1);
+  if(ret < 0){
+    EN_ONPSERR err = socket_get_last_error_code((SOCKET)f->sock);
+    const CHAR *msg = onps_error(err);
+    log_warn("sys_connect: err=%d (%s)\n", err, msg ? msg : "unknown");
+    int kerr = onps_err_to_errno(err);
+    return (kerr != 0) ? kerr : -EIO;
+  }
+  log_info("sys_connect: ok\n");
+  return 0;
 }
 
 uint64
@@ -152,7 +211,7 @@ sys_sendto(void)
     EN_ONPSERR err = ERRNO;
     const CHAR *msg = socket_get_last_error((SOCKET)f->sock, &err);
     log_warn("sys_sendto: dst=%s:%d len=%d err=%d (%s)\n", ipbuf, port, len, err, msg ? msg : "unknown");
-    return -EIO;
+    return (err != ERRNO) ? onps_err_to_errno(err) : -EIO;
   }
   return ret;
 }
@@ -203,7 +262,7 @@ sys_recvfrom(void)
     EN_ONPSERR err = ERRNO;
     const CHAR *msg = socket_get_last_error((SOCKET)f->sock, &err);
     log_warn("sys_recvfrom: err=%d (%s)\n", err, msg ? msg : "unknown");
-    return -EIO;
+    return (err != ERRNO) ? onps_err_to_errno(err) : -EIO;
   }
   return ret;
 }
@@ -222,7 +281,14 @@ sys_listen(void)
 
   int ret = 
   listen((SOCKET)f->sock, (USHORT)backlog);
-  return (ret < 0) ? -EIO : 0;
+  if(ret < 0){
+    EN_ONPSERR err = socket_get_last_error_code((SOCKET)f->sock);
+    const CHAR *msg = onps_error(err);
+    log_warn("sys_listen: backlog=%d err=%d (%s)\n", backlog, err, msg ? msg : "unknown");
+    int kerr = onps_err_to_errno(err);
+    return (kerr != 0) ? kerr : -EIO;
+  }
+  return 0;
 }
 
 uint64
@@ -242,8 +308,12 @@ sys_accept(void)
   USHORT from_port = 0;
   EN_ONPSERR err = ERRNO;
   SOCKET ns = accept((SOCKET)f->sock, &from_ip, &from_port, waitsecs, &err);
-  if(ns < 0)
-    return -EIO;
+  if(ns < 0){
+    const CHAR *msg = onps_error(err);
+    log_warn("sys_accept: err=%d (%s)\n", err, msg ? msg : "unknown");
+    int kerr = onps_err_to_errno(err);
+    return (kerr != 0) ? kerr : -EIO;
+  }
 
   struct file *nf = filealloc();
   if(!nf){

@@ -8,6 +8,9 @@ GDB_FLAGS=""
 NET_FORWARD="0"
 NET_DUMP_FILE=""
 NET_DUMP_OBJ=""
+NET_MODE="user"
+TAP_IFNAME="tap0"
+BRIDGE_NAME="br0"
 
 # 显示用法信息
 usage() {
@@ -18,6 +21,9 @@ usage() {
     echo "  -d                 启用 GDB 调试 (为 QEMU 添加 -s -S)"
     echo "  -n, --netforward   启用 user net hostfwd (UDP 12345)"
     echo "  --netdump FILE     启用 QEMU 抓包到 FILE (filter-dump)"
+    echo "  --netmode MODE     网络模式 (user/tap), 默认: $NET_MODE"
+    echo "  --tap-ifname NAME  tap 模式网卡名, 默认: $TAP_IFNAME"
+    echo "  --bridge NAME      bridge 模式桥接名(需预先创建), 默认: $BRIDGE_NAME"
     echo "  -h, --help         显示此帮助信息"
     echo ""
     echo "示例:"
@@ -25,6 +31,8 @@ usage() {
     echo "  $0 --type all --file sdcard.img"
     echo "  $0 -t debug -f sdcard-final.img -d"
     echo "  $0 -t debug -f sdcard-final.img --netforward"
+    echo "  $0 -t debug -f sdcard-final.img --netmode tap --tap-ifname tap0"
+    echo "  $0 -t debug -f sdcard-final.img --netmode bridge --bridge br0 --tap-ifname tap0"
 }
 
 # 解析命令行参数
@@ -45,6 +53,18 @@ while [[ $# -gt 0 ]]; do
         -n|--netforward)
             NET_FORWARD="1"
             shift
+            ;;
+        --netmode)
+            NET_MODE="$2"
+            shift 2
+            ;;
+        --tap-ifname)
+            TAP_IFNAME="$2"
+            shift 2
+            ;;
+        --bridge)
+            BRIDGE_NAME="$2"
+            shift 2
             ;;
         --netdump)
             NET_DUMP_FILE="$2"
@@ -83,12 +103,30 @@ else
     echo "GDB 调试: 关闭"
 fi
 
-NETDEV_OPTS="user,id=net"
-if [[ "$NET_FORWARD" == "1" ]]; then
-    NETDEV_OPTS="user,id=net,hostfwd=udp::12345-:12345"
-    echo "NET 转发: 开启 (udp 12345 -> guest 12345)"
+NETDEV_OPTS=""
+if [[ "$NET_MODE" == "bridge" ]]; then
+    NETDEV_OPTS="tap,id=net,ifname=${TAP_IFNAME},script=no,downscript=no"
+    echo "NET 模式: bridge (ifname=${TAP_IFNAME}, bridge=${BRIDGE_NAME})"
+    echo "提示: 需要你先在宿主机创建 ${TAP_IFNAME} 并加入 ${BRIDGE_NAME}"
+    if [[ "$NET_FORWARD" == "1" ]]; then
+        echo "NET 转发: bridge 模式下忽略 hostfwd"
+    fi
+elif [[ "$NET_MODE" == "tap" ]]; then
+    NETDEV_OPTS="tap,id=net,ifname=${TAP_IFNAME},script=no,downscript=no"
+    echo "NET 模式: tap (ifname=${TAP_IFNAME})"
+    if [[ "$NET_FORWARD" == "1" ]]; then
+        echo "NET 转发: tap 模式下忽略 hostfwd"
+    fi
 else
-    echo "NET 转发: 关闭"
+    NETDEV_OPTS="user,id=net"
+    if [[ "$NET_FORWARD" == "1" ]]; then
+        NETDEV_OPTS="user,id=net,hostfwd=udp::12345-:12345"
+        echo "NET 模式: user"
+        echo "NET 转发: 开启 (udp 12345 -> guest 12345)"
+    else
+        echo "NET 模式: user"
+        echo "NET 转发: 关闭"
+    fi
 fi
 if [[ -n "$NET_DUMP_FILE" ]]; then
     NET_DUMP_OBJ="-object filter-dump,id=netdump,netdev=net,file=${NET_DUMP_FILE}"
@@ -109,7 +147,7 @@ qemu-system-riscv64 -machine virt \
   -kernel kernel-qemu \
   -m 128M \
   -nographic \
-  -smp 2 \
+  -smp 1 \
   -bios default \
   -drive file="$IMAGE_FILE",if=none,format=raw,id=x0 \
   -device virtio-blk-device,drive=x0,bus=virtio-mmio-bus.0 \

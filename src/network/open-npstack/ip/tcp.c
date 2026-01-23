@@ -27,6 +27,8 @@
 #include "ip/tcp.h"
 #undef SYMBOL_GLOBALS
 
+extern void consputc(int c);
+
 static void tcp_send_fin(PST_TCPLINK pstLink); 
 static void tcpsrv_send_syn_ack_with_start_timer(PST_TCPLINK pstLink, void *pvSrcAddr, USHORT usSrcPort, void *pvDstAddr, USHORT usDstPort); 
 
@@ -160,9 +162,11 @@ static void tcp_close_timeout_handler(void *pvParam)
 }
 
 #if SUPPORT_SACK
+__attribute__((noinline))
 static INT tcp_send_packet(PST_TCPLINK pstLink, in_addr_t unSrcAddr, USHORT usSrcPort, in_addr_t unDstAddr, USHORT usDstPort, UNI_TCP_FLAG uniFlag, 
 							UCHAR *pubOptions, USHORT usOptionsBytes, UCHAR *pubData, USHORT usDataBytes, BOOL blIsSpecSeqNum, UINT unSeqNum, EN_ONPSERR *penErr)
 #else
+__attribute__((noinline))
 static INT tcp_send_packet(PST_TCPLINK pstLink, in_addr_t unSrcAddr, USHORT usSrcPort, in_addr_t unDstAddr, USHORT usDstPort, 
 							UNI_TCP_FLAG uniFlag, UCHAR *pubOptions, USHORT usOptionsBytes, UCHAR *pubData, USHORT usDataBytes, EN_ONPSERR *penErr)
 #endif
@@ -195,7 +199,17 @@ static INT tcp_send_packet(PST_TCPLINK pstLink, in_addr_t unSrcAddr, USHORT usSr
     //* 要确保本地Sequence Number和对端Sequence Number不乱序就必须加锁，因为tcp接收线程与发送线程并不属于同一个，因为线程优先级问题导致发送线程在发送前一刻被接收线程强行打断并率先发送了
     //* 应答报文，此时序号有可能已大于发送线程携带的序号，乱序问题就此产生
     //* 在这里加锁，当接收线程与发送线程同时调用这个函数时，会因为锁的存在使得调用按顺序进行，这样就确保sequence num不会乱序    
+    {
+        UCHAR *src = (UCHAR *)&unSrcAddr;
+        UCHAR *dst = (UCHAR *)&unDstAddr;
+        log_info("tcp_send_packet: lock wait %d.%d.%d.%d:%d -> %d.%d.%d.%d:%d flags=0x%04x\n",
+               src[0], src[1], src[2], src[3], usSrcPort,
+               dst[0], dst[1], dst[2], dst[3], usDstPort,
+               uniFlag.usVal);
+    }
+    // consputc('L');
     onps_input_lock(pstLink->stcbWaitAck.nInput); 
+    log_info("tcp_send_packet: lock acquired\n");
 
     //* 填充tcp头
     ST_TCP_HDR stHdr; 
@@ -248,7 +262,9 @@ static INT tcp_send_packet(PST_TCPLINK pstLink, in_addr_t unSrcAddr, USHORT usSr
 	}
 
     //* 发送之
+    log_info("tcp_send_packet: ip_send_ext begin\n");
     INT nRtnVal = ip_send_ext(unSrcAddr, unDstAddr, TCP, IP_TTL_DEFAULT, sBufListHead, penErr);
+    log_info("tcp_send_packet: ip_send_ext done ret=%d err=%d\n", nRtnVal, penErr ? *penErr : 0);
 #if SUPPORT_SACK
     if (!blIsSpecSeqNum)
         pstLink->stLocal.unHasSndBytes += (UINT)usDataBytes; 
@@ -428,15 +444,24 @@ static void tcp_send_ack_of_syn_ack(INT nInput, PST_TCPLINK pstLink, void *pvNet
 		onps_input_sem_post(pstLink->stcbWaitAck.nInput);	
 }
 
+__attribute__((noinline))
 INT tcp_send_syn(INT nInput, in_addr_t unSrvAddr, USHORT usSrvPort, int nConnTimeout)
 {
     EN_ONPSERR enErr;    
+
+    // consputc('S');
+    {
+        UCHAR *dst = (UCHAR *)&unSrvAddr;
+        log_info("tcp_send_syn: enter dst=%d.%d.%d.%d:%d timeout=%d\n",
+               dst[0], dst[1], dst[2], dst[3], usSrvPort, nConnTimeout);
+    }
 
     //* 获取链路信息存储节点
     PST_TCPLINK pstLink; 
     if (!onps_input_get(nInput, IOPT_GETTCPUDPLINK, &pstLink, &enErr))
     {
         onps_set_last_error(nInput, enErr); 
+        log_info("tcp_send_syn: get link failed err=%d (%s)\n", enErr, onps_error(enErr));
         return -1; 
     }
 
@@ -445,6 +470,7 @@ INT tcp_send_syn(INT nInput, in_addr_t unSrvAddr, USHORT usSrvPort, int nConnTim
     if (!onps_input_get(nInput, IOPT_GETTCPUDPADDR, &pstHandle, &enErr))
     {
         onps_set_last_error(nInput, enErr);
+        log_info("tcp_send_syn: get handle failed err=%d (%s)\n", enErr, onps_error(enErr));
         return -1;
     }
 
@@ -453,8 +479,13 @@ INT tcp_send_syn(INT nInput, in_addr_t unSrvAddr, USHORT usSrvPort, int nConnTim
     if (!unNetifIp)
     {
         onps_set_last_error(nInput, ERRADDRESSING);
+        {
+            UCHAR *dst = (UCHAR *)&unSrvAddr;
+            log_info("tcp syn: no route to %d.%d.%d.%d\n", dst[0], dst[1], dst[2], dst[3]);
+        }
         return -1;
     }
+    // consputc('R');
     //* 更新当前input句柄，以便收到应答报文时能够准确找到该链路
     pstHandle->stSockAddr.saddr_ipv4 = unNetifIp;
 #if SUPPORT_IPV6
@@ -462,6 +493,14 @@ INT tcp_send_syn(INT nInput, in_addr_t unSrvAddr, USHORT usSrvPort, int nConnTim
 #else
 	pstHandle->stSockAddr.usPort = onps_input_port_new(IPPROTO_TCP);
 #endif
+
+    {
+        UCHAR *src = (UCHAR *)&pstHandle->stSockAddr.saddr_ipv4;
+        UCHAR *dst = (UCHAR *)&unSrvAddr;
+        log_info("tcp syn: %d.%d.%d.%d:%d -> %d.%d.%d.%d:%d\n",
+               src[0], src[1], src[2], src[3], pstHandle->stSockAddr.usPort,
+               dst[0], dst[1], dst[2], dst[3], usSrvPort);
+    }
 
     //* 标志字段syn域置1，其它标志域为0
     UNI_TCP_FLAG uniFlag; 
@@ -490,6 +529,7 @@ INT tcp_send_syn(INT nInput, in_addr_t unSrvAddr, USHORT usSrvPort, int nConnTim
 #else
 	INT nRtnVal = tcp_send_packet(pstLink, pstHandle->stSockAddr.saddr_ipv4, pstHandle->stSockAddr.usPort, unSrvAddr, usSrvPort, uniFlag, ubaOptions, (USHORT)nOptionsSize, NULL, 0, &enErr);
 #endif
+    log_info("tcp_send_syn: tcp_send_packet ret=%d err=%d (%s)\n", nRtnVal, enErr, onps_error(enErr));
     if (nRtnVal > 0)
     {
         //* 加入定时器队列
@@ -514,6 +554,11 @@ INT tcp_send_syn(INT nInput, in_addr_t unSrvAddr, USHORT usSrvPort, int nConnTim
             onps_set_last_error(nInput, enErr);
         else
             onps_set_last_error(nInput, ERRSENDZEROBYTES);
+
+        {
+            const CHAR *msg = onps_error(enErr);
+            printf("tcp syn: send failed err=%d (%s)\n", enErr, msg ? msg : "unknown");
+        }
     }
 
     return nRtnVal; 

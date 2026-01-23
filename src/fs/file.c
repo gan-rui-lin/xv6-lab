@@ -16,6 +16,52 @@
 #include "stat.h"
 #include "proc.h"
 #include "bsd/socket.h"
+#include "onps_errors.h"
+
+static int
+onps_err_to_errno(EN_ONPSERR err)
+{
+  switch(err){
+  case ERRNO:
+    return 0;
+  case ERRNOPAGENODE:
+  case ERRREQMEMTOOLARGE:
+  case ERRNOFREEMEM:
+    return -ENOMEM;
+  case ERRSOCKETTYPE:
+    return -ENOTSUP;
+  case ERRADDRFAMILIES:
+  case ERRUNSUPPORTEDFAMILY:
+  case ERRFAMILYINCONSISTENT:
+    return -ENOTSUP;
+  case ERRPORTOCCUPIED:
+    return -EINVAL;
+  case ERRNOTBINDADDR:
+  case ERRPORTEMPTY:
+    return -EINVAL;
+  case ERRADDRESSING:
+  case ERRNETUNREACHABLE:
+    return -EIO;
+  case ERRROUTEADDRMATCH:
+    return -EINVAL;
+  case ERRTCPCONNTIMEOUT:
+    return -EAGAIN;
+  case ERRTCPCONNRESET:
+    return -EIO;
+  case ERRTCPCONNCLOSED:
+  case ERRTCPNOTCONNECTED:
+    return -EIO;
+  case ERRTCPBACKLOGFULL:
+    return -EAGAIN;
+  case ERRDATAEMPTY:
+  case ERRSENDZEROBYTES:
+    return -EINVAL;
+  case ERRNETIFNOTFOUND:
+    return -ENODEV;
+  default:
+    return -EIO;
+  }
+}
 
 struct devsw devsw[NDEV];  // 设备操作表，登记各种设备的操作函数
 struct {
@@ -138,7 +184,28 @@ fileread(struct file *f, uint64 addr, int n)
       f->off += r;
     iunlock(f->ip); // 解锁 inode
   } else if(f->type == FD_SOCKET){
-    return -ENOTSUP;
+    void *kbuf = 0;
+    if(n > 0){
+      kbuf = kmalloc(n);
+      if(!kbuf)
+        return -ENOMEM;
+    }
+    r = recv((SOCKET)f->sock, (UCHAR *)kbuf, n);
+    if(r > 0){
+      if(copyout(myproc()->pagetable, addr, (char *)kbuf, r) < 0){
+        if(kbuf)
+          kmfree(kbuf);
+        return -EFAULT;
+      }
+    }
+    if(kbuf)
+      kmfree(kbuf);
+    if(r < 0){
+      EN_ONPSERR err = socket_get_last_error_code((SOCKET)f->sock);
+      int kerr = onps_err_to_errno(err);
+      return (kerr != 0) ? kerr : -EIO;
+    }
+    return r;
   } else {
     panic("fileread"); // 未知类型出错
   }
@@ -190,7 +257,25 @@ filewrite(struct file *f, uint64 addr, int n)
     }
     ret = (i == n ? n : -1);      // 返回写入总长度或 -1
   } else if(f->type == FD_SOCKET){
-    return -ENOTSUP;
+    void *kbuf = 0;
+    if(n > 0){
+      kbuf = kmalloc(n);
+      if(!kbuf)
+        return -ENOMEM;
+      if(copyin(myproc()->pagetable, kbuf, addr, n) < 0){
+        kmfree(kbuf);
+        return -EFAULT;
+      }
+    }
+    ret = send((SOCKET)f->sock, (UCHAR *)kbuf, n, 0);
+    if(kbuf)
+      kmfree(kbuf);
+    if(ret < 0){
+      EN_ONPSERR err = socket_get_last_error_code((SOCKET)f->sock);
+      int kerr = onps_err_to_errno(err);
+      return (kerr != 0) ? kerr : -EIO;
+    }
+    return ret;
   } else {
     panic("filewrite");            // 未知类型出错
   }

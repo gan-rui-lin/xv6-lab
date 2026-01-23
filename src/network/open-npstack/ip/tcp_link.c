@@ -313,10 +313,24 @@ PST_TCPLINK tcp_link_list_used_get_next(PST_TCPLINK pstTcpLink)
     if (pstTcpLink)
     {
         if (pstTcpLink->bNext >= 0)
+        {
+            if (pstTcpLink->bNext >= TCP_LINK_NUM_MAX)
+            {
+                printf("tcp_link_list_used_get_next: bad bNext=%d idx=%d\n",
+                       pstTcpLink->bNext, pstTcpLink->bIdx);
+                return NULL;
+            }
             pstNextNode = &l_staTcpLinkNode[pstTcpLink->bNext];
+        }
     }
     else
     {
+        if (l_pstUsedTcpLinkList
+            && (l_pstUsedTcpLinkList->bIdx < 0 || l_pstUsedTcpLinkList->bIdx >= TCP_LINK_NUM_MAX))
+        {
+            printf("tcp_link_list_used_get_next: bad head idx=%d\n", l_pstUsedTcpLinkList->bIdx);
+            return NULL;
+        }
         pstNextNode = l_pstUsedTcpLinkList;
     }
 

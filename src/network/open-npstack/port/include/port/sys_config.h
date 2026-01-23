@@ -94,7 +94,7 @@
 
 #if SUPPORT_ETHERNET
     #define TCPSRV_BACKLOG_NUM_MAX  10      //* tcp服务器支持的最大请求队列数量，任意时刻所有已开启的tcp服务器的请求连接队列数量之和应小于该值，否则将会出现拒绝连接的情况
-    #define TCPSRV_NUM_MAX          0       //* 系统能够同时建立的tcp服务器数量
+    #define TCPSRV_NUM_MAX          4       //* 系统能够同时建立的tcp服务器数量
     #define TCPSRV_RECV_QUEUE_NUM   64      //* tcp服务器接收队列大小，所有已开启的tcp服务器共享该队列资源，如果单位时间内到达所有已开启tcp服务器的报文数量较大，应将该值调大
 #endif
 
@@ -147,7 +147,7 @@
 
 //* 内存管理单元(mmu)相关配置项，其直接影响协议栈能分配多少个socket给用户使用
 //* ===============================================================================================
-#define BUF_LIST_NUM	 80     //* 缓存链表的节点数，最大不能超过2的15次方（32768）
+#define BUF_LIST_NUM	 256    //* 缓存链表的节点数，最大不能超过2的15次方（32768）
 #define BUDDY_PAGE_SIZE  32     //* 系统能够分配的最小页面大小，其值必须是2的整数次幂
 #define BUDDY_ARER_COUNT 9      //* 指定buddy算法管理的内存块数组单元数量
 

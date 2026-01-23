@@ -11,6 +11,8 @@ static void test_cow(void);
 static int socket_test();
 static int udp_dns_test();
 static int udp_host_echo_test();
+static int tcp_loopback_test();
+static int tcp_host_echo_test();
 
 #define HOST_IP "10.0.2.2"
 #define HOST_PORT 12345
@@ -18,7 +20,13 @@ static int udp_host_echo_test();
 #define ECHO_PORT 9090
 #define DNS_IP "10.0.2.3"
 #define DNS_PORT 53
+#define TCP_PORT 12346
+#define TCP_HOST_PORT 12346
+#define TEST_UDP_LOOPBACK 0
+#define TEST_UDP_DNS 0
 #define TEST_UDP_HOST_ECHO 0
+#define TEST_TCP_LOOPBACK 0
+#define TEST_TCP_HOST_ECHO 1
 
 
 
@@ -33,12 +41,22 @@ int main()
     }
     dup(0); // stdout
     dup(0); // stderr
-    // socket_test();
-    // udp_dns_test();
-    #define TEST_UDP_HOST_ECHO 1
-#if TEST_UDP_HOST_ECHO
+ #if TEST_UDP_LOOPBACK
+    socket_test();
+ #endif
+ #if TEST_UDP_DNS
+    udp_dns_test();
+ #endif
+ #if TEST_UDP_HOST_ECHO
     udp_host_echo_test();
-#endif
+ #endif
+ #if TEST_TCP_LOOPBACK
+    tcp_loopback_test();
+ #endif
+ #if TEST_TCP_HOST_ECHO
+    tcp_host_echo_test();
+ #endif
+    printf("All tests done!\n");
     while(1);
     // Provide /bin/sh for script fallback.
     // mkdir("/bin");
@@ -428,6 +446,124 @@ udp_host_echo_test()
     printf("recv %d bytes: %s\n", r, buf);
   } else {
     printf("recvfrom failed\n");
+  }
+
+  close(fd);
+  return 0;
+}
+
+// 测试 xv6 TCP 栈的本机回环能力（server+client 同机）
+// 期望行为：server 监听 TCP_PORT，client 连接并发送 "tcp loopback"，server 回显，client 能收到相同内容
+static int
+tcp_loopback_test()
+{
+  printf("======== test socket (TCP loopback) ==========\n");
+  int srv = socket(2, 1, 0); // AF_INET=2, SOCK_STREAM=1
+  if(srv < 0){
+    printf("socket failed\n");
+    return -1;
+  }
+
+  if(bind(srv, LOCAL_IP, TCP_PORT) < 0){
+    printf("bind failed\n");
+    close(srv);
+    return -1;
+  }
+
+  if(listen(srv, 1) < 0){
+    printf("listen failed\n");
+    close(srv);
+    return -1;
+  }
+
+  int pid = fork();
+  if(pid < 0){
+    printf("fork failed\n");
+    close(srv);
+    return -1;
+  }
+
+  if(pid == 0){
+    int cli = socket(2, 1, 0);
+    if(cli < 0){
+      printf("socket failed\n");
+      exit(1);
+    }
+    if(connect(cli, LOCAL_IP, TCP_PORT) < 0){
+      printf("connect failed\n");
+      close(cli);
+      exit(1);
+    }
+    const char *msg = "tcp loopback";
+    if(write(cli, msg, strlen(msg)) < 0)
+      printf("write failed\n");
+    char buf[64];
+    int r = read(cli, buf, sizeof(buf) - 1);
+    if(r > 0){
+      buf[r] = '\0';
+      printf("recv %d bytes: %s\n", r, buf);
+    } else {
+      printf("read failed\n");
+    }
+    close(cli);
+    exit(0);
+  }
+
+  uint32 from_ip = 0;
+  uint16 from_port = 0;
+  int ns = accept(srv, &from_ip, &from_port, 5);
+  if(ns < 0){
+    printf("accept failed\n");
+    close(srv);
+    kill(pid);
+    wait(0);
+    return -1;
+  }
+
+  char buf[64];
+  int r = read(ns, buf, sizeof(buf));
+  if(r > 0){
+    if(write(ns, buf, r) < 0)
+      printf("write failed\n");
+  } else {
+    printf("read failed\n");
+  }
+
+  close(ns);
+  close(srv);
+  wait(0);
+  return 0;
+}
+
+// 测试 xv6 TCP 栈向 host 发起连接并接收回显
+// 期望行为：连接 HOST_IP:TCP_HOST_PORT，发送 "hello from xv6"，read 能收到相同内容
+static int
+tcp_host_echo_test()
+{
+  printf("======== test socket (TCP host echo) ==========\n");
+  int fd = socket(2, 1, 0);
+  if(fd < 0){
+    printf("socket failed\n");
+    return -1;
+  }
+
+  if(connect(fd, HOST_IP, TCP_HOST_PORT) < 0){
+    printf("connect failed\n");
+    close(fd);
+    return -1;
+  }
+
+  const char *msg = "hello from xv6";
+  if(write(fd, msg, strlen(msg)) < 0)
+    printf("write failed\n");
+
+  char buf[256];
+  int r = read(fd, buf, sizeof(buf) - 1);
+  if(r > 0){
+    buf[r] = '\0';
+    printf("recv %d bytes: %s\n", r, buf);
+  } else {
+    printf("read failed\n");
   }
 
   close(fd);

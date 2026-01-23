@@ -152,6 +152,19 @@ recv 14 bytes: hello from xv6
 
 5. **进一步验证外部路径**
    - 通过 `hostfwd` 或 tap/bridge 模式，验证入站连接与更复杂网络场景。
+   - **建议优先切换到 tap/bridge**：避免 SLIRP 的 NAT/ICMP 限制，能真实验证 ARP、路由、MTU、分片、广播/多播等行为。
+
+6. **TCP 协议栈验证**
+   - 在 `open-npstack` 的 TCP 路径上补齐测试矩阵：`connect()`、`listen()/accept()`、`send()/recv()`、连接超时、RST/FIN 处理、半开连接恢复等。
+   - 与 UDP 类似，用独立用户态测试程序跑回归，覆盖 “客户端 → 宿主服务” 与 “宿主 → 虚拟机服务” 两条路径。
+
+7. **系统调用与用户态接口覆盖**
+   - 系统调用层面重点补齐：`socket`/`bind`/`connect`/`listen`/`accept`/`send`/`recv`/`sendto`/`recvfrom`/`shutdown` 的错误码与边界条件。
+   - 在 `open-npstack` 上层包装处补充最小语义对齐（如阻塞/超时行为、错误码语义）。
+
+8. **open-npstack 微调方向**
+   - 结合当前改动点，逐步梳理 `open-npstack` 的本地补丁清单与上游行为差异，避免后续 TCP/多网卡场景出现不可预期行为。
+   - IPv6 支持可先后置，优先把 IPv4 TCP/UDP 的关键路径覆盖完整。
 
 ## 9. 结语
 

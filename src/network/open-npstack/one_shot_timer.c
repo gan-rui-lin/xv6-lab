@@ -271,10 +271,17 @@ void thread_one_shot_timer_count(void *pvParam)
         //* 延迟tcp ack处理
         tcp_link_lock();
         {
+            int guard = 0;
             do {
                 pstNextLink = tcp_link_list_used_get_next(pstNextLink);
                 if (pstNextLink)
                 {
+                    guard++;
+                    if (guard > TCP_LINK_NUM_MAX)
+                    {
+                        printf("one_shot_timer: tcp link list loop detected\n");
+                        break;
+                    }
                     if (pstNextLink->bState == TLSCONNECTED)
                     {                        
                         if (!pstNextLink->uniFlags.stb16.no_delay_ack && pstNextLink->stPeer.bIsNotAcked)

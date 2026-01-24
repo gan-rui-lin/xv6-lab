@@ -462,9 +462,10 @@ __lblWaitAck:
         onps_set_last_error((INT)socket, ERRTCPCONNRESET);
         return -1;
 
-    case TDSLINKCLOSED:        
-        onps_set_last_error((INT)socket, ERRTCPCONNCLOSED);
-        return -1;
+    case TDSLINKCLOSED:  
+        //TODO: 是否需要返回发送的字节数？还是返回 error？  
+        // Link closed after data was sent; report bytes sent instead of error.
+        return nRtnVal;
 
     default:           
         onps_set_last_error((INT)socket, ERRUNKNOWN);

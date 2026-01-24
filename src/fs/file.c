@@ -272,7 +272,10 @@ filewrite(struct file *f, uint64 addr, int n)
       kmfree(kbuf);
     if(ret < 0){
       EN_ONPSERR err = socket_get_last_error_code((SOCKET)f->sock);
+      const char *emsg = onps_error(err);
       int kerr = onps_err_to_errno(err);
+      log_warn("socket write failed: sock=%d err=%d (%s) kerr=%d\n",
+               f->sock, err, emsg ? emsg : "unknown", kerr);
       return (kerr != 0) ? kerr : -EIO;
     }
     return ret;

@@ -156,9 +156,9 @@ $U/%.o: $U/%.S
 	$(CC) $(CFLAGS) -I. -I$(SRC) -MMD -MP -c $< -o $@
 
 # 修改链接顺序
-$U/initcode: $U/entry.o $U/initcode.o $U/printf.o $U/ulib.o $U/umalloc.o $U/user-riscv.ld
+$U/initcode: $U/entry.o $U/initcode.o $U/net_test.o $U/printf.o $U/ulib.o $U/umalloc.o $U/user-riscv.ld
 	$(LD) $(LDFLAGS) -T $U/user-riscv.ld -o $@ \
-	    $U/entry.o $U/initcode.o $U/printf.o $U/ulib.o $U/umalloc.o
+	    $U/entry.o $U/initcode.o $U/net_test.o $U/printf.o $U/ulib.o $U/umalloc.o
 	$(OBJDUMP) -S $@ > $U/initcode.asm
 
 # 从 ELF 文件生成二进制文件

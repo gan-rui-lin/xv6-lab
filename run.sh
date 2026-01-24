@@ -165,3 +165,6 @@ echo "QEMU已退出"
 # sudo ip link set tap0 master br0
 # sudo ip addr add 10.0.2.2/24 dev br0
 # sudo ip link set br0 up
+
+# nc -k -l 10.0.2.2 12346
+# nc -u -l 12345  

@@ -88,7 +88,9 @@ usertrap(void)
     uint64 scause = r_scause();
     if (scause == ECODE_STORE_PAGE_FAULT) {
       uint64 va = r_stval();
-      if (va < p->sz && cow_alloc(p->pagetable, va) == 0) {
+      if (va < p->sz && zero_page_alloc(p->pagetable, va) == 0) {
+        // handled zero page write fault
+      } else if (va < p->sz && cow_alloc(p->pagetable, va) == 0) {
         // log_info("handled cow\n");
         // handled COW fault
       } else {

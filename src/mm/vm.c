@@ -3,6 +3,7 @@
 #include "types.h"
 #include "memlayout.h"
 #include "riscv.h"
+#include "spinlock.h"
 #include "defs.h"
 
 /*
@@ -237,6 +238,92 @@ static inline int
 is_user_accessible_page(pte_t pte)
 {
     return (pte & PTE_V) && (pte & PTE_U);
+}
+
+// 全局零页物理地址（用于零页共享）
+static uint64 zero_page_pa;
+static struct spinlock zero_page_lock;
+static int zero_page_lock_inited;
+
+// 获取（并按需初始化）零页物理地址
+static uint64
+get_zero_page_pa(void)
+{
+    if (zero_page_pa != 0)
+        return zero_page_pa;
+
+    if (!zero_page_lock_inited) {
+        initlock(&zero_page_lock, "zero_page");
+        zero_page_lock_inited = 1;
+    }
+
+    acquire(&zero_page_lock);
+    if (zero_page_pa == 0) {
+        void *mem = kalloc();
+        if (mem != 0) {
+            memset(mem, 0, PGSIZE);
+            zero_page_pa = (uint64)mem;
+        }
+    }
+    release(&zero_page_lock);
+
+    return zero_page_pa;
+}
+
+// 处理零页写入：为映射到全局零页（ZERO_PAGE）的虚拟地址分配私有可写页
+// 这是COW机制的一个特化优化路径，专门处理初始内容全为零的页面
+int
+zero_page_alloc(pagetable_t pagetable, uint64 va)
+{
+    pte_t *pte;          // 页表项指针
+    uint64 pa;           // 物理地址
+    uint flags;          // 页表项标志位
+    char *mem;           // 新分配的物理页指针
+
+    // 1. 地址对齐：获取该虚拟地址所在页的起始地址
+    va = PGROUNDDOWN(va);
+    
+    // 2. 查找页表项：在页表中找到该虚拟地址对应的PTE
+    pte = walk(pagetable, va, 0);
+    if (pte == 0)
+        return -1;       // 页表项不存在，可能是无效地址
+        
+    // 3. 权限验证：确保PTE有效且是用户态可访问的
+    if (!is_pte_valid(*pte) || ((*pte & PTE_U) == 0))
+        return -1;       // 页表项无效或非用户页
+        
+    // 4. COW标志检查：确认此页确实标记为COW页
+    // （只有COW页才需要分配私有副本）
+    if ((*pte & PTE_COW) == 0)
+        return -1;       // 不是COW页，不应该调用此函数
+
+    // 5. 提取原物理地址和标志位
+    pa = PTE2PA(*pte);
+    flags = PTE_FLAGS(*pte);
+    
+    // 6. 零页验证：确认当前映射的物理页确实是全局零页
+    // 这是与通用cow_alloc最关键的区别，确保只处理零页场景
+    if (pa != zero_page_pa)
+        return -1;       // 不是零页，应走通用COW路径
+
+    // 7. 分配新物理页：从物理内存分配器中获取一个新页面
+    mem = kalloc();
+    if (mem == 0)
+        return -1;       // 内存不足，分配失败
+
+    // 8. 页面初始化：将新分配的物理页内容清零
+    // 这是零页处理的核心优化——无需复制原页内容，直接清零即可
+    memset(mem, 0, PGSIZE);
+    
+    // 9. 更新页表项：将虚拟地址映射到新分配的物理页
+    // 清除COW标志，添加写权限，建立新的可写映射
+    *pte = PA2PTE((uint64)mem) | ((flags | PTE_W) & ~PTE_COW);
+    
+    // 10. 减少零页引用计数：递减全局零页的引用计数
+    // 当最后一个引用释放时，零页不会被回收（因为是全局单例）
+    kref_dec(pa);
+    
+    return 0;
 }
 
 // 查找虚拟地址，返回物理地址，
@@ -513,6 +600,39 @@ uvmalloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
             uvmdealloc(pagetable, a, oldsz);
             return 0;
         }
+    }
+    return newsz;
+}
+
+// 懒分配：为 [oldsz, newsz) 创建映射，物理页延迟到写时分配。
+// 使用零页共享 + COW 标记来实现写时分配。
+uint64
+uvmalloc_lazy(pagetable_t pagetable, uint64 oldsz, uint64 newsz, int xperm)
+{
+    uint64 a;
+    uint64 zero_pa;
+    int perm;
+
+    if (newsz < oldsz)
+        return oldsz;
+
+    zero_pa = get_zero_page_pa();
+    if (zero_pa == 0)
+        return 0;
+
+    oldsz = PGROUNDUP(oldsz);
+    for (a = oldsz; a < newsz; a += PGSIZE) {
+        perm = PTE_R | PTE_U;
+        if (xperm & PTE_X)
+            perm |= PTE_X;
+        if (xperm & PTE_W)
+            perm |= PTE_COW; // 写时分配
+
+        if (mappages(pagetable, a, PGSIZE, zero_pa, perm) != 0) {
+            uvmdealloc(pagetable, a, oldsz);
+            return 0;
+        }
+        kref_inc(zero_pa);
     }
     return newsz;
 }

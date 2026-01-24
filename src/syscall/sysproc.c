@@ -855,6 +855,8 @@ sys_brk(void)
   return addr;
 }
 
+static int do_mprotect(struct proc *p, uint64 addr, uint64 length, int prot);
+
 uint64
 sys_mmap(void)
 {
@@ -877,6 +879,8 @@ sys_mmap(void)
   // Linux 语义：length == 0 返回 -EINVAL
   if(length == 0)
     return -EINVAL;
+  if(prot == PROT_NONE)
+    return -EINVAL;
 
   // 对齐起始地址与长度
   uint64 map_size = PGROUNDUP(length);
@@ -884,8 +888,10 @@ sys_mmap(void)
   uint64 base = PGROUNDUP(old_sz);
   uint64 new_sz = base + map_size;
 
-  // 计算权限标志：默认可读，可选写/执行
-  int perm = PTE_R;
+  // 计算权限标志：根据 prot 精确设置
+  int perm = 0;
+  if(prot & PROT_READ)
+    perm |= PTE_R;
   if(prot & PROT_WRITE)
     perm |= PTE_W;
   if(prot & PROT_EXEC)
@@ -893,9 +899,11 @@ sys_mmap(void)
 
   // 匿名映射：忽略 fd/offset，直接扩展地址空间
   if(flags & MAP_ANONYMOUS){
-    if((new_sz = uvmalloc(p->pagetable, old_sz, new_sz, perm)) == 0)
+    if((new_sz = uvmalloc_lazy(p->pagetable, old_sz, new_sz, perm)) == 0)
       return -1;
     p->sz = new_sz;
+    if(do_mprotect(p, base, length, prot) < 0)
+      return -EINVAL;
     return base;
   }
 
@@ -937,8 +945,61 @@ sys_mmap(void)
     return -1;
   }
 
+  if(do_mprotect(p, base, length, prot) < 0)
+    return -EINVAL;
+
   // 剩余部分已由 uvmalloc 清零
   return base;
+}
+
+static int
+do_mprotect(struct proc *p, uint64 addr, uint64 length, int prot)
+{
+  uint64 start = PGROUNDDOWN(addr);
+  uint64 end = PGROUNDUP(addr + length);
+
+  if(length == 0)
+    return 0;
+  if(prot == PROT_NONE)
+    return -EINVAL;
+  if(end > p->sz || start >= end)
+    return -EINVAL;
+
+  int want_read = (prot & PROT_READ) != 0;
+  int want_write = (prot & PROT_WRITE) != 0;
+  int want_exec = (prot & PROT_EXEC) != 0;
+
+  // 逐页更新权限，保留 V/A/D 等标志
+  for(uint64 va = start; va < end; va += PGSIZE){
+    pte_t *pte = walk(p->pagetable, va, 0);
+    if(pte == 0 || (*pte & PTE_V) == 0)
+      return -EINVAL;
+
+    uint64 pa = PTE2PA(*pte);
+    uint64 flags = PTE_FLAGS(*pte);
+
+    flags &= ~(PTE_R | PTE_W | PTE_X);
+
+    if(want_exec)
+      flags |= PTE_X;
+    if(want_read)
+      flags |= PTE_R;
+
+    if(want_write){
+      if(flags & PTE_COW){
+        flags &= ~PTE_W;
+        flags |= PTE_R;
+      } else {
+        flags |= PTE_W;
+      }
+    } else {
+      flags &= ~PTE_COW;
+    }
+
+    *pte = PA2PTE(pa) | flags;
+  }
+  sfence_vma();
+  return 0;
 }
 
 // mprotect: 修改用户态内存页的权限（用于 RELRO 等场景）
@@ -952,38 +1013,8 @@ sys_mprotect(void)
   if(argaddr(0, &addr) < 0 || argaddr(1, &length) < 0 || argint(2, &prot) < 0)
     return -EINVAL;
 
-  if(length == 0)
-    return 0;
-
   struct proc *p = myproc();
-  uint64 start = PGROUNDDOWN(addr);
-  uint64 end = PGROUNDUP(addr + length);
-
-  if(end > p->sz || start >= end)
-    return -EINVAL;
-
-  int perm = PTE_U;
-  if(prot & PROT_READ)
-    perm |= PTE_R;
-  if(prot & PROT_WRITE)
-    perm |= PTE_W;
-  if(prot & PROT_EXEC)
-    perm |= PTE_X;
-
-  // 逐页更新权限，保留 V/A/D 等标志
-  for(uint64 va = start; va < end; va += PGSIZE){
-    pte_t *pte = walk(p->pagetable, va, 0);
-    if(pte == 0 || (*pte & PTE_V) == 0)
-      return -EINVAL;
-    uint64 pa = PTE2PA(*pte);
-    uint64 flags = PTE_FLAGS(*pte);
-    flags &= ~(PTE_R | PTE_W | PTE_X);
-    flags |= perm;
-    *pte = PA2PTE(pa) | flags;
-  }
-
-  sfence_vma();
-  return 0;
+  return do_mprotect(p, addr, length, prot);
 }
 
 uint64

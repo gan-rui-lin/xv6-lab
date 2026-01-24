@@ -193,6 +193,7 @@ extern uint64 sys_getpriority(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
+    [SYS_uptime] sys_uptime,
     [SYS_umount2] sys_umount2,
     [SYS_times] sys_times,
     [SYS_nanosleep] sys_nanosleep,
@@ -274,6 +275,7 @@ static uint64 (*syscalls[])(void) = {
     [SYS_listen] sys_listen,
     [SYS_accept] sys_accept,
     [SYS_xv6_sbrk] sys_sbrk,
+
 };
 
 // sysname - return the name of the system call for debugging.

@@ -17,45 +17,45 @@ ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
 #define TCP_PORT 12346
 #define TCP_HOST_PORT 12346
 
-static int
-u8_to_dec(unsigned char v, char *out)
-{
-  int n = 0;
-  if(v >= 100){
-    out[n++] = '0' + (v / 100);
-    v %= 100;
-  }
-  if(v >= 10 || n > 0){
-    out[n++] = '0' + (v / 10);
-    v %= 10;
-  }
-  out[n++] = '0' + v;
-  return n;
-}
+// static int
+// u8_to_dec(unsigned char v, char *out)
+// {
+//   int n = 0;
+//   if(v >= 100){
+//     out[n++] = '0' + (v / 100);
+//     v %= 100;
+//   }
+//   if(v >= 10 || n > 0){
+//     out[n++] = '0' + (v / 10);
+//     v %= 10;
+//   }
+//   out[n++] = '0' + v;
+//   return n;
+// }
 
-static void
-ip_to_str(uint32 ip, char *out)
-{
-  unsigned char *p = (unsigned char *)&ip;
-  int n = 0;
-  n += u8_to_dec(p[0], out + n);
-  out[n++] = '.';
-  n += u8_to_dec(p[1], out + n);
-  out[n++] = '.';
-  n += u8_to_dec(p[2], out + n);
-  out[n++] = '.';
-  n += u8_to_dec(p[3], out + n);
-  out[n] = '\0';
-}
+// static void
+// ip_to_str(uint32 ip, char *out)
+// {
+//   unsigned char *p = (unsigned char *)&ip;
+//   int n = 0;
+//   n += u8_to_dec(p[0], out + n);
+//   out[n++] = '.';
+//   n += u8_to_dec(p[1], out + n);
+//   out[n++] = '.';
+//   n += u8_to_dec(p[2], out + n);
+//   out[n++] = '.';
+//   n += u8_to_dec(p[3], out + n);
+//   out[n] = '\0';
+// }
 
-static uint32
-ip_bswap32(uint32 ip)
-{
-  return ((ip & 0x000000ffU) << 24) |
-         ((ip & 0x0000ff00U) << 8) |
-         ((ip & 0x00ff0000U) >> 8) |
-         ((ip & 0xff000000U) >> 24);
-}
+// static uint32
+// ip_bswap32(uint32 ip)
+// {
+//   return ((ip & 0x000000ffU) << 24) |
+//          ((ip & 0x0000ff00U) << 8) |
+//          ((ip & 0x00ff0000U) >> 8) |
+//          ((ip & 0xff000000U) >> 24);
+// }
 
 int
 socket_test()

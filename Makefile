@@ -64,7 +64,7 @@ LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
-CFLAGS = -Wall  -O -fno-omit-frame-pointer -ggdb -gdwarf-2
+CFLAGS = -Wall -Werror -O -fno-omit-frame-pointer -ggdb -gdwarf-2
 CFLAGS += -fsigned-char
 CFLAGS += -MD
 CFLAGS += -DONPS_KERNEL
@@ -96,6 +96,10 @@ INCLUDES := -I$(SRC) $(foreach dir,$(SRC_DIRS),-I$(SRC)/$(dir)) -I$(SRC)/fs/lwex
 LWEXT4_DIR := $(SRC)/fs/lwext4/src
 LWEXT4_CFLAGS := -w
 
+# open-npstack 外部库源码：保留警告输出，但不把警告当作错误
+OPEN_NPSTACK_DIR := $(SRC)/network/open-npstack
+OPEN_NPSTACK_CFLAGS := -Wno-error
+
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
 CFLAGS += -fno-pie -no-pie
@@ -112,13 +116,21 @@ dirs:
 	@for dir in $(SRC_DIRS); do mkdir -p $(BUILD_DIR)/$$dir; done
 
 # ===== 编译规则 =====
+
+# lwext4：单独的 pattern rule（只对 lwext4 源码加 -w），并保留命令回显
+$(BUILD_DIR)/fs/lwext4/src/%.o: $(SRC)/fs/lwext4/src/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDES) $(LWEXT4_CFLAGS) -MMD -MP -c $< -o $@
+
+# open-npstack：单独的 pattern rule（仅取消 -Werror 的效果，警告照常打印）
+$(BUILD_DIR)/network/open-npstack/%.o: $(SRC)/network/open-npstack/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(INCLUDES) $(OPEN_NPSTACK_CFLAGS) -MMD -MP -c $< -o $@
+
+# 通用 C 源文件编译规则
 $(BUILD_DIR)/%.o: $(SRC)/%.c
 	@mkdir -p $(dir $@)
-	@if echo "$<" | grep -q "^$(LWEXT4_DIR)/"; then \
-	  $(CC) $(CFLAGS) $(INCLUDES) $(LWEXT4_CFLAGS) -MMD -MP -c $< -o $@; \
-	else \
-	  $(CC) $(CFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@; \
-	fi
+	$(CC) $(CFLAGS) $(INCLUDES) -MMD -MP -c $< -o $@
 
 $(BUILD_DIR)/%.o: $(SRC)/%.S
 	@mkdir -p $(dir $@)

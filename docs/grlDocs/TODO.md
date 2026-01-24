@@ -64,3 +64,5 @@ Boot HART MEDELEG : 0x0000000000f0b509
 7. 逐步移除 xv6 相关代码，专注 riscv64 平台。（实际上已经有很多部分不再支持 xv6）
 
 8. 2026-01-17：ppoll/sendfile 目前为简化实现，仅满足 busybox 基本运行，需要后续完善。
+
+9. 内核态 async/await 任务模型（类似 Chronix）：将任务执行封装为 Future，在 poll 前后切换页表/上下文，并由内核执行器调度。

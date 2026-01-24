@@ -1,3 +1,5 @@
+#ifndef _USER_H_
+#define _USER_H_
 # include "types.h"
 struct stat;
 
@@ -57,6 +59,7 @@ int getpid(void);
 long long sbrk(int);
 int sleep(int);
 int uptime(void);
+int sched_yield(void);
 int shutdown(void);
 int gettimeofday(struct timeval *tv);
 int fstat(int fd, struct stat*);
@@ -92,4 +95,4 @@ void free(void*);
 int atoi(const char*);
 int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
-
+#endif // _USER_H_

@@ -11,9 +11,50 @@ void test_basic();
 // static void test_cow(void);
 
 #define TEST_UDP_HOST_ECHO 0
-#define TEST_UDP_BRIDGE_HOST_ECHO 1
-#define TEST_TCP_LOOPBACK 1
-#define TEST_TCP_HOST_ECHO 1
+#define TEST_UDP_BRIDGE_HOST_ECHO 0
+#define TEST_TCP_LOOPBACK 0
+#define TEST_TCP_HOST_ECHO 0
+
+#include "user.h"
+#include "coro.h"
+
+struct tick_ctx {
+  const char *name;
+  int step;
+  int max;
+  int delay;
+};
+
+static void
+ticker(struct coro *co, void *arg)
+{
+  struct tick_ctx *ctx = (struct tick_ctx *)arg;
+
+  CORO_BEGIN(co);
+  while (ctx->step < ctx->max) {
+    printf("%s step %d at tick %d\n", ctx->name, ctx->step, uptime());
+    ctx->step++;
+    CORO_SLEEP_TICKS(co, ctx->delay);
+  }
+  CORO_END(co);
+}
+
+int
+test_coro()
+{
+  struct tick_ctx fast = { "fast", 0, 6, 2 };
+  struct tick_ctx slow = { "slow", 0, 4, 5 };
+  struct coro_task tasks[2];
+
+  coro_task_init(&tasks[0], ticker, &fast);
+  coro_task_init(&tasks[1], ticker, &slow);
+
+  printf("coro_test: start\n");
+  coro_run(tasks, 2);
+  printf("coro_test: done\n");
+  
+  return 0;
+}
 
 
 int main()
@@ -37,8 +78,8 @@ int main()
  #if TEST_TCP_HOST_ECHO
     tcp_host_echo_test();
  #endif
-    printf("All network tests done!\n");
-    shutdown();
+    // printf("All network tests done!\n");
+    // shutdown();
     // Provide /bin/sh for script fallback.
     // mkdir("/bin");
     // printf("r1 = %d\n", r1);
@@ -49,7 +90,8 @@ int main()
     // test_basic();
     // test_busybox_musl();
     // printf("Hello, xv6 world!\n");
-
+    test_coro();
+    shutdown();
     test_("getppid");
 
     test_("chdir");

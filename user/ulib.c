@@ -176,6 +176,16 @@ int sleep(int time)
     return 0;
 }
 
+int uptime(void)
+{
+    return syscall(SYS_uptime);
+}
+
+int sched_yield(void)
+{
+    return syscall(SYS_sched_yield);
+}
+
 int mkdir(const char *path)
 {
     return syscall(SYS_mkdirat, AT_FDCWD, path, 0);

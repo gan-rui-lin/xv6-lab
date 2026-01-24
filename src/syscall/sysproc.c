@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "mm/vma.h"
 #include "proc/signal.h"
 #include "fcntl.h"
 #include "errno.h"
@@ -897,13 +898,26 @@ sys_mmap(void)
   if(prot & PROT_EXEC)
     perm |= PTE_X;
 
+  // MAP_FIXED 先不支持
+  if(flags & MAP_FIXED)
+    return -EINVAL;
+
   // 匿名映射：忽略 fd/offset，直接扩展地址空间
   if(flags & MAP_ANONYMOUS){
     if((new_sz = uvmalloc_lazy(p->pagetable, old_sz, new_sz, perm)) == 0)
       return -1;
     p->sz = new_sz;
-    if(do_mprotect(p, base, length, prot) < 0)
+    if(vma_add(p, base, base + map_size, prot, flags, 0, 0, 0) < 0){
+      uvmdealloc(p->pagetable, new_sz, old_sz);
+      p->sz = old_sz;
+      return -ENOMEM;
+    }
+    if(do_mprotect(p, base, length, prot) < 0){
+      vma_unmap(p, base, base + map_size);
+      uvmdealloc(p->pagetable, new_sz, old_sz);
+      p->sz = old_sz;
       return -EINVAL;
+    }
     return base;
   }
 
@@ -913,42 +927,23 @@ sys_mmap(void)
   if(!f->readable)
     return -1;
 
-  // 分配虚拟内存
-  if((new_sz = uvmalloc(p->pagetable, old_sz, new_sz, perm)) == 0)
-    return -1;
-  p->sz = new_sz;
-
-  if(f->type != FD_INODE){
-    uvmdealloc(p->pagetable, new_sz, old_sz);
-    p->sz = old_sz;
-    return -1;
-  }
-
-  ilock(f->ip);
-  uint64 read_size = length;
-  uint64 file_size = f->ip->size;
-
-  if(offset >= file_size){
-    // 偏移超界，留空映射
-    iunlock(f->ip);
-    return base;
-  }
-  if(offset + read_size > file_size)
-    read_size = file_size - offset;
-
-  int bytes_read = readi(f->ip, 1, base, offset, read_size);
-  iunlock(f->ip);
-
-  if(bytes_read < 0){
-    uvmdealloc(p->pagetable, new_sz, old_sz);
-    p->sz = old_sz;
-    return -1;
-  }
-
-  if(do_mprotect(p, base, length, prot) < 0)
+  if(offset % PGSIZE)
+    return -EINVAL;
+  if(f->type != FD_INODE)
     return -EINVAL;
 
-  // 剩余部分已由 uvmalloc 清零
+  uint64 file_len = 0;
+  ilock(f->ip);
+  if(offset < f->ip->size){
+    file_len = f->ip->size - offset;
+    if(file_len > length)
+      file_len = length;
+  }
+  iunlock(f->ip);
+
+  if(vma_add(p, base, base + map_size, prot, flags, f, offset, file_len) < 0)
+    return -ENOMEM;
+  p->sz = new_sz;
   return base;
 }
 
@@ -965,6 +960,9 @@ do_mprotect(struct proc *p, uint64 addr, uint64 length, int prot)
   if(end > p->sz || start >= end)
     return -EINVAL;
 
+  if(vma_protect(p, start, end, prot) < 0)
+    return -ENOMEM;
+
   int want_read = (prot & PROT_READ) != 0;
   int want_write = (prot & PROT_WRITE) != 0;
   int want_exec = (prot & PROT_EXEC) != 0;
@@ -973,7 +971,9 @@ do_mprotect(struct proc *p, uint64 addr, uint64 length, int prot)
   for(uint64 va = start; va < end; va += PGSIZE){
     pte_t *pte = walk(p->pagetable, va, 0);
     if(pte == 0 || (*pte & PTE_V) == 0)
-      return -EINVAL;
+      continue;
+    if(PTE_FLAGS(*pte) == PTE_V)
+      continue;
 
     uint64 pa = PTE2PA(*pte);
     uint64 flags = PTE_FLAGS(*pte);
@@ -1055,7 +1055,10 @@ sys_munmap(void)
   }
   
   // 使用uvmunmap解除映射
-  uvmunmap(p->pagetable, start, npages, 1);
+  uvmunmap_lazy(p->pagetable, start, npages, 1);
+
+  if(vma_unmap(p, start, end) < 0)
+    return -1;
   
   // 关键修复：如果解除映射的区域在进程末尾，需要调整进程大小
   // 这样可以防止进程退出时再次尝试释放这些页面

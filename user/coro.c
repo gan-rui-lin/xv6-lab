@@ -60,3 +60,44 @@ coro_run(struct coro_task *tasks, int count)
     sched_yield();
   }
 }
+
+#include "user.h"
+#include "coro.h"
+
+struct tick_ctx {
+  const char *name;
+  int step;
+  int max;
+  int delay;
+};
+
+static void
+ticker(struct coro *co, void *arg)
+{
+  struct tick_ctx *ctx = (struct tick_ctx *)arg;
+
+  CORO_BEGIN(co);
+  while (ctx->step < ctx->max) {
+    printf("%s step %d at tick %d\n", ctx->name, ctx->step, uptime());
+    ctx->step++;
+    CORO_SLEEP_TICKS(co, ctx->delay);
+  }
+  CORO_END(co);
+}
+
+int
+test_coro()
+{
+  struct tick_ctx fast = { "fast", 0, 6, 2 };
+  struct tick_ctx slow = { "slow", 0, 4, 5 };
+  struct coro_task tasks[2];
+
+  coro_task_init(&tasks[0], ticker, &fast);
+  coro_task_init(&tasks[1], ticker, &slow);
+
+  printf("coro_test: start\n");
+  coro_run(tasks, 2);
+  printf("coro_test: done\n");
+  
+  return 0;
+}

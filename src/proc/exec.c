@@ -8,6 +8,7 @@
 #include "elf.h"
 #include "errno.h"
 #include "fcntl.h"
+#include "mm/vma.h"
 
 #ifndef AT_NULL
 #define AT_NULL 0
@@ -311,6 +312,7 @@ exec(char *path, char **argv, char **envp)
   safestrcpy(p->name, last, sizeof(p->name));
     
   // Commit to the user image.
+  vma_free_all(p);
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
   p->sz = sz;

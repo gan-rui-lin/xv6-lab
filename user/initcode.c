@@ -15,46 +15,7 @@ void test_basic();
 #define TEST_TCP_LOOPBACK 0
 #define TEST_TCP_HOST_ECHO 0
 
-#include "user.h"
-#include "coro.h"
 
-struct tick_ctx {
-  const char *name;
-  int step;
-  int max;
-  int delay;
-};
-
-static void
-ticker(struct coro *co, void *arg)
-{
-  struct tick_ctx *ctx = (struct tick_ctx *)arg;
-
-  CORO_BEGIN(co);
-  while (ctx->step < ctx->max) {
-    printf("%s step %d at tick %d\n", ctx->name, ctx->step, uptime());
-    ctx->step++;
-    CORO_SLEEP_TICKS(co, ctx->delay);
-  }
-  CORO_END(co);
-}
-
-int
-test_coro()
-{
-  struct tick_ctx fast = { "fast", 0, 6, 2 };
-  struct tick_ctx slow = { "slow", 0, 4, 5 };
-  struct coro_task tasks[2];
-
-  coro_task_init(&tasks[0], ticker, &fast);
-  coro_task_init(&tasks[1], ticker, &slow);
-
-  printf("coro_test: start\n");
-  coro_run(tasks, 2);
-  printf("coro_test: done\n");
-  
-  return 0;
-}
 
 
 int main()
@@ -90,41 +51,41 @@ int main()
     // test_basic();
     // test_busybox_musl();
     // printf("Hello, xv6 world!\n");
-    test_coro();
-    shutdown();
-    test_("getppid");
+    // test_coro();
+    // shutdown();
+    // test_("getppid");
 
-    test_("chdir");
-    test_("times");
-    test_("sleep");
-    test_("fork");
-    test_("gettimeofday");
+    // test_("chdir");
+    // test_("times");
+    // test_("sleep");
+    // test_("fork");
+    // test_("gettimeofday");
 
-    test_("open");
-    test_("read");
-    test_("brk");
+    // test_("open");
+    // test_("read");
+    // test_("brk");
 
-    test_("getcwd");
+    // test_("getcwd");
 
-    test_("openat");
-    test_("getpid");
-    test_("exit");
-    test_("wait");
-    test_("execve");
-    test_("clone");
-    test_("yield");
-    test_("waitpid");
+    // test_("openat");
+    // test_("getpid");
+    // test_("exit");
+    // test_("wait");
+    // test_("execve");
+    // test_("clone");
+    // test_("yield");
+    // test_("waitpid");
 
-    test_("getcwd");
-    test_("dup");
-    test_("close");
-    test_("mkdir_");
+    // test_("getcwd");
+    // test_("dup");
+    // test_("close");
+    // test_("mkdir_");
 
-    test_("getdents");
-    test_("pipe");
-    test_("fstat");
-    test_("write");
-    test_("uname");
+    // test_("getdents");
+    // test_("pipe");
+    // test_("fstat");
+    // test_("write");
+    // test_("uname");
     test_("mmap");
     test_("munmap");
 

@@ -246,7 +246,7 @@ static struct spinlock zero_page_lock;
 static int zero_page_lock_inited;
 
 // 获取（并按需初始化）零页物理地址
-static uint64
+uint64
 get_zero_page_pa(void)
 {
     if (zero_page_pa != 0)
@@ -494,6 +494,37 @@ void uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     }
 }
 
+// 懒映射场景下的 unmap：允许缺失页，遇到缺失则跳过。
+void uvmunmap_lazy(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
+{
+    uint64 current_va;
+    pte_t *pte;
+
+    if (!is_page_aligned(va))
+        panic("uvmunmap_lazy: address not page aligned");
+
+    for (current_va = va; current_va < va + npages * PGSIZE; current_va += PGSIZE)
+    {
+        pte = walk(pagetable, current_va, 0);
+        if (pte == 0)
+            continue;
+
+        if (!is_pte_valid(*pte))
+            continue;
+        if (!is_pte_leaf(*pte))
+            continue;
+        if (PTE_FLAGS(*pte) == PTE_V)
+            panic("uvmunmap_lazy: not a leaf page");
+
+        if (do_free)
+        {
+            free_physical_page_from_pte(*pte);
+        }
+
+        clear_pte(pte);
+    }
+}
+
 // 创建一个空的用户页表
 // 如果内存不足则返回0
 pagetable_t
@@ -650,7 +681,7 @@ uvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
     if (PGROUNDUP(newsz) < PGROUNDUP(oldsz))
     {
         int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
-        uvmunmap(pagetable, PGROUNDUP(newsz), npages, 1);
+        uvmunmap_lazy(pagetable, PGROUNDUP(newsz), npages, 1);
     }
 
     return newsz;
@@ -706,7 +737,7 @@ void uvmfree(pagetable_t pagetable, uint64 sz)
     if (sz > 0)
     {
         uint64 npages = calculate_pages_needed(sz);
-        uvmunmap(pagetable, 0, npages, 1);
+        uvmunmap_lazy(pagetable, 0, npages, 1);
     }
     freewalk(pagetable);
 }
@@ -743,10 +774,10 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     {
         pte = walk(old, current_va, 0);
         if (pte == 0)
-            panic("uvmcopy: pte should exist");
+            continue;
 
         if (!is_pte_valid(*pte))
-            panic("uvmcopy: page not present");
+            continue;
 
         pa = PTE2PA(*pte);
         flags = PTE_FLAGS(*pte);

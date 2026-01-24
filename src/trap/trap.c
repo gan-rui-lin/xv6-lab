@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "defs.h"
 #include "proc.h"
+#include "mm/vma.h"
 
 #ifdef TICKER_DEBUG
 volatile static int ticker = 1; // 用于调试的 ticker 变量
@@ -90,11 +91,35 @@ usertrap(void)
       uint64 va = r_stval();
       if (va < p->sz && zero_page_alloc(p->pagetable, va) == 0) {
         // handled zero page write fault
+        log_info("handled zero page write fault\n");
       } else if (va < p->sz && cow_alloc(p->pagetable, va) == 0) {
-        // log_info("handled cow\n");
         // handled COW fault
+        log_info("handled COW fault\n");
+      } else if (va < p->sz && vma_handle_fault(p, va, VM_FAULT_WRITE) == 0) {
+        // handled mmap lazy fault
+        log_info("handled mmap lazy fault\n");
       } else {
         printf("usertrap(): store page fault scause=%p pid=%d\n", scause, p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        setkilled(p);
+      }
+    } else if (scause == ECODE_LOAD_PAGE_FAULT) {
+      uint64 va = r_stval();
+      if (va < p->sz && vma_handle_fault(p, va, VM_FAULT_READ) == 0) {
+        // handled mmap lazy fault
+        log_info("handled mmap lazy fault (read)\n");
+      } else {
+        printf("usertrap(): load page fault scause=%p pid=%d\n", scause, p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        setkilled(p);
+      }
+    } else if (scause == ECODE_INSTRUCTION_PAGE_FAULT) {
+      uint64 va = r_stval();
+      if (va < p->sz && vma_handle_fault(p, va, VM_FAULT_EXEC) == 0) {
+        // handled mmap lazy fault
+        log_info("handled mmap lazy fault (exec)\n");
+      } else {
+        printf("usertrap(): inst page fault scause=%p pid=%d\n", scause, p->pid);
         printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
         setkilled(p);
       }

@@ -20,7 +20,7 @@ void main()
 
         printfinit(); // 初始化printf功能
 
-        // print_ruos();
+        print_ruos();
         // printf("xv6 is booting on hart %d\n", cpuid());
 
         kinit(); // 物理页面分配器初始化

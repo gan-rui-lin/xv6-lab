@@ -5,6 +5,7 @@
 #include "memlayout.h"
 #include "sleeplock.h"
 #include "errno.h"
+#include "mm/vma.h"
 #include "../fs/fs.h"
 #include "../fs/file.h"
 
@@ -149,6 +150,7 @@ found:
   signal_init(p);
   memset(p->ofile, 0, sizeof(p->ofile));
   memset(p->fdflags, 0, sizeof(p->fdflags));
+  vma_init(p);
 
 
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -274,6 +276,8 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
 void
 freeproc(struct proc *p)
 {
+  if(p->vma)
+    vma_free_all(p);
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
@@ -420,6 +424,11 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  if(vma_copy(np, p) < 0){
+    freeproc(np);
+    release(&np->lock);
+    return -1;
+  }
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
@@ -489,6 +498,11 @@ clone_fork(uint64 stack, uint64 flags, uint64 tls, uint64 ctid, int exit_signal)
     return -1;
   }
   np->sz = p->sz;
+  if(vma_copy(np, p) < 0){
+    freeproc(np);
+    release(&np->lock);
+    return -1;
+  }
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);

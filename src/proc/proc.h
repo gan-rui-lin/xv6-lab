@@ -40,6 +40,8 @@ struct cpu {
   int intena;                 // Were interrupts enabled before push_off()?
 };
 
+struct vma;
+
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 // 优先级定义（数值越小，优先级越高）
@@ -76,6 +78,9 @@ struct proc
   uint8 fdflags[NOFILE];        // Per-fd flags (e.g., FD_CLOEXEC)
   struct inode *cwd;           // Current directory
   char cwdpath[MAXPATH];       // Current directory path string
+
+  // mmap VMA 列表
+  struct vma *vma;
 
   // 信号处理相关
   uint64 sigpending;           // pending signals bitmap

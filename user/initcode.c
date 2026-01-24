@@ -4,6 +4,11 @@
 #define TEST_SYSCALLS
 #include "../src/syscall/syscall.h"
 
+ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+               const struct sockaddr *dest_addr, socklen_t addrlen);
+ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
+                 struct sockaddr *src_addr, socklen_t *addrlen);
+
 void test_(char *name);
 void test_busybox_musl();
 void test_basic();
@@ -11,22 +16,27 @@ static void test_cow(void);
 static int socket_test();
 static int udp_dns_test();
 static int udp_host_echo_test();
+static int udp_bridge_host_echo_test();
 static int tcp_loopback_test();
 static int tcp_host_echo_test();
 
-#define HOST_IP "10.0.2.2"
+#define IPV4(a,b,c,d) ((uint32)((a) | ((b) << 8) | ((c) << 16) | ((d) << 24)))
+#define HOST_IP_U32 IPV4(10,0,2,2)
 #define HOST_PORT 12345
-#define LOCAL_IP "10.0.2.15"
+#define LOCAL_IP_U32 IPV4(10,0,2,15)
 #define ECHO_PORT 9090
-#define DNS_IP "10.0.2.3"
+#define DNS_IP_U32 IPV4(10,0,2,3)
 #define DNS_PORT 53
+#define BRIDGE_HOST_IP_U32 IPV4(10,0,2,2)
+#define BRIDGE_HOST_PORT 12345
 #define TCP_PORT 12346
 #define TCP_HOST_PORT 12346
 #define TEST_UDP_LOOPBACK 0
 #define TEST_UDP_DNS 0
 #define TEST_UDP_HOST_ECHO 0
+#define TEST_UDP_BRIDGE_HOST_ECHO 1
 #define TEST_TCP_LOOPBACK 0
-#define TEST_TCP_HOST_ECHO 1
+#define TEST_TCP_HOST_ECHO 0
 
 
 
@@ -49,6 +59,9 @@ int main()
  #endif
  #if TEST_UDP_HOST_ECHO
     udp_host_echo_test();
+ #endif
+ #if TEST_UDP_BRIDGE_HOST_ECHO
+   udp_bridge_host_echo_test();
  #endif
  #if TEST_TCP_LOOPBACK
     tcp_loopback_test();
@@ -278,7 +291,11 @@ socket_test()
     return -1;
   }
 
-  if(bind(srv, "0.0.0.0", ECHO_PORT) < 0){
+  struct sockaddr_in srv_addr;
+  srv_addr.sin_family = AF_INET;
+  srv_addr.sin_port = htons(ECHO_PORT);
+  srv_addr.sin_addr.s_addr = htonl(0);
+  if(bind(srv, (struct sockaddr *)&srv_addr, sizeof(srv_addr)) < 0){
     printf("bind failed\n");
     close(srv);
     return -1;
@@ -293,20 +310,13 @@ socket_test()
 
   if(pid == 0){
     unsigned char buf[256];
-    uint32 from_ip = 0;
-    uint16 from_port = 0;
-    int r = recvfrom(srv, buf, sizeof(buf), &from_ip, &from_port);
+    struct sockaddr_in from;
+    socklen_t fromlen = sizeof(from);
+    int r = recvfrom(srv, buf, sizeof(buf), 0, (struct sockaddr *)&from, &fromlen);
     if(r > 0){
-      char ipbuf[32];
-      ip_to_str(from_ip, ipbuf);
-      int sret = sendto(srv, buf, r, ipbuf, from_port);
-      if(sret < 0){
-        uint32 swapped = ip_bswap32(from_ip);
-        ip_to_str(swapped, ipbuf);
-        sret = sendto(srv, buf, r, ipbuf, from_port);
-        if(sret < 0)
-          printf("server sendto failed\n");
-      }
+      int sret = sendto(srv, buf, r, 0, (struct sockaddr *)&from, fromlen);
+      if(sret < 0)
+        printf("server sendto failed\n");
     }
     close(srv);
     exit(0);
@@ -320,7 +330,11 @@ socket_test()
   }
 
   const char *msg = "udp loopback hhh";
-  int n = sendto(cli, msg, strlen(msg), LOCAL_IP, ECHO_PORT);
+  struct sockaddr_in dst;
+  dst.sin_family = AF_INET;
+  dst.sin_port = htons(ECHO_PORT);
+  dst.sin_addr.s_addr = htonl(LOCAL_IP_U32);
+  int n = sendto(cli, msg, strlen(msg), 0, (struct sockaddr *)&dst, sizeof(dst));
   if(n < 0){
     printf("sendto failed\n");
     close(cli);
@@ -328,9 +342,9 @@ socket_test()
   }
 
   char rbuf[256];
-  uint32 rip = 0;
-  uint16 rport = 0;
-  int r = recvfrom(cli, rbuf, sizeof(rbuf) - 1, &rip, &rport);
+  struct sockaddr_in src;
+  socklen_t srclen = sizeof(src);
+  int r = recvfrom(cli, rbuf, sizeof(rbuf) - 1, 0, (struct sockaddr *)&src, &srclen);
   if(r > 0){
     rbuf[r] = '\0';
     printf("recv %d bytes: %s\n", r, rbuf);
@@ -384,16 +398,20 @@ udp_dns_test()
   buf[i++] = 0x00; // qclass IN
   buf[i++] = 0x01;
 
-  int n = sendto(fd, buf, i, DNS_IP, DNS_PORT);
+  struct sockaddr_in from;
+  socklen_t fromlen = sizeof(from);
+  struct sockaddr_in dns;
+  dns.sin_family = AF_INET;
+  dns.sin_port = htons(DNS_PORT);
+  dns.sin_addr.s_addr = htonl(DNS_IP_U32);
+  int n = sendto(fd, buf, i, 0, (struct sockaddr *)&dns, sizeof(dns));
   if(n < 0){
     printf("sendto failed\n");
     close(fd);
     return -1;
   }
 
-  uint32 from_ip = 0;
-  uint16 from_port = 0;
-  int r = recvfrom(fd, buf, sizeof(buf), &from_ip, &from_port);
+  int r = recvfrom(fd, buf, sizeof(buf), 0, (struct sockaddr *)&from, &fromlen);
   if(r >= 12){
     unsigned short rid = ((unsigned short)buf[0] << 8) | buf[1];
     int qr = (buf[2] & 0x80) != 0;
@@ -423,14 +441,22 @@ udp_host_echo_test()
     return -1;
   }
 
-  if(bind(fd, "0.0.0.0", HOST_PORT) < 0){
+  struct sockaddr_in bind_addr;
+  bind_addr.sin_family = AF_INET;
+  bind_addr.sin_port = htons(HOST_PORT);
+  bind_addr.sin_addr.s_addr = htonl(0);
+  if(bind(fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) < 0){
     printf("bind failed\n");
     close(fd);
     return -1;
   }
 
   const char *msg = "hello from xv6";
-  int n = sendto(fd, msg, strlen(msg), HOST_IP, HOST_PORT);
+  struct sockaddr_in host;
+  host.sin_family = AF_INET;
+  host.sin_port = htons(HOST_PORT);
+  host.sin_addr.s_addr = htonl(HOST_IP_U32);
+  int n = sendto(fd, msg, strlen(msg), 0, (struct sockaddr *)&host, sizeof(host));
   if(n < 0){
     printf("sendto failed\n");
     close(fd);
@@ -438,9 +464,58 @@ udp_host_echo_test()
   }
 
   char buf[256];
-  uint32 from_ip = 0;
-  uint16 from_port = 0;
-  int r = recvfrom(fd, buf, sizeof(buf) - 1, &from_ip, &from_port);
+  struct sockaddr_in from;
+  socklen_t fromlen = sizeof(from);
+  int r = recvfrom(fd, buf, sizeof(buf) - 1, 0, (struct sockaddr *)&from, &fromlen);
+  if(r > 0){
+    buf[r] = '\0';
+    printf("recv %d bytes: %s\n", r, buf);
+  } else {
+    printf("recvfrom failed\n");
+  }
+
+  close(fd);
+  return 0;
+}
+
+// 桥接模式下同网段 host 回显测试
+// 期望行为：发送字符串 "hello from xv6" 到 BRIDGE_HOST_IP:BRIDGE_HOST_PORT，recvfrom 能收到相同内容
+static int
+udp_bridge_host_echo_test()
+{
+  printf("======== test socket (UDP bridge host echo) ==========\n");
+  int fd = socket(2, 2, 0); // AF_INET=2, SOCK_DGRAM=2
+  if(fd < 0){
+    printf("socket failed\n");
+    return -1;
+  }
+
+  struct sockaddr_in bind_addr;
+  bind_addr.sin_family = AF_INET;
+  bind_addr.sin_port = htons(BRIDGE_HOST_PORT);
+  bind_addr.sin_addr.s_addr = htonl(0);
+  if(bind(fd, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) < 0){
+    printf("bind failed\n");
+    close(fd);
+    return -1;
+  }
+
+  const char *msg = "hello from xv6";
+  struct sockaddr_in host;
+  host.sin_family = AF_INET;
+  host.sin_port = htons(BRIDGE_HOST_PORT);
+  host.sin_addr.s_addr = htonl(BRIDGE_HOST_IP_U32);
+  int n = sendto(fd, msg, strlen(msg), 0, (struct sockaddr *)&host, sizeof(host));
+  if(n < 0){
+    printf("sendto failed\n");
+    close(fd);
+    return -1;
+  }
+
+  char buf[256];
+  struct sockaddr_in from;
+  socklen_t fromlen = sizeof(from);
+  int r = recvfrom(fd, buf, sizeof(buf) - 1, 0, (struct sockaddr *)&from, &fromlen);
   if(r > 0){
     buf[r] = '\0';
     printf("recv %d bytes: %s\n", r, buf);
@@ -464,7 +539,11 @@ tcp_loopback_test()
     return -1;
   }
 
-  if(bind(srv, LOCAL_IP, TCP_PORT) < 0){
+  struct sockaddr_in srv_addr;
+  srv_addr.sin_family = AF_INET;
+  srv_addr.sin_port = htons(TCP_PORT);
+  srv_addr.sin_addr.s_addr = htonl(LOCAL_IP_U32);
+  if(bind(srv, (struct sockaddr *)&srv_addr, sizeof(srv_addr)) < 0){
     printf("bind failed\n");
     close(srv);
     return -1;
@@ -489,7 +568,11 @@ tcp_loopback_test()
       printf("socket failed\n");
       exit(1);
     }
-    if(connect(cli, LOCAL_IP, TCP_PORT) < 0){
+    struct sockaddr_in dst;
+    dst.sin_family = AF_INET;
+    dst.sin_port = htons(TCP_PORT);
+    dst.sin_addr.s_addr = htonl(LOCAL_IP_U32);
+    if(connect(cli, (struct sockaddr *)&dst, sizeof(dst)) < 0){
       printf("connect failed\n");
       close(cli);
       exit(1);
@@ -509,9 +592,9 @@ tcp_loopback_test()
     exit(0);
   }
 
-  uint32 from_ip = 0;
-  uint16 from_port = 0;
-  int ns = accept(srv, &from_ip, &from_port, 5);
+  struct sockaddr_in from;
+  socklen_t fromlen = sizeof(from);
+  int ns = accept(srv, (struct sockaddr *)&from, &fromlen);
   if(ns < 0){
     printf("accept failed\n");
     close(srv);
@@ -547,7 +630,11 @@ tcp_host_echo_test()
     return -1;
   }
 
-  if(connect(fd, HOST_IP, TCP_HOST_PORT) < 0){
+  struct sockaddr_in host;
+  host.sin_family = AF_INET;
+  host.sin_port = htons(TCP_HOST_PORT);
+  host.sin_addr.s_addr = htonl(HOST_IP_U32);
+  if(connect(fd, (struct sockaddr *)&host, sizeof(host)) < 0){
     printf("connect failed\n");
     close(fd);
     return -1;

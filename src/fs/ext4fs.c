@@ -314,19 +314,19 @@ void ext4fs_init(int dev) {
   ext4_device_unregister_all();
   int r = ext4_device_register(&ext4_bd, EXT4_DEV_NAME);
   if(r != EOK){
-    log_warn("ext4: device_register failed %d", r);
+    log_warn("ext4: device_register failed %d\n", r);
     return;
   }
 
   r = ext4_mount(EXT4_DEV_NAME, "/", false);
   if(r != EOK){
-    log_warn("ext4: mount failed %d", r);
+    log_warn("ext4: mount failed %d\n", r);
     ext4_device_unregister(EXT4_DEV_NAME);
     return;
   }
 
   ext4_mode = 1;
-  log_info("ext4: mounted device %s", EXT4_DEV_NAME);
+  log_info("ext4: mounted device %s\n", EXT4_DEV_NAME);
 
   // Ensure essential applets are reachable even if the image lacks symlinks.
   // We don't modify the image contents; we create runtime symlinks via lwext4.
@@ -341,7 +341,7 @@ void ext4fs_init(int dev) {
     }
   }
   if(bb_path[0] == '\0'){
-    log_warn("ext4: busybox not found; cannot create applet symlinks");
+    log_warn("ext4: busybox not found; cannot create applet symlinks\n");
     return;
   }
 

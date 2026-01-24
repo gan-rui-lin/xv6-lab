@@ -567,7 +567,7 @@ UINT netif_get_source_ip_by_gateway(PST_NETIF pstNetif, UINT unGateway)
     {
         //* 先遍历附加地址链表，网段匹配则直接返回，否则直接使用网卡的主ip地址
         PST_NETIFEXTRA_ETH pstExtra = (PST_NETIFEXTRA_ETH)pstNetif->pvExtra; 
-        CHAR i;
+        INT i;
         for (i = 0; i < ETH_EXTRA_IP_NUM; i++)
         {
             if (pstExtra->staExtraIp[i].unAddr)

@@ -27,6 +27,7 @@ typedef long ssize_t;
 typedef unsigned int mode_t;
 typedef long clock_t;
 typedef unsigned long size_t;
+typedef unsigned int socklen_t;
 
 typedef uint64 pde_t;
 

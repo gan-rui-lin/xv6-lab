@@ -12,6 +12,34 @@
 #include "onps_errors.h"
 #include "onps_utils.h"
 
+typedef unsigned short sa_family_t;
+
+struct sockaddr {
+  sa_family_t sa_family;
+  char sa_data[14];
+};
+
+struct sockaddr_in {
+  sa_family_t sin_family;
+  uint16 sin_port;
+  struct in_addr sin_addr;
+  char sin_zero[8];
+};
+
+static int
+copyin_sockaddr_in(uint64 uaddr, int addrlen, struct sockaddr_in *sin)
+{
+  if(uaddr == 0)
+    return -EFAULT;
+  if(addrlen < (int)sizeof(*sin))
+    return -EINVAL;
+  if(copyin(myproc()->pagetable, (char *)sin, uaddr, sizeof(*sin)) < 0)
+    return -EFAULT;
+  if(sin->sin_family != AF_INET)
+    return -ENOTSUP;
+  return 0;
+}
+
 static int
 getsockfd(int fd, struct file **pf)
 {
@@ -114,9 +142,9 @@ sys_socket(void)
 uint64
 sys_bind(void)
 {
-  int fd, port;
-  uint64 uip;
-  if(argint(0, &fd) < 0 || argaddr(1, &uip) < 0 || argint(2, &port) < 0)
+  int fd, addrlen;
+  uint64 uaddr;
+  if(argint(0, &fd) < 0 || argaddr(1, &uaddr) < 0 || argint(2, &addrlen) < 0)
     return -EINVAL;
 
   struct file *f;
@@ -124,12 +152,17 @@ sys_bind(void)
   if(r < 0)
     return r;
 
-  char ipbuf[64];
+  struct sockaddr_in sin;
+  int cr = copyin_sockaddr_in(uaddr, addrlen, &sin);
+  if(cr < 0)
+    return cr;
+
+  uint16 port = (uint16)htons(sin.sin_port);
   const char *ip = 0;
-  if(uip != 0){
-    if(fetchstr(uip, ipbuf, sizeof(ipbuf)) < 0)
-      return -EFAULT;
-    ip = ipbuf;
+  char ipbuf[32];
+  if(sin.sin_addr.s_addr != 0){
+    uint32 ip_host = htonl(sin.sin_addr.s_addr);
+    ip = inet_ntoa_safe_ext((in_addr_t)ip_host, ipbuf);
   }
 
   int ret = bind((SOCKET)f->sock, ip, (USHORT)port);
@@ -144,9 +177,9 @@ sys_bind(void)
 uint64
 sys_connect(void)
 {
-  int fd, port;
-  uint64 uip;
-  if(argint(0, &fd) < 0 || argaddr(1, &uip) < 0 || argint(2, &port) < 0)
+  int fd, addrlen;
+  uint64 uaddr;
+  if(argint(0, &fd) < 0 || argaddr(1, &uaddr) < 0 || argint(2, &addrlen) < 0)
     return -EINVAL;
 
   struct file *f;
@@ -154,9 +187,15 @@ sys_connect(void)
   if(r < 0)
     return r;
 
-  char ipbuf[64];
-  if(fetchstr(uip, ipbuf, sizeof(ipbuf)) < 0)
-    return -EFAULT;
+  struct sockaddr_in sin;
+  int cr = copyin_sockaddr_in(uaddr, addrlen, &sin);
+  if(cr < 0)
+    return cr;
+
+  uint16 port = (uint16)htons(sin.sin_port);
+  char ipbuf[32];
+  uint32 ip_host = htonl(sin.sin_addr.s_addr);
+  inet_ntoa_safe_ext((in_addr_t)ip_host, ipbuf);
 
   log_info("sys_connect: fd=%d dst=%s:%d timeout=%d\n", fd, ipbuf, port, 1);
   int ret = connect((SOCKET)f->sock, ipbuf, (USHORT)port, 1);
@@ -174,10 +213,10 @@ sys_connect(void)
 uint64
 sys_sendto(void)
 {
-  int fd, len, port;
-  uint64 ubuf, uip;
+  int fd, len, flags, addrlen;
+  uint64 ubuf, uaddr;
   if(argint(0, &fd) < 0 || argaddr(1, &ubuf) < 0 || argint(2, &len) < 0 ||
-     argaddr(3, &uip) < 0 || argint(4, &port) < 0)
+     argint(3, &flags) < 0 || argaddr(4, &uaddr) < 0 || argint(5, &addrlen) < 0)
     return -EINVAL;
 
   if(len < 0)
@@ -188,9 +227,7 @@ sys_sendto(void)
   if(r < 0)
     return r;
 
-  char ipbuf[64];
-  if(fetchstr(uip, ipbuf, sizeof(ipbuf)) < 0)
-    return -EFAULT;
+  (void)flags;
 
   void *kbuf = 0;
   if(len > 0){
@@ -203,14 +240,35 @@ sys_sendto(void)
     }
   }
 
-  int ret = sendto((SOCKET)f->sock, ipbuf, (USHORT)port, (UCHAR *)kbuf, len);
+  int ret;
+  if(uaddr == 0 || addrlen == 0){
+    ret = send((SOCKET)f->sock, (UCHAR *)kbuf, len, 0);
+  } else {
+    struct sockaddr_in sin;
+    int cr = copyin_sockaddr_in(uaddr, addrlen, &sin);
+    if(cr < 0){
+      if(kbuf)
+        kmfree(kbuf);
+      return cr;
+    }
+    if(sin.sin_addr.s_addr == 0){
+      if(kbuf)
+        kmfree(kbuf);
+      return -EINVAL;
+    }
+    uint16 port = (uint16)htons(sin.sin_port);
+    uint32 ip_host = htonl(sin.sin_addr.s_addr);
+    char ipbuf[32];
+    inet_ntoa_safe_ext((in_addr_t)ip_host, ipbuf);
+    ret = sendto((SOCKET)f->sock, ipbuf, (USHORT)port, (UCHAR *)kbuf, len);
+  }
   if(kbuf)
     kmfree(kbuf);
 
   if(ret < 0){
     EN_ONPSERR err = ERRNO;
     const CHAR *msg = socket_get_last_error((SOCKET)f->sock, &err);
-    log_warn("sys_sendto: dst=%s:%d len=%d err=%d (%s)\n", ipbuf, port, len, err, msg ? msg : "unknown");
+    log_warn("sys_sendto: len=%d err=%d (%s)\n", len, err, msg ? msg : "unknown");
     return (err != ERRNO) ? onps_err_to_errno(err) : -EIO;
   }
   return ret;
@@ -219,10 +277,10 @@ sys_sendto(void)
 uint64
 sys_recvfrom(void)
 {
-  int fd, len;
-  uint64 ubuf, uip_out, uport_out;
+  int fd, len, flags;
+  uint64 ubuf, uaddr, uaddrlen;
   if(argint(0, &fd) < 0 || argaddr(1, &ubuf) < 0 || argint(2, &len) < 0 ||
-     argaddr(3, &uip_out) < 0 || argaddr(4, &uport_out) < 0)
+     argint(3, &flags) < 0 || argaddr(4, &uaddr) < 0 || argaddr(5, &uaddrlen) < 0)
     return -EINVAL;
 
   if(len < 0)
@@ -242,7 +300,18 @@ sys_recvfrom(void)
 
   in_addr_t from_ip = 0;
   USHORT from_port = 0;
+  (void)flags;
   int ret = recvfrom((SOCKET)f->sock, (UCHAR *)kbuf, len, &from_ip, &from_port);
+  if(ret < 0){
+    EN_ONPSERR err = socket_get_last_error_code((SOCKET)f->sock);
+    if(err == ERRUNSUPPIPPROTO){
+      ret = recv((SOCKET)f->sock, (UCHAR *)kbuf, len);
+      if(ret >= 0){
+        from_ip = 0;
+        from_port = 0;
+      }
+    }
+  }
   if(ret > 0){
     if(copyout(myproc()->pagetable, ubuf, kbuf, ret) < 0){
       if(kbuf)
@@ -253,10 +322,25 @@ sys_recvfrom(void)
   if(kbuf)
     kmfree(kbuf);
 
-  if(uip_out != 0)
-    copyout(myproc()->pagetable, uip_out, (char *)&from_ip, sizeof(from_ip));
-  if(uport_out != 0)
-    copyout(myproc()->pagetable, uport_out, (char *)&from_port, sizeof(from_port));
+  if(uaddr != 0 && uaddrlen != 0){
+    socklen_t user_len = 0;
+    if(copyin(myproc()->pagetable, (char *)&user_len, uaddrlen, sizeof(user_len)) < 0)
+      return -EFAULT;
+
+    struct sockaddr_in sin = {0};
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(from_port);
+    sin.sin_addr.s_addr = htonl(from_ip);
+
+    int copy_len = user_len < sizeof(sin) ? (int)user_len : (int)sizeof(sin);
+    if(copy_len > 0){
+      if(copyout(myproc()->pagetable, uaddr, (char *)&sin, copy_len) < 0)
+        return -EFAULT;
+    }
+    socklen_t out_len = sizeof(sin);
+    if(copyout(myproc()->pagetable, uaddrlen, (char *)&out_len, sizeof(out_len)) < 0)
+      return -EFAULT;
+  }
 
   if(ret < 0){
     EN_ONPSERR err = ERRNO;
@@ -294,9 +378,9 @@ sys_listen(void)
 uint64
 sys_accept(void)
 {
-  int fd, waitsecs;
-  uint64 uip_out, uport_out;
-  if(argint(0, &fd) < 0 || argaddr(1, &uip_out) < 0 || argaddr(2, &uport_out) < 0 || argint(3, &waitsecs) < 0)
+  int fd;
+  uint64 uaddr, uaddrlen;
+  if(argint(0, &fd) < 0 || argaddr(1, &uaddr) < 0 || argaddr(2, &uaddrlen) < 0)
     return -EINVAL;
 
   struct file *f;
@@ -307,7 +391,7 @@ sys_accept(void)
   in_addr_t from_ip = 0;
   USHORT from_port = 0;
   EN_ONPSERR err = ERRNO;
-  SOCKET ns = accept((SOCKET)f->sock, &from_ip, &from_port, waitsecs, &err);
+  SOCKET ns = accept((SOCKET)f->sock, &from_ip, &from_port, -1, &err);
   if(ns < 0){
     const CHAR *msg = onps_error(err);
     log_warn("sys_accept: err=%d (%s)\n", err, msg ? msg : "unknown");
@@ -338,10 +422,26 @@ sys_accept(void)
     return -EMFILE;
   }
 
-  if(uip_out != 0)
-    copyout(myproc()->pagetable, uip_out, (char *)&from_ip, sizeof(from_ip));
-  if(uport_out != 0)
-    copyout(myproc()->pagetable, uport_out, (char *)&from_port, sizeof(from_port));
+  if(uaddr != 0 && uaddrlen != 0){
+    socklen_t user_len = 0;
+    if(copyin(myproc()->pagetable, (char *)&user_len, uaddrlen, sizeof(user_len)) < 0)
+      return -EFAULT;
+
+    struct sockaddr_in sin;
+    memset(&sin, 0, sizeof(sin));
+    sin.sin_family = AF_INET;
+    sin.sin_port = htons(from_port);
+    sin.sin_addr.s_addr = htonl(from_ip);
+
+    int copy_len = user_len < sizeof(sin) ? (int)user_len : (int)sizeof(sin);
+    if(copy_len > 0){
+      if(copyout(myproc()->pagetable, uaddr, (char *)&sin, copy_len) < 0)
+        return -EFAULT;
+    }
+    socklen_t out_len = sizeof(sin);
+    if(copyout(myproc()->pagetable, uaddrlen, (char *)&out_len, sizeof(out_len)) < 0)
+      return -EFAULT;
+  }
 
   return nfd;
 }

@@ -191,24 +191,36 @@ int socket(int domain, int type, int protocol)
   return syscall(SYS_socket, domain, type, protocol);
 }
 
-int bind(int sockfd, const char *ip, int port)
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
-  return syscall(SYS_bind, sockfd, ip, port);
+  return syscall(SYS_bind, sockfd, addr, addrlen);
 }
 
-int connect(int sockfd, const char *ip, int port)
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
-  return syscall(SYS_connect, sockfd, ip, port);
+  return syscall(SYS_connect, sockfd, addr, addrlen);
 }
 
-int sendto(int sockfd, const void *buf, int len, const char *ip, int port)
+ssize_t send(int sockfd, const void *buf, size_t len, int flags)
 {
-  return syscall(SYS_sendto, sockfd, buf, len, ip, port);
+  return syscall(SYS_sendto, sockfd, buf, len, flags, 0, 0);
 }
 
-int recvfrom(int sockfd, void *buf, int len, uint32 *ip, uint16 *port)
+ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+               const struct sockaddr *dest_addr, socklen_t addrlen)
 {
-  return syscall(SYS_recvfrom, sockfd, buf, len, ip, port);
+  return syscall(SYS_sendto, sockfd, buf, len, flags, dest_addr, addrlen);
+}
+
+ssize_t recv(int sockfd, void *buf, size_t len, int flags)
+{
+  return syscall(SYS_recvfrom, sockfd, buf, len, flags, 0, 0);
+}
+
+ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
+                 struct sockaddr *src_addr, socklen_t *addrlen)
+{
+  return syscall(SYS_recvfrom, sockfd, buf, len, flags, src_addr, addrlen);
 }
 
 int listen(int sockfd, int backlog)
@@ -216,9 +228,9 @@ int listen(int sockfd, int backlog)
   return syscall(SYS_listen, sockfd, backlog);
 }
 
-int accept(int sockfd, uint32 *ip, uint16 *port, int waitsecs)
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 {
-  return syscall(SYS_accept, sockfd, ip, port, waitsecs);
+  return syscall(SYS_accept, sockfd, addr, addrlen);
 }
 
 int chdir(const char *path)

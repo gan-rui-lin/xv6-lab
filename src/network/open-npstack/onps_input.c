@@ -595,10 +595,7 @@ BOOL onps_input_get(INT nInput, ONPSIOPT enInputOpt, void *pvVal, EN_ONPSERR *pe
     case IOPT_GETTCPUDPADDR: 
         if (IPPROTO_TCP == (EN_IPPROTO)pstcbInput->ubIPProto || IPPROTO_UDP == (EN_IPPROTO)pstcbInput->ubIPProto)
         {
-            if (sizeof(pvVal) == 4)
-                *((UINT *)pvVal) = (UINT)&pstcbInput->uniHandle.stTcpUdp;
-            else
-                *((ULONGLONG *)pvVal) = (ULONGLONG)&pstcbInput->uniHandle.stTcpUdp;
+            *((PST_TCPUDP_HANDLE *)pvVal) = &pstcbInput->uniHandle.stTcpUdp;
         }
         else
         {
@@ -633,27 +630,14 @@ BOOL onps_input_get(INT nInput, ONPSIOPT enInputOpt, void *pvVal, EN_ONPSERR *pe
         break; 
 
     case IOPT_GETATTACH:
-        if (sizeof(pvVal) == 4)
-            *((UINT *)pvVal) = (UINT)pstcbInput->pvAttach;
-        else
-            *((ULONGLONG *)pvVal) = (ULONGLONG)pstcbInput->pvAttach;
+        *((void **)pvVal) = pstcbInput->pvAttach;
         break; 
 
     case IOPT_GETTCPUDPLINK: 
-        if (sizeof(pvVal) == 4)
-        {
-            if (IPPROTO_TCP == (EN_IPPROTO)pstcbInput->ubIPProto && TCP_TYPE_SERVER == pstcbInput->uniHandle.stTcpUdp.bType)
-                *((UINT *)pvVal) = 0/*(UINT)((PST_INPUTATTACH_TCPSRV)pstcbInput->pvAttach)->pstClients*/;
-            else
-                *((UINT *)pvVal) = (UINT)pstcbInput->pvAttach;
-        }
+        if (IPPROTO_TCP == (EN_IPPROTO)pstcbInput->ubIPProto && TCP_TYPE_SERVER == pstcbInput->uniHandle.stTcpUdp.bType)
+            *((void **)pvVal) = NULL/*(void *)((PST_INPUTATTACH_TCPSRV)pstcbInput->pvAttach)->pstClients*/;
         else
-        {
-            if (IPPROTO_TCP == (EN_IPPROTO)pstcbInput->ubIPProto && TCP_TYPE_SERVER == pstcbInput->uniHandle.stTcpUdp.bType)
-                *((ULONGLONG *)pvVal) = 0/*(ULONGLONG)((PST_INPUTATTACH_TCPSRV)pstcbInput->pvAttach)->pstClients*/; 
-            else
-                *((ULONGLONG *)pvVal) = (ULONGLONG)pstcbInput->pvAttach;
-        }
+            *((void **)pvVal) = pstcbInput->pvAttach;
         break; 
 
     case IOPT_GETTCPDATASNDSTATE:
@@ -1532,20 +1516,10 @@ INT onps_input_get_handle(EN_IPPROTO enIpProto, UINT unNetifIp, USHORT usPort, v
                         {
                             nInput = pstNextNode->uniData.nVal;                            
 
-                            if (sizeof(pvAttach) == 4)
-                            {
-                                if (IPPROTO_TCP == pstcbInput->ubIPProto && TCP_TYPE_SERVER == pstcbInput->uniHandle.stTcpUdp.bType)
-                                    *((UINT *)pvAttach) = (UINT)0; 
-                                else
-                                    *((UINT *)pvAttach) = (UINT)pstcbInput->pvAttach;
-                            }
+                            if (IPPROTO_TCP == pstcbInput->ubIPProto && TCP_TYPE_SERVER == pstcbInput->uniHandle.stTcpUdp.bType)
+                                *((void **)pvAttach) = NULL;
                             else
-                            {
-                                if (IPPROTO_TCP == pstcbInput->ubIPProto && TCP_TYPE_SERVER == pstcbInput->uniHandle.stTcpUdp.bType)
-                                    *((ULONGLONG *)pvAttach) = (ULONGLONG)0; 
-                                else
-                                    *((ULONGLONG *)pvAttach) = (ULONGLONG)pstcbInput->pvAttach;
-                            }
+                                *((void **)pvAttach) = pstcbInput->pvAttach;
                             break;
                         }                        
                     }

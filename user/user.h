@@ -1,6 +1,40 @@
 # include "types.h"
 struct stat;
 
+// socket types (POSIX-compatible minimal)
+typedef unsigned short sa_family_t;
+
+struct sockaddr {
+	sa_family_t sa_family;
+	char sa_data[14];
+};
+
+struct in_addr {
+	uint32 s_addr;
+};
+
+struct sockaddr_in {
+	sa_family_t sin_family;
+	uint16 sin_port;
+	struct in_addr sin_addr;
+	char sin_zero[8];
+};
+
+#define AF_INET 2
+#define SOCK_STREAM 1
+#define SOCK_DGRAM 2
+
+static inline uint16 htons(uint16 v) { return (uint16)((v << 8) | (v >> 8)); }
+static inline uint16 ntohs(uint16 v) { return htons(v); }
+static inline uint32 htonl(uint32 v)
+{
+	return ((v & 0x000000ffU) << 24) |
+				 ((v & 0x0000ff00U) << 8) |
+				 ((v & 0x00ff0000U) >> 8) |
+				 ((v & 0xff000000U) >> 24);
+}
+static inline uint32 ntohl(uint32 v) { return htonl(v); }
+
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
@@ -26,14 +60,19 @@ int uptime(void);
 int shutdown(void);
 int gettimeofday(struct timeval *tv);
 int fstat(int fd, struct stat*);
-// socket (minimal)
+
+// socket calls
 int socket(int domain, int type, int protocol);
-int bind(int sockfd, const char *ip, int port);
-int connect(int sockfd, const char *ip, int port);
-int sendto(int sockfd, const void *buf, int len, const char *ip, int port);
-int recvfrom(int sockfd, void *buf, int len, uint32 *ip, uint16 *port);
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+ssize_t send(int sockfd, const void *buf, size_t len, int flags);
+ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,
+			  const struct sockaddr *dest_addr, socklen_t addrlen);
+ssize_t recv(int sockfd, void *buf, size_t len, int flags);
+ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,
+				struct sockaddr *src_addr, socklen_t *addrlen);
 int listen(int sockfd, int backlog);
-int accept(int sockfd, uint32 *ip, uint16 *port, int waitsecs);
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 
 
 // ulib.c

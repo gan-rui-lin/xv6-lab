@@ -39,3 +39,6 @@ sbi-qemu
 sdcard.img-backup
 *.gz
 *.xz
+
+!RUOS*.typ
+!lib.typ

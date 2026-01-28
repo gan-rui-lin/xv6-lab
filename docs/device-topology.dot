@@ -1,0 +1,58 @@
+digraph device_topology {
+  graph [
+    fontname="Microsoft YaHei",
+    rankdir=TB,
+    bgcolor="white",
+    splines=ortho,
+    nodesep=0.5,
+    ranksep=0.55
+  ];
+  node  [
+    fontname="Microsoft YaHei",
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#BEEBF2",
+    color="#4FA9B8"
+  ];
+  edge  [color="#333333", arrowsize=0.8, fontname="Microsoft YaHei"];
+
+  subgraph cluster_kernel {
+    label="Kernel (S-Mode)";
+    style="rounded,filled";
+    fillcolor="#E8F7FA";
+    color="#9CCED9";
+
+    Trap  [label="trap.c: devintr()\n(外部中断入口)"];
+    Claim [label="plic_claim()\n读取 SCLAIM"];
+    Disp  [label="dispatch\n(uartintr/virtio_*)"];
+    Comp  [label="plic_complete()\n写回 SCLAIM"];
+
+    Trap -> Claim -> Disp -> Comp;
+  }
+
+  PLIC [label="PLIC\n(priority/enable/claim)", fillcolor="#f5f5f5", color="#8EA0B8"];
+
+  subgraph cluster_mmio {
+    label="MMIO Devices";
+    style="rounded,filled";
+    fillcolor="#D9DDE4";
+    color="#8EA0B8";
+
+    UART [label="UART0 (16550)\nMMIO @0x1000_0000\nIRQ=10"];
+    VBLK [label="virtio-blk\nMMIO @0x1000_1000\nIRQ=1"];
+    VNET [label="virtio-net\nMMIO @0x1000_2000\nIRQ=2"];
+  }
+
+  // interrupt wires: device -> PLIC -> kernel
+  UART -> PLIC [dir=back, xlabel="raise IRQ"];
+  VBLK -> PLIC [dir=back, xlabel="raise IRQ"];
+  VNET -> PLIC [dir=back, xlabel="raise IRQ"];
+
+  PLIC -> Claim [xlabel="claim irq"];
+  Comp -> PLIC [xlabel="complete irq"];
+
+  // MMIO programming path (driver talks to device registers)
+  Disp -> UART [style=dashed, xlabel="MMIO read/write"];
+  Disp -> VBLK [style=dashed, xlabel="MMIO read/write"];
+  Disp -> VNET [style=dashed, xlabel="MMIO read/write"];
+}

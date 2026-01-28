@@ -269,6 +269,7 @@ exec(char *path, char **argv, char **envp)
   }
   ustack[envp_idx + envc] = 0; // envp[envc] = NULL
 
+  // ! 可能这里的位置还有问题
   int auxv_idx = envp_idx + envc + 1;
   uint64 phdr = load_bias + elf.phoff;
   ustack[auxv_idx++] = AT_PHDR;   ustack[auxv_idx++] = phdr;

@@ -1,0 +1,71 @@
+digraph virtqueue_layout {
+  graph [
+    fontname="Microsoft YaHei",
+    rankdir=TB,
+    bgcolor="white",
+    splines=ortho,
+    nodesep=0.45,
+    ranksep=0.6
+  ];
+  node  [
+    fontname="Microsoft YaHei",
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#BEEBF2",
+    color="#4FA9B8"
+  ];
+  edge  [color="#333333", arrowsize=0.8, fontname="Microsoft YaHei"];
+
+  Desc [
+    shape=plaintext,
+    label=<
+      <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="6">
+        <TR><TD COLSPAN="8" BGCOLOR="#f5f5f5"><B>Descriptor Table (desc[])</B></TD></TR>
+        <TR>
+          <TD WIDTH="60">0</TD><TD WIDTH="60">1</TD><TD WIDTH="60">2</TD><TD WIDTH="60">3</TD>
+          <TD WIDTH="60">4</TD><TD WIDTH="60">5</TD><TD WIDTH="60">6</TD><TD WIDTH="60">7</TD>
+        </TR>
+        <TR>
+          <TD><FONT POINT-SIZE="9">hdr</FONT></TD>
+          <TD><FONT POINT-SIZE="9">data</FONT></TD>
+          <TD><FONT POINT-SIZE="9">status</FONT></TD>
+          <TD><FONT POINT-SIZE="9">...</FONT></TD>
+          <TD><FONT POINT-SIZE="9">...</FONT></TD>
+          <TD><FONT POINT-SIZE="9">...</FONT></TD>
+          <TD><FONT POINT-SIZE="9">...</FONT></TD>
+          <TD><FONT POINT-SIZE="9">...</FONT></TD>
+        </TR>
+      </TABLE>
+    >
+  ];
+
+  subgraph cluster_driver {
+    label="Driver Area (Kernel)";
+    style="rounded,filled";
+    fillcolor="#E8F7FA";
+    color="#9CCED9";
+
+    Avail [label="Avail Ring\n(driver enqueues)\navail->idx++"];
+    Notify [label="MMIO: QUEUE_NOTIFY\n(kick device)", fillcolor="#f5f5f5", color="#8EA0B8"];
+  }
+
+  subgraph cluster_device {
+    label="Device Area (QEMU/virtio)";
+    style="rounded,filled";
+    fillcolor="#D9DDE4";
+    color="#8EA0B8";
+
+    Used [label="Used Ring\n(device dequeues/completes)\nused->idx++"];
+    IRQ  [label="IRQ -> PLIC\n(interrupt)", fillcolor="#f5f5f5", color="#8EA0B8"];
+  }
+
+  // layout: rings on the same row
+  { rank=same; Avail; Used; }
+
+  // Core flow
+  Desc -> Avail [xlabel="1) publish head desc index"];
+  Avail -> Notify [xlabel="2) kick"];
+  Notify -> Used  [xlabel="3) device DMA reads desc"];
+  Used -> IRQ     [xlabel="4) notify completion"];
+  IRQ -> Desc     [xlabel="5) driver reclaims/free"];
+}

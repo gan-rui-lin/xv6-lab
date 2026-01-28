@@ -1,0 +1,66 @@
+digraph net_data_path {
+  graph [
+    fontname="Helvetica",
+    rankdir=LR,
+    bgcolor="white",
+    splines=spline,
+    nodesep=0.5,
+    ranksep=0.7
+  ];
+  node  [
+    fontname="Helvetica",
+    shape=box,
+    style="rounded,filled",
+    color="#4FA9B8",
+    fillcolor="#DFF3F7",
+    penwidth=1.2
+  ];
+  edge  [
+    arrowsize=0.9,
+    penwidth=1.2
+  ];
+
+  subgraph cluster_user {
+    label="User Space";
+    style="rounded,filled";
+    fillcolor="#EEF8FB";
+    color="#9CCED9";
+    UserSock [label="User Socket"];
+    UserRecv [label="recv / recvfrom"];
+  }
+
+  subgraph cluster_kernel {
+    label="Kernel Space";
+    style="rounded,filled";
+    fillcolor="#E1E5EA";
+    color="#8EA0B8";
+    Syscall [label="Syscall Layer\n(sysnet / file)", fillcolor="#D7EBF1"];
+    ONPSSock [label="ONPS Socket", fillcolor="#D7EBF1"];
+    IpEth [label="IP / Ethernet\nEncap & Decap", fillcolor="#D7EBF1"];
+    NetEmac [label="net_emac_send", fillcolor="#CFE7EF"];
+    VNetTx [label="virtio_net_transmit", fillcolor="#CFE7EF"];
+    VNetRx [label="virtio_net_rx", fillcolor="#CFE7EF"];
+    RxDeliver [label="net_rx_deliver", fillcolor="#CFE7EF"];
+    EthPut [label="ethernet_put_packet", fillcolor="#CFE7EF"];
+  }
+
+  // Send path (solid, blue)
+  edge [color="#2C6FAE"];
+  UserSock -> Syscall -> ONPSSock -> IpEth -> NetEmac -> VNetTx;
+
+  // Receive path (dashed, green)
+  edge [color="#2B8A3E", style=dashed];
+  VNetRx -> RxDeliver -> EthPut -> IpEth -> ONPSSock -> UserRecv;
+
+  // Legend
+  subgraph cluster_legend {
+    label="Legend";
+    style="rounded,filled";
+    fillcolor="#F4F6F8";
+    color="#C5CCD6";
+    LSend [label="Send Path", shape=box, style="rounded,filled", fillcolor="#E6F1FB"];
+    LRecv [label="Recv Path", shape=box, style="rounded,filled", fillcolor="#E6F6EA"];
+    LSend -> LRecv [color="#2C6FAE"];
+    LRecv -> LSend [color="#2B8A3E", style=dashed];
+  }
+}

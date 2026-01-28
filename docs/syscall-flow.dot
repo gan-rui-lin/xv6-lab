@@ -1,0 +1,103 @@
+digraph syscall_flow {
+  graph [
+    fontname="Microsoft YaHei",
+    rankdir=TB,
+    bgcolor="white",
+    splines=ortho,
+    nodesep=0.4,
+    ranksep=0.5
+  ];
+  node  [
+    fontname="Microsoft YaHei",
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#BEEBF2",
+    color="#4FA9B8"
+  ];
+  edge  [color="#333333", arrowsize=0.8, fontname="Microsoft YaHei"];
+
+  // User space
+  subgraph cluster_user {
+    label="用户态 (User Mode)";
+    style="rounded,filled";
+    fillcolor="#E8F7FA";
+    color="#9CCED9";
+
+    UProg [label="用户程序\ncall write()"];
+    Ulib  [label="用户封装\n(syscall宏/usys.S)"];
+    UProg -> Ulib;
+  }
+
+  // Trampoline (entry)
+  subgraph cluster_tramp_in {
+    label="跳板页 (Trampoline / Entry)";
+    style="rounded,filled";
+    fillcolor="#E8F7FA";
+    color="#9CCED9";
+
+    Ecall [label="ecall"];
+    Vec   [label="uservec\n保存寄存器 -> trapframe"];
+    SatpK [label="切换页表\nsatp <- kernel_pagetable"];
+    JTrap [label="跳转\nusertrap()"];
+
+    Ulib -> Ecall;
+    Ecall -> Vec -> SatpK -> JTrap;
+  }
+
+  // Kernel space
+  subgraph cluster_kernel {
+    label="内核态 (Supervisor Mode)";
+    style="rounded,filled";
+    fillcolor="#D9DDE4";
+    color="#8EA0B8";
+
+    Trap   [label="usertrap\n识别scause\n(epc += 4)"];
+    Dev    [label="devintr/yield\n(时钟/外设)"];
+    Sysc   [label="syscall_handler\nnr=a7, args=a0..a5"];
+    Trace  [label="trace/统计\n(可选)"];
+    Impl   [label="sys_write\n执行内核逻辑"];
+    Retv   [label="tf->a0 = ret\n(返回值/errno)"];
+    Retpre [label="usertrapret\n准备返回现场"];
+
+    Exc    [label="handle_exception\n(页故障/非法指令)"];
+    Kill   [label="setkilled/terminate"];
+
+    JTrap -> Trap;
+    Trap -> Dev  [xlabel="可并发", style=dashed];
+    Trap -> Sysc;
+    Sysc -> Trace [xlabel="可选", style=dashed];
+    Trace -> Impl [style=dashed];
+    Sysc -> Impl;
+    Impl -> Retv -> Retpre;
+
+    Trap -> Exc  [xlabel="非系统调用", style=dotted];
+    Exc  -> Kill [style=dotted];
+    Kill -> Retpre [style=dotted];
+  }
+
+  // Trampoline (return)
+  subgraph cluster_tramp_out {
+    label="跳板页 (Trampoline / Return)";
+    style="rounded,filled";
+    fillcolor="#E8F7FA";
+    color="#9CCED9";
+
+    Ret   [label="userret"];
+    SatpU [label="恢复页表\nsatp <- user_pagetable"];
+    Load  [label="恢复寄存器\ntrapframe -> regs"];
+    Sret  [label="sret"];
+
+    Retpre -> Ret -> SatpU -> Load -> Sret;
+  }
+
+  // User space (after return)
+  subgraph cluster_user2 {
+    label="用户态 (User Mode)";
+    style="rounded,filled";
+    fillcolor="#E8F7FA";
+    color="#9CCED9";
+
+    Cont [label="继续执行\n(a0=返回值)"];
+    Sret -> Cont;
+  }
+}

@@ -1,0 +1,78 @@
+digraph signal_flow {
+  graph [
+    fontname="Microsoft YaHei",
+    rankdir=TB,
+    bgcolor="white",
+    splines=ortho,
+    nodesep=0.4,
+    ranksep=0.55
+  ];
+  node  [
+    fontname="Microsoft YaHei",
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#BEEBF2",
+    color="#4FA9B8"
+  ];
+  edge  [color="#333333", arrowsize=0.8, fontname="Microsoft YaHei"];
+
+  // Left: kernel space
+  subgraph cluster_kernel {
+    label="Kernel Space";
+    style="rounded,filled";
+    fillcolor="#D9DDE4";
+    color="#8EA0B8";
+
+    KTop   [label="(kernel)"];
+    SysKill [label="sys_kill/rt_sigaction"];
+    Send    [label="signal_send/\nsignal_send_pid"];
+    Pending [label="sigpending bitset"];
+    Usertrap [label="usertrap"];
+    Handle  [label="signal_handle"];
+    Pick    [label="pick pending\n(masked out)"];
+    Default [label="SIG_DFL\n(ignore/terminate)"];
+    Setup   [label="signal_setup_frame\n(build sigframe)"];
+    SysSigret [label="sys_rt_sigreturn"];
+    Sigret  [label="signal_return\n(restore tf/mask)"];
+
+    KTop -> SysKill -> Send -> Pending -> Usertrap -> Handle -> Pick;
+    Pick -> Default;
+    Pick -> Setup;
+    SysSigret -> Sigret;
+  }
+
+  // Right: user space
+  subgraph cluster_user {
+    label="User Space";
+    style="rounded,filled";
+    fillcolor="#E8F7FA";
+    color="#9CCED9";
+
+    UTop [label="(user)"];
+    UProg [label="User Program"];
+    Ulib  [label="Ulib\n(kill/signal/rt_sigaction)"];
+    Handler [label="User Handler\n(sa_handler)"];
+    Restorer [label="sa_restorer\n(rt_sigreturn stub)"];
+    UResume [label="User Program\n(resume)"];
+
+    UTop -> UProg -> Ulib;
+    Handler -> Restorer -> UResume [style=invis]; // keep the column tall/straight
+  }
+
+  // Force two columns: kernel on the left, user on the right.
+  { rank=same; KTop; UTop; }
+  KTop -> UTop [style=invis, weight=100];
+
+  // Align key handoff points (same "time slice", different privilege level).
+  { rank=same; SysKill; Ulib; }
+  { rank=same; Setup; Handler; }
+  { rank=same; SysSigret; Restorer; }
+  { rank=same; Sigret; UResume; }
+
+  // Cross-layer flow
+  Ulib -> SysKill;
+  Setup -> Handler [xlabel="epc=handler\na0=sig\nra=restorer"];
+  Handler -> Restorer [xlabel="return"];
+  Restorer -> SysSigret;
+  Sigret -> UResume [xlabel="return to user"];
+}

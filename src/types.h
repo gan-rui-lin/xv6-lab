@@ -12,6 +12,7 @@ typedef long long      int64;
 typedef unsigned long  uintptr_t;
 
 // stdint 风格别名
+#ifndef HOST_BUILD
 typedef uint8   uint8_t;
 typedef uint16  uint16_t;
 typedef uint32  uint32_t;
@@ -28,6 +29,11 @@ typedef unsigned int mode_t;
 typedef long clock_t;
 typedef unsigned long size_t;
 typedef unsigned int socklen_t;
+#else
+// 在主机系统上编译时，使用系统的类型定义
+#include <stdint.h>
+#include <sys/types.h>
+#endif
 
 typedef uint64 pde_t;
 

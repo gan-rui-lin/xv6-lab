@@ -266,6 +266,17 @@ static struct inode *make_inode(const char *path, short type, uint64 size, uint6
   ip->ext_size = size;
   ip->ext_ino = inum;
   safestrcpy(ip->ext4_path, path, sizeof(ip->ext4_path));
+
+  // 读取文件权限
+  uint32_t ext_mode;
+  int ret = ext4_mode_get(path, &ext_mode);
+  if (ret == 0) {
+    ip->mode = ext_mode & 0777;  // 只取权限位（rwxrwxrwx）
+  } else {
+    // 如果无法读取，设置默认权限
+    ip->mode = (type == T_DIR) ? 0755 : 0755;
+  }
+
   ip->valid = 1;
   return ip;
 }

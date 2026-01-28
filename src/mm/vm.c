@@ -715,8 +715,12 @@ void freewalk(pagetable_t pagetable)
         }
         else if (is_pte_valid(pte))
         {
-            // 发现叶子页面，应该已经被清理
-            panic("freewalk: found unexpected leaf page");
+            // Found a leaf page - this can happen with VMA lazy allocation
+            // Free the physical page and clear the PTE
+            uint64 pa = PTE2PA(pte);
+            if (pa != 0)
+                kfree((void *)pa);
+            pagetable[i] = 0;
         }
     }
 
@@ -770,7 +774,13 @@ int uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     uint64 pa, current_va;
     uint flags;
 
-    for (current_va = 0; current_va < sz; current_va += PGSIZE)
+    // Scan up to a reasonable limit to catch dynamically loaded libraries
+    // that may be mapped beyond sz. 512MB should cover most use cases.
+    uint64 scan_limit = 512 * 1024 * 1024;  // 512MB
+    if (sz > scan_limit)
+        scan_limit = sz;
+
+    for (current_va = 0; current_va < scan_limit; current_va += PGSIZE)
     {
         pte = walk(old, current_va, 0);
         if (pte == 0)

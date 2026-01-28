@@ -146,6 +146,8 @@ found:
   p->priority = PRIO_DEFAULT;  // 设置默认优先级
   p->clear_child_tid = 0;
   p->exit_signal = SIGCHLD;
+  p->robust_list_head = 0;
+  p->robust_list_len = 0;
   // 初始化信号相关状态
   signal_init(p);
   memset(p->ofile, 0, sizeof(p->ofile));
@@ -417,6 +419,13 @@ fork(void)
     return -1;
   }
 
+  // Debug: check parent's page table before uvmcopy
+  pte_t *parent_pte_before = walk(p->pagetable, 0x7fa78, 0);
+  printf("[fork] parent pid=%d sz=%p, pte@0x7fa78 before=%p\n",
+         p->pid, p->sz, parent_pte_before ? *parent_pte_before : 0);
+  printf("[fork] parent pagetable=%p, child pagetable=%p\n",
+         p->pagetable, np->pagetable);
+
   // 复制页表和物理页内容
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -424,6 +433,11 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+
+  // Debug: check parent's page table after uvmcopy
+  pte_t *parent_pte_after = walk(p->pagetable, 0x7fa78, 0);
+  printf("[fork] parent pid=%d pte@0x7fa78 after=%p\n",
+         p->pid, parent_pte_after ? *parent_pte_after : 0);
   if(vma_copy(np, p) < 0){
     freeproc(np);
     release(&np->lock);
@@ -491,6 +505,11 @@ clone_fork(uint64 stack, uint64 flags, uint64 tls, uint64 ctid, int exit_signal)
     return -1;
   }
 
+  // Debug: check parent's page table before uvmcopy
+  pte_t *parent_pte_before = walk(p->pagetable, 0x7fa78, 0);
+  printf("[clone_fork] parent pid=%d sz=%p, pte@0x7fa78 before=%p\n",
+         p->pid, p->sz, parent_pte_before ? *parent_pte_before : 0);
+
   // 复制页表和物理页内容
   if(uvmcopy(p->pagetable, np->pagetable, p->sz) < 0){
     freeproc(np);
@@ -498,6 +517,11 @@ clone_fork(uint64 stack, uint64 flags, uint64 tls, uint64 ctid, int exit_signal)
     return -1;
   }
   np->sz = p->sz;
+
+  // Debug: check parent's page table after uvmcopy
+  pte_t *parent_pte_after = walk(p->pagetable, 0x7fa78, 0);
+  printf("[clone_fork] parent pid=%d pte@0x7fa78 after=%p\n",
+         p->pid, parent_pte_after ? *parent_pte_after : 0);
   if(vma_copy(np, p) < 0){
     freeproc(np);
     release(&np->lock);

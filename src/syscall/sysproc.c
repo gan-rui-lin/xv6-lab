@@ -782,10 +782,15 @@ sys_wait4(void)
           if(pp->state == ZOMBIE){
             // Found the matching child
             int cpid = pp->pid;
-            
+
             // Debug: print the xstate before copying
             // printf("sys_wait4: found zombie child pid=%d, xstate=%d\n", cpid, pp->xstate);
-            
+
+            // Debug: check parent's PTE before freeing child
+            pte_t *parent_pte = walk(p->pagetable, 0x7fa78, 0);
+            printf("[wait4] Before freeproc: parent pid=%d pte=%p\n", p->pid,
+                   parent_pte ? *parent_pte : 0);
+
             if(status != 0 && copyout(p->pagetable, status, (char *)&pp->xstate,
                                     sizeof(pp->xstate)) < 0) {
               release(&pp->lock);
@@ -793,6 +798,12 @@ sys_wait4(void)
               return -EFAULT;
             }
             freeproc(pp);
+
+            // Debug: check parent's PTE after freeing child
+            parent_pte = walk(p->pagetable, 0x7fa78, 0);
+            printf("[wait4] After freeproc: parent pid=%d pte=%p\n", p->pid,
+                   parent_pte ? *parent_pte : 0);
+
             release(&pp->lock);
             release(&wait_lock);
             return cpid;
@@ -876,6 +887,15 @@ sys_mmap(void)
 
   struct proc *p = myproc();
   struct file *f;
+
+  //claude: 跟踪 mmap 调用以诊断动态链接库加载
+  if (flags & MAP_ANONYMOUS) {
+    log_debug("[mmap] pid=%d ANONYMOUS addr=%p len=%p prot=%d flags=%x\n",
+              p->pid, addr, length, prot, flags);
+  } else {
+    log_debug("[mmap] pid=%d FILE fd=%d offset=%p len=%p prot=%d flags=%x\n",
+              p->pid, fd, offset, length, prot, flags);
+  }
 
   // Linux 语义：length == 0 返回 -EINVAL
   if(length == 0)
@@ -1215,10 +1235,10 @@ sys_uname(void)
     char domainname[65];
   } un;
 
-  safestrcpy(un.sysname, "ruos", 65);
+  safestrcpy(un.sysname, "Linux", 65);  // glibc 需要 "Linux"
   safestrcpy(un.nodename, "ru-node", 65);
-  safestrcpy(un.release, "1.0", 65);
-  safestrcpy(un.version, "1.0.0", 65);
+  safestrcpy(un.release, "5.10.0", 65);  // 模拟 Linux 5.10 内核
+  safestrcpy(un.version, "#1 SMP", 65);
   safestrcpy(un.machine, "riscv64", 65);
   safestrcpy(un.domainname, "(none)", 65);
 
@@ -1299,4 +1319,29 @@ sys_getpriority(void)
 {
   struct proc *p = myproc();
   return p->priority;
+}
+
+// set_robust_list: 设置 robust futex 列表（glibc 线程支持）
+// 参数：
+//   a0: head - 指向用户空间 robust_list_head 结构的指针
+//   a1: len - 结构体大小
+// 返回：0 表示成功
+uint64
+sys_set_robust_list(void)
+{
+  uint64 head;
+  uint64 len;
+  struct proc *p = myproc();
+
+  if(argaddr(0, &head) < 0)
+    return -EFAULT;
+  if(argaddr(1, &len) < 0)
+    return -EFAULT;
+
+  // 简单存储这些值，xv6 不需要实际处理 robust futex
+  // 这只是为了让 glibc 程序能够正常运行
+  p->robust_list_head = head;
+  p->robust_list_len = len;
+
+  return 0;
 }

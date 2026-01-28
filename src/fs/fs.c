@@ -530,6 +530,7 @@ stati(struct inode *ip, struct stat *st)
     st->ino = ip->ext_ino;
     st->type = ip->type;
     st->nlink = ip->nlink;
+    st->mode = ip->mode;
     st->size = ip->ext_size;
     return;
   }
@@ -537,6 +538,7 @@ stati(struct inode *ip, struct stat *st)
   st->ino = ip->inum;
   st->type = ip->type;
   st->nlink = ip->nlink;
+  st->mode = 0644;  // FAT32 默认权限
   st->size = ip->size;
 }
 

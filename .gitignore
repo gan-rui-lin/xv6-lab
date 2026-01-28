@@ -39,3 +39,6 @@ sbi-qemu
 sdcard.img-backup
 *.gz
 *.xz
+测试仓库/
+empty/
+sdcard-rv.img.backup

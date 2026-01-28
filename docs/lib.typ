@@ -306,6 +306,9 @@
   }
 
   show heading.where(level: 1): it => [
+    // 重置图片和表格计数器
+    #counter(figure.where(kind: image)).update(0)
+    #counter(figure.where(kind: table)).update(0)
     #pagebreak(weak: true)
 
     // 中西文自动切换字体：英文→Consolas，中文→cjk-bold
@@ -373,10 +376,10 @@
   let equation_c = counter("equation")
 
   // 引用样式（中文）：
-  // - 图：图 n
-  // - 表：表 n
-  // - 标题：第 n 节（使用标题自身的编号串）
-  // - 公式：式 n（遵循公式编号格式）
+  // - 图：图 章号.序号
+  // - 表：表 章号.序号
+  // - 标题：第 n 章/节（使用标题自身的编号串）
+  // - 公式：式 (n)（遵循公式编号格式）
   // 其中 n 部分可点击并显示为红色
   // 其他类型引用保持默认
   show ref: it => {
@@ -388,19 +391,15 @@
       let is-table = el.kind == table
       let prefix = if is-table { "表" } else { "图" }
 
-      // 获取编号（字符串 → 整数）
-      let get-num = (ctr) => int(numbering(el.numbering, ..counter(ctr).at(el.location())))
-      let n-table = get-num(table)
-      let n-figure = get-num(figure)
-
-      // 计算实际显示编号
-      let display-val = if is-table { n-table + 1 } else { n-figure - n-table }
+      // 获取一级标题编号和图片/表格编号
+      let h1 = counter(heading).at(el.location()).first()
+      let fig-num = counter(figure.where(kind: el.kind)).at(el.location()).first()
 
       [
         #prefix
         #link(el.location())[
           #set text(fill: red)
-          #(str(display-val))
+          #numbering("1.1", h1, fig-num)
         ]
       ]
     } else if el.func() == heading {
@@ -415,13 +414,14 @@
         #tail
       ]
     } else if el.func() == math.equation {
-      let num = numbering(el.numbering, ..counter(math.equation).at(el.location()))
+      let num = numbering(el.numbering, ..counter(equation).at(el.location()))
       [
-        式
+        式 (
         #link(el.location())[
           #set text(fill: red)
           #num
         ]
+        )
       ]
     } else {
       it
@@ -429,9 +429,16 @@
   }
 
   // 表格样式
-  // 统一将图注前缀改为中文“图”，表格为“表”
-  set figure(supplement: "图")
-  show figure.where(kind: table): set figure(supplement: "表")
+  // 统一将图注前缀改为中文"图"，表格为"表"
+  // 图片编号格式：图 章节号.图序号（例如：图 1.1, 图 1.2, 图 2.1）
+  set figure(supplement: "图", numbering: n => {
+    let h1 = counter(heading).get().first()
+    numbering("1.1", h1, n)
+  })
+  show figure.where(kind: table): set figure(supplement: "表", numbering: n => {
+    let h1 = counter(heading).get().first()
+    numbering("1.1", h1, n)
+  })
   show figure.where(kind: table): set figure.caption(position: top)
 
   // 列表样式

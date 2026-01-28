@@ -328,6 +328,31 @@ void ext4fs_init(int dev) {
   ext4_mode = 1;
   log_info("ext4: mounted device %s\n", EXT4_DEV_NAME);
 
+  // Ensure dynamic loader paths exist for musl-linked binaries.
+  //
+  // Notes:
+  // - Many musl binaries request /lib/ld-musl-*.so.1; on some images this loader
+  //   is provided as a symlink to /musl/lib/libc.so.
+  // - Some "musl" test bundles (e.g. /musl/basic/*) may request
+  //   /lib/ld-linux-riscv64-lp64d.so.1 even though they are otherwise
+  //   self-contained. Provide aliases so exec can open the interpreter.
+  ensure_dir("/lib");
+  ensure_dir("/musl");
+  ensure_dir("/musl/lib");
+  if(path_exists("/musl/lib/libc.so")){
+    // musl dynamic loader names
+    ensure_symlink("/musl/lib/ld-musl-riscv64.so.1", "/musl/lib/libc.so");
+    ensure_symlink("/lib/ld-musl-riscv64.so.1", "/musl/lib/libc.so");
+    ensure_symlink("/lib/ld-musl-riscv64-sf.so.1", "/musl/lib/libc.so");
+    // glibc-style loader name aliases (used by some test bundles)
+    ensure_symlink("/lib/ld-linux-riscv64-lp64d.so.1", "/musl/lib/libc.so");
+    ensure_symlink("/musl/lib/ld-linux-riscv64-lp64d.so.1", "/musl/lib/libc.so");
+    ensure_symlink("/lib/ld-linux-riscv64-lp64.so.1", "/musl/lib/libc.so");
+    ensure_symlink("/musl/lib/ld-linux-riscv64-lp64.so.1", "/musl/lib/libc.so");
+  } else {
+    log_warn("ext4: /musl/lib/libc.so missing; cannot create loader symlinks\n");
+  }
+
   // Ensure essential applets are reachable even if the image lacks symlinks.
   // We don't modify the image contents; we create runtime symlinks via lwext4.
   // This specifically addresses the missing 'basename' used by ltp_testcode.sh.
@@ -354,14 +379,6 @@ void ext4fs_init(int dev) {
   ensure_symlink("/bin/basename", bb_path);
   ensure_symlink("/usr/bin/basename", bb_path);
   ensure_symlink("/musl/basename", bb_path);
-
-  // Ensure dynamic loader paths for musl-linked binaries.
-  // Many binaries reference /lib/ld-musl-riscv64.so.1. On this image, musl ships libc.so as the loader.
-  ensure_dir("/lib");
-  ensure_dir("/musl/lib");
-  // Create symlinks pointing loader name to libc.so so exec can open it.
-  ensure_symlink("/musl/lib/ld-musl-riscv64.so.1", "/musl/lib/libc.so");
-  ensure_symlink("/lib/ld-musl-riscv64.so.1", "/musl/lib/libc.so");
 }
 
 // Resolve ext4 path (absolute) and follow symlinks.

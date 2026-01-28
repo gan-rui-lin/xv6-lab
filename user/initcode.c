@@ -49,7 +49,7 @@ int main()
 
     // test_cow();
     // test_basic();
-    // test_busybox_musl();
+    test_busybox_musl();
     // printf("Hello, xv6 world!\n");
     // test_coro();
     // shutdown();
@@ -86,12 +86,12 @@ int main()
     // test_("fstat");
     // test_("write");
     // test_("uname");
-    test_("mmap");
-    test_("munmap");
+    // test_("mmap");
+    // test_("munmap");
 
-    test_("unlink");
-    test_("fstat");
-    test_("dup2");
+    // test_("unlink");
+    // test_("fstat");
+    // test_("dup2");
 
     // test_busybox();
     shutdown();
@@ -138,7 +138,7 @@ void test_busybox_musl()
     {
         // 使用动态链接器运行 musl 测试（先尝试 /musl 目录结构）
         // char *argv1[] = {"sh", "/musl/run-dynamic.sh", 0};
-        char *argv1[] = {"sh", "/musl/ltp_testcode.sh", 0};
+        char *argv1[] = {"sh", "/musl/basic_testcode.sh", 0};
         char *envp1[] = {"PATH=/musl:/bin:/usr/bin", 0};
         execve("/musl/busybox", argv1, envp1);
         printf("Exec busybox failed!\n");

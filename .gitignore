@@ -42,3 +42,6 @@ sdcard.img-backup
 
 !RUOS*.typ
 !lib.typ
+!进程.typ
+!内存.typ
+!文件.typ

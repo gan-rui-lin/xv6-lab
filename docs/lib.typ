@@ -146,7 +146,7 @@
     #v(1.5em)
     // 顶部学校信息
     #align(center)[
-      #set text(font: "NotoSerifSC", size: 50pt)
+      #set text(font: "SimHei", size: 50pt)
       #cover_header
     ]
     #align(center)[
@@ -321,7 +321,9 @@
     #v(11.5pt)
   ]
 
-  set heading(numbering: heading_numbering)
+  set heading(numbering: (..nums) => {
+    if nums.pos().len() == 1 { numbering("一、", ..nums) } else { none }
+  })
 
   // 二级标题：黑体 四号（14pt）
   show heading.where(level: 2): it => [

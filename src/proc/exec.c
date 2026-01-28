@@ -145,19 +145,37 @@ exec(char *path, char **argv, char **envp)
     log_debug("exec: try interp %s\n", interp_path);
     ip_interp = namei(interp_path);
     if(ip_interp == 0 && strncmp(interp_path, "/lib/", 5) == 0){
-      //! 兼容 musl 镜像：把 /lib/ld-musl-* 重定向到 /musl/lib/ld-musl-*
-      char alt_path[MAXPATH];
-      int n = 0;
-      const char *prefix = "/musl/lib/";
-      for(const char *c = prefix; *c && n < MAXPATH - 1; c++)
-        alt_path[n++] = *c;
-      for(const char *c = interp_path + 5; *c && n < MAXPATH - 1; c++)
-        alt_path[n++] = *c;
-      alt_path[n] = '\0';
-      log_debug("exec: try alt interp %s", alt_path);
-      ip_interp = namei(alt_path);
-      if(ip_interp != 0){
-        safestrcpy(interp_path, alt_path, sizeof(interp_path));
+      // 优先尝试 glibc: 把 /lib/ld-linux-* 重定向到 /glibc/lib/ld-linux-*
+      if(strncmp(interp_path, "/lib/ld-linux-", 14) == 0){
+        char alt_path[MAXPATH];
+        int n = 0;
+        const char *prefix = "/glibc/lib/";
+        for(const char *c = prefix; *c && n < MAXPATH - 1; c++)
+          alt_path[n++] = *c;
+        for(const char *c = interp_path + 5; *c && n < MAXPATH - 1; c++)
+          alt_path[n++] = *c;
+        alt_path[n] = '\0';
+        log_debug("exec: try glibc interp %s", alt_path);
+        ip_interp = namei(alt_path);
+        if(ip_interp != 0){
+          safestrcpy(interp_path, alt_path, sizeof(interp_path));
+        }
+      }
+      // 如果还找不到，尝试 musl: 把 /lib/ld-musl-* 重定向到 /musl/lib/ld-musl-*
+      if(ip_interp == 0){
+        char alt_path[MAXPATH];
+        int n = 0;
+        const char *prefix = "/musl/lib/";
+        for(const char *c = prefix; *c && n < MAXPATH - 1; c++)
+          alt_path[n++] = *c;
+        for(const char *c = interp_path + 5; *c && n < MAXPATH - 1; c++)
+          alt_path[n++] = *c;
+        alt_path[n] = '\0';
+        log_debug("exec: try musl interp %s", alt_path);
+        ip_interp = namei(alt_path);
+        if(ip_interp != 0){
+          safestrcpy(interp_path, alt_path, sizeof(interp_path));
+        }
       }
     }
     // Fallback: 若是 musl 解释器族（/lib/ld-musl-*.so.1）仍未找到，使用 /musl/lib/libc.so 作为动态链接器。
@@ -317,6 +335,22 @@ exec(char *path, char **argv, char **envp)
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
   p->sz = sz;
+  printf("[exec] %s: sz=%p entry=%p (interp=%d interp_entry=%p)\n",
+         path, sz, elf.entry, have_interp, interp_entry);
+
+  // Create VMA for a large address range to handle lazy page faults.
+  // This is important because dynamically linked programs may reference
+  // addresses beyond sz (e.g., for libraries loaded by mmap that aren't
+  // tracked properly). We create a VMA up to 2GB to catch all possible
+  // addresses the program might try to access.
+  uint64 vma_end = 0x80000000UL;  // 2GB
+  if (vma_end < sz)
+    vma_end = sz;
+  if (vma_add(p, 0, vma_end, PROT_READ | PROT_WRITE | PROT_EXEC,
+              MAP_PRIVATE | MAP_ANONYMOUS, 0, 0, sz) < 0) {
+    printf("[exec] Warning: failed to create VMA for address space\n");
+  }
+
   // 如果是动态链接，先跳转到解释器入口，解释器负责加载主程序。
   p->trapframe->epc = have_interp ? interp_entry : elf.entry;
   p->trapframe->sp = sp; // initial stack pointer (points to argc)

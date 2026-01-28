@@ -115,14 +115,79 @@ usertrap(void)
       }
     } else if (scause == ECODE_INSTRUCTION_PAGE_FAULT) {
       uint64 va = r_stval();
-      if (va < p->sz && vma_handle_fault(p, va, VM_FAULT_EXEC) == 0) {
+      // Check if VMA exists for this address
+      struct vma *v = vma_find(p, va);
+      printf("[trap] Inst page fault at va=%p, VMA %s (start=%p end=%p)\n",
+             va, v ? "exists" : "NOT FOUND",
+             v ? v->start : 0, v ? v->end : 0);
+      // Debug: print all VMAs for this process
+      printf("[trap] All VMAs for pid=%d:\n", p->pid);
+      int vma_count = 0;
+      for (struct vma *vma_iter = p->vma; vma_iter; vma_iter = vma_iter->next) {
+        printf("  VMA %d: [%p, %p) prot=%d flags=%d\n",
+               vma_count++, vma_iter->start, vma_iter->end,
+               vma_iter->prot, vma_iter->flags);
+      }
+      if (vma_count == 0) {
+        printf("  (no VMAs found)\n");
+      }
+
+      int fault_result = vma_handle_fault(p, va, VM_FAULT_EXEC);
+      if (va < p->sz && fault_result == 0) {
         // handled mmap lazy fault
         log_info("handled mmap lazy fault (exec)\n");
+      } else if (fault_result == 0) {
+        // VMA handled it even though va >= p->sz
+        printf("[trap] VMA handled fault at va=%p (outside sz=%p)\n", va, p->sz);
       } else {
+        pte_t *pte = walk(p->pagetable, va, 0);
         printf("usertrap(): inst page fault scause=%p pid=%d\n", scause, p->pid);
-        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        printf("            sepc=%p stval=%p p->sz=%p\n", r_sepc(), r_stval(), p->sz);
+        printf("            vma_handle_fault returned %d\n", fault_result);
+        if (pte == 0) {
+          printf("            PTE does not exist for va=%p\n", va);
+        } else {
+          printf("            PTE exists: *pte=%p (V=%d X=%d W=%d R=%d U=%d COW=%d)\n",
+                 *pte, (*pte & PTE_V) != 0, (*pte & PTE_X) != 0,
+                 (*pte & PTE_W) != 0, (*pte & PTE_R) != 0,
+                 (*pte & PTE_U) != 0, (*pte & PTE_COW) != 0);
+          if (*pte & PTE_V) {
+            uint64 pa = PTE2PA(*pte);
+            printf("            PA=%p refcnt=%d\n", pa, kref_get(pa));
+          }
+        }
         setkilled(p);
       }
+    } else if (scause == ECODE_ILLEGAL_INSTRUCTION) {
+      //claude: 诊断动态链接非法指令问题，提供详细的指令和VMA信息
+      uint64 sepc = r_sepc();
+      printf("[trap] Illegal instruction at sepc=%p, pid=%d name=%s\n", sepc, p->pid, p->name);
+
+      // 读取指令内容
+      uint32 instr = 0;
+      if (copyin(p->pagetable, (char*)&instr, sepc, sizeof(instr)) == 0) {
+        printf("[trap] Instruction bytes: %08x\n", instr);
+        if (instr == 0) {
+          printf("[trap] WARNING: Executing zero-filled page (likely unresolved symbol)\n");
+        }
+      } else {
+        printf("[trap] Failed to read instruction (page not mapped)\n");
+      }
+
+      // 检查是否在 VMA 分配的零页面
+      struct vma *v = vma_find(p, sepc);
+      if (v) {
+        printf("[trap] Address in VMA: [%p, %p) prot=%d flags=%d\n",
+               v->start, v->end, v->prot, v->flags);
+        printf("[trap] This suggests dynamic linker failed to load shared library\n");
+      } else {
+        printf("[trap] Address NOT in any VMA (should not happen)\n");
+      }
+
+      // 打印进程内存布局
+      printf("[trap] Process memory: sz=%p\n", p->sz);
+
+      setkilled(p);
     } else {
       printf("usertrap(): unexpected scause %p pid=%d\n", scause, p->pid);
       printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

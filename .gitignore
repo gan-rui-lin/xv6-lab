@@ -45,3 +45,6 @@ sdcard.img-backup
 !进程.typ
 !内存.typ
 !文件.typ
+测试仓库/
+empty/
+sdcard-rv.img.backup

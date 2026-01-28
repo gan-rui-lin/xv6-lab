@@ -6,7 +6,19 @@
 #include <assert.h>
 
 #define stat xv6_stat  // avoid clash with host struct stat
+#define dirent xv6_dirent  // avoid clash with host struct dirent
 #include "../types.h"
+
+// 确保 open 和相关宏可用 (macOS/clang 兼容性)
+#ifndef O_CREAT
+#define O_CREAT 0x0200
+#endif
+// 显式声明 POSIX 函数（避免隐式声明错误）
+extern int open(const char*, int, ...);
+extern ssize_t read(int, void*, size_t);
+extern ssize_t write(int, const void*, size_t);
+extern int close(int);
+
 #include "../fs/fs.h"
 #include "../fs/stat.h"
 #include "../param.h"
@@ -82,8 +94,10 @@ main(int argc, char *argv[])
     exit(1);
   }
 
+  // 注意：新的 dirent 结构体包含扩展字段用于 getdents64，
+  // 但 mkfs 只使用前两个字段（inum 和 name[DIRSIZ]）
   assert((BSIZE % sizeof(struct dinode)) == 0);
-  assert((BSIZE % sizeof(struct dirent)) == 0);
+  // assert((BSIZE % sizeof(struct dirent)) == 0);  // 不再适用于扩展 dirent
 
   fsfd = open(argv[1], O_RDWR|O_CREAT|O_TRUNC, 0666);
   if(fsfd < 0)

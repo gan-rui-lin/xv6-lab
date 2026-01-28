@@ -41,7 +41,7 @@ static inline uint32 ntohl(uint32 v) { return htonl(v); }
 int fork(void);
 int exit(int) __attribute__((noreturn));
 int wait(int*);
-int pipe(int*);
+int pipe(int[2]);
 int write(int, const void*, int);
 int read(int, void*, int);
 int close(int);

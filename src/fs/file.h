@@ -32,6 +32,7 @@ struct inode {
   short major;
   short minor;
   short nlink;
+  uint mode;          // file permissions (added for EXT4 support)
   uint size;
   uint addrs[NDIRECT+1];
   uint64 ext_ino;

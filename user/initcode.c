@@ -5,21 +5,39 @@
 #define TEST_SYSCALLS
 #include "../src/syscall/syscall.h"
 
+#ifndef NULL
+#define NULL ((void*)0)
+#endif
+
+// 测试函数声明
 void test_(char *name);
-void test_busybox_musl();
 void test_basic();
+void test_busybox();
+void test_lua();
+void test_libc();
+void test_all_tests();
+void run_testcode(const char *script_name);
 // static void test_cow(void);
 
+// 网络测试开关
 #define TEST_UDP_HOST_ECHO 0
 #define TEST_UDP_BRIDGE_HOST_ECHO 0
 #define TEST_TCP_LOOPBACK 0
 #define TEST_TCP_HOST_ECHO 0
+
+// 测试组开关 - 根据需要启用/禁用
+#define ENABLE_BASIC_TEST 1
+#define ENABLE_BUSYBOX_TEST 0
+#define ENABLE_LUA_TEST 0
+#define ENABLE_LIBC_TEST 0
+#define ENABLE_ALL_TESTS 0
 
 
 
 
 int main()
 {
+    // 初始化标准输入输出
     if (open("console", O_RDWR) < 0)
     {
         mknod("console", 1, 1);
@@ -27,73 +45,54 @@ int main()
     }
     dup(0); // stdout
     dup(0); // stderr
- #if TEST_UDP_HOST_ECHO
+
+    printf("\n=== xv6 RISC-V Operating System ===\n");
+    printf("Initializing test environment...\n\n");
+
+
+    // 网络测试（如果启用）
+#if TEST_UDP_HOST_ECHO
+    printf("Running UDP host echo test...\n");
     udp_host_echo_test();
- #endif
- #if TEST_UDP_BRIDGE_HOST_ECHO
-   udp_bridge_host_echo_test();
- #endif
- #if TEST_TCP_LOOPBACK
+#endif
+#if TEST_UDP_BRIDGE_HOST_ECHO
+    printf("Running UDP bridge host echo test...\n");
+    udp_bridge_host_echo_test();
+#endif
+#if TEST_TCP_LOOPBACK
+    printf("Running TCP loopback test...\n");
     tcp_loopback_test();
- #endif
- #if TEST_TCP_HOST_ECHO
+#endif
+#if TEST_TCP_HOST_ECHO
+    printf("Running TCP host echo test...\n");
     tcp_host_echo_test();
- #endif
-    // printf("All network tests done!\n");
-    // shutdown();
-    // Provide /bin/sh for script fallback.
-    // mkdir("/bin");
-    // printf("r1 = %d\n", r1);
-    // syscall(SYS_symlink, "/musl/busybox", "/bin/sh");
-    // printf("r2 = %d\n", r2)
+#endif
 
-    // test_cow();
-    // test_basic();
-    test_busybox_musl();
-    // printf("Hello, xv6 world!\n");
-    // test_coro();
-    // shutdown();
-    // test_("getppid");
+    // 运行测试套件
+#if ENABLE_ALL_TESTS
+    test_all_tests();  // 运行所有测试
+#else
+    // 按需运行单个测试
+#if ENABLE_BASIC_TEST
+    test_basic();
+#endif
 
-    // test_("chdir");
-    // test_("times");
-    // test_("sleep");
-    // test_("fork");
-    // test_("gettimeofday");
+#if ENABLE_BUSYBOX_TEST
+    test_busybox();
+#endif
 
-    // test_("open");
-    // test_("read");
-    // test_("brk");
+#if ENABLE_LUA_TEST
+    test_lua();
+#endif
 
-    // test_("getcwd");
+#if ENABLE_LIBC_TEST
+    test_libc();
+#endif
+#endif
 
-    // test_("openat");
-    // test_("getpid");
-    // test_("exit");
-    // test_("wait");
-    // test_("execve");
-    // test_("clone");
-    // test_("yield");
-    // test_("waitpid");
-
-    // test_("getcwd");
-    // test_("dup");
-    // test_("close");
-    // test_("mkdir_");
-
-    // test_("getdents");
-    // test_("pipe");
-    // test_("fstat");
-    // test_("write");
-    // test_("uname");
-    // test_("mmap");
-    // test_("munmap");
-
-    // test_("unlink");
-    // test_("fstat");
-    // test_("dup2");
-
-    // test_busybox();
+    // 完成测试，关机
+    printf("\n=== All tests completed ===\n");
+    printf("Shutting down...\n");
     shutdown();
     return 0;
 }
@@ -128,57 +127,146 @@ void test_(char *name)
     }
 }
 
-void test_busybox_musl()
+// 通用的测试脚本运行函数
+void run_testcode(const char *script_name)
 {
-    printf("=== Testing busybox ===\n");
-    chdir("/musl/");
+    printf("=== Running %s ===\n", script_name);
 
     int pid = fork();
+    if (pid < 0)
+    {
+        printf("Fork failed!\n");
+        return;
+    }
+
     if (pid == 0)
     {
-        // 使用动态链接器运行 musl 测试（先尝试 /musl 目录结构）
-        // char *argv1[] = {"sh", "/musl/run-dynamic.sh", 0};
-        char *argv1[] = {"sh", "/musl/basic_testcode.sh", 0};
-        char *envp1[] = {"PATH=/musl:/bin:/usr/bin", 0};
-        execve("/musl/busybox", argv1, envp1);
-        printf("Exec busybox failed!\n");
+        // 子进程：切换到 musl 目录并执行测试脚本
+        chdir("/musl/");
+        char *argv[] = {"sh", (char*)script_name, 0};
+        char *envp[] = {"PATH=/bin:/musl:/usr/bin", 0};
+        execve("/musl/busybox", argv, envp);
+
+        printf("Exec %s failed!\n", script_name);
         syscall(SYS_exit, -1);
-    }
-    else if (pid > 0)
-    {
-        int status;
-        wait(&status);
-        printf("busybox child exited, status=0x%x\n", status);
     }
     else
     {
-        printf("Fork failed!\n");
+        // 父进程：等待子进程完成
+        int status;
+        wait(&status);
+        printf("=== %s completed (status=0x%x) ===\n\n", script_name, status);
     }
+}
+
+// BusyBox 测试
+void test_busybox()
+{
+    run_testcode("/musl/busybox_testcode.sh");
+}
+
+// Lua 测试
+void test_lua()
+{
+    run_testcode("/musl/lua_testcode.sh");
+}
+
+// libc-test 测试
+void test_libc()
+{
+    run_testcode("/musl/libctest_testcode.sh");
 }
 
 void test_basic()
 {
-    printf("=== Testing basic syscalls ===\n");
-    chdir("/musl/");
+    run_testcode("/musl/basic_testcode.sh");
+}
 
-    int pid = fork();
-    if (pid == 0)
+// 运行所有测试组
+void test_all_tests()
+{
+    printf("\n");
+    printf("==========================================\n");
+    printf("   Running ALL Test Suites\n");
+    printf("==========================================\n\n");
+
+    // 定义所有测试脚本
+    const char *test_scripts[] = {
+        "/musl/basic_testcode.sh",          // 1. 基础系统调用
+        "/musl/busybox_testcode.sh",        // 2. BusyBox 工具
+        "/musl/lua_testcode.sh",            // 3. Lua 解释器
+        "/musl/libctest_testcode.sh",       // 4. libc 功能测试
+        "/musl/iozone_testcode.sh",         // 5. IO 性能测试
+        "/musl/unixbench_testcode.sh",      // 6. Unix 基准测试
+        "/musl/iperf_testcode.sh",          // 7. 网络吞吐量测试
+        "/musl/libcbench_testcode.sh",      // 8. libc 性能测试
+        "/musl/lmbench_testcode.sh",        // 9. 延迟基准测试
+        "/musl/netperf_testcode.sh",        // 10. 网络性能测试
+        "/musl/cyclictest_testcode.sh",     // 11. 实时性测试
+        "/musl/ltp_testcode.sh",            // 12. Linux 测试项目
+        NULL  // 结束标记
+    };
+
+    int total = 0;
+    int passed = 0;
+    int failed = 0;
+
+    // 依次运行每个测试
+    for (int i = 0; test_scripts[i] != NULL; i++)
     {
-        char *argv[] = {"sh", "/musl/basic_testcode.sh", 0};
-        char *envp[] = {"PATH=/bin:/musl:/usr/bin", 0};
-        execve("/musl/busybox", argv, envp);
-        printf("Exec busybox failed!\n");
-        syscall(SYS_exit, -1);
+        total++;
+        printf("\n[%d/%d] Running test: %s\n", i + 1, 12, test_scripts[i]);
+        printf("------------------------------------------\n");
+
+        int pid = fork();
+        if (pid < 0)
+        {
+            printf("ERROR: Fork failed for %s\n", test_scripts[i]);
+            failed++;
+            continue;
+        }
+
+        if (pid == 0)
+        {
+            // 子进程：执行测试
+            chdir("/musl/");
+            char *argv[] = {"sh", (char*)test_scripts[i], 0};
+            char *envp[] = {"PATH=/bin:/musl:/usr/bin", 0};
+            execve("/musl/busybox", argv, envp);
+
+            printf("ERROR: Failed to exec %s\n", test_scripts[i]);
+            syscall(SYS_exit, -1);
+        }
+        else
+        {
+            // 父进程：等待并统计结果
+            int status;
+            wait(&status);
+
+            if (status == 0)
+            {
+                printf("✓ Test PASSED: %s\n", test_scripts[i]);
+                passed++;
+            }
+            else
+            {
+                printf("✗ Test FAILED: %s (status=0x%x)\n", test_scripts[i], status);
+                failed++;
+            }
+        }
+
+        printf("------------------------------------------\n");
     }
-    else if (pid > 0)
-    {
-        int status;
-        wait(&status);
-    }
-    else
-    {
-        printf("Fork failed!\n");
-    }
+
+    // 打印测试总结
+    printf("\n");
+    printf("==========================================\n");
+    printf("   Test Suite Summary\n");
+    printf("==========================================\n");
+    printf("Total:  %d tests\n", total);
+    printf("Passed: %d tests\n", passed);
+    printf("Failed: %d tests\n", failed);
+    printf("==========================================\n\n");
 }
 
 // static void

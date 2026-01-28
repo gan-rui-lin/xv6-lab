@@ -95,6 +95,10 @@ struct proc
   int is_kthread;
   void (*kthread_fn)(void *);
   void *kthread_arg;
+
+  // robust futex list (glibc 线程支持)
+  uint64 robust_list_head;         // pointer to user-space robust_list_head
+  uint64 robust_list_len;          // length passed by user
 };
 
 

@@ -4,7 +4,8 @@ SRC=src
 
 # ===== 并行编译配置 =====
 # 默认使用所有可用 CPU 核心进行并行编译
-NPROC := $(shell nproc)
+# macOS 使用 sysctl，Linux 使用 nproc
+NPROC := $(shell if [ "$$(uname)" = "Darwin" ]; then sysctl -n hw.ncpu; else nproc; fi)
 MAKEFLAGS += -j$(NPROC)
 # ! 提交时改为 release 模式
 mode ?= release
@@ -73,6 +74,8 @@ CFLAGS += -ffreestanding -fno-common -nostdlib -mno-relax
 CFLAGS += -I. -I$(SRC)
 CFLAGS += -march=rv64gc -mabi=lp64
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+# GCC 15+ 新增警告抑制
+CFLAGS += -Wno-infinite-recursion
 
 
 ifeq ($(mode),debug)
@@ -94,11 +97,11 @@ INCLUDES := -I$(SRC) $(foreach dir,$(SRC_DIRS),-I$(SRC)/$(dir)) -I$(SRC)/fs/lwex
 
 # lwext4 外部库源码：抑制编译警告
 LWEXT4_DIR := $(SRC)/fs/lwext4/src
-LWEXT4_CFLAGS := -w
+LWEXT4_CFLAGS := -w -Wno-int-conversion -Wno-incompatible-pointer-types
 
 # open-npstack 外部库源码：保留警告输出，但不把警告当作错误
 OPEN_NPSTACK_DIR := $(SRC)/network/open-npstack
-OPEN_NPSTACK_CFLAGS := -Wno-error
+OPEN_NPSTACK_CFLAGS := -Wno-error -Wno-incompatible-pointer-types
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
@@ -183,7 +186,7 @@ tags: $(OBJS) _init
 
 # ===== 磁盘文件系统构建工具 =====
 $(SRC)/mkfs/mkfs: $(SRC)/mkfs/mkfs.c $(SRC)/fs/fs.h $(SRC)/param.h
-	gcc -Wall -I. -o $(SRC)/mkfs/mkfs $(SRC)/mkfs/mkfs.c -DHOST_TIMEVAL_DEFINED
+	gcc -Wall -I. -I$(SRC) -o $(SRC)/mkfs/mkfs $(SRC)/mkfs/mkfs.c -DHOST_TIMEVAL_DEFINED -DHOST_BUILD
 # 	gcc -Werror -Wall -I. -I$(SRC) -o $(SRC)/mkfs/mkfs $(SRC)/mkfs/mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so

@@ -309,6 +309,21 @@ int mknod(const char *path, short major, short minor) {
 //  ret
 
 
+int fstat(int fd, struct stat *st)
+{
+    return syscall(SYS_fstat, fd, st);
+}
+
+int stat(const char *path, struct stat *st)
+{
+    return syscall(SYS_fstatat, AT_FDCWD, path, st, 0);
+}
+
+long long sbrk(int n)
+{
+    return syscall(SYS_brk, n);
+}
+
 // .global gettimeofday
 // gettimeofday:
 //  li a7, SYS_xv6_gettimeofday

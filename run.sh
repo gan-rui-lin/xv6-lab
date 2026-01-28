@@ -88,10 +88,21 @@ if [[ "$BUILD_TYPE" != "debug" && "$BUILD_TYPE" != "all" ]]; then
     exit 1
 fi
 
-# 验证镜像文件存在
+# 验证镜像文件存在，或者尝试解压 .xz 文件
 if [[ ! -f "$IMAGE_FILE" ]]; then
-    echo "错误: 镜像文件 '$IMAGE_FILE' 不存在"
-    exit 1
+    # 检查是否存在对应的 .xz 文件
+    if [[ -f "${IMAGE_FILE}.xz" ]]; then
+        echo "发现压缩文件 ${IMAGE_FILE}.xz，正在解压..."
+        xz -d -k "${IMAGE_FILE}.xz"
+        if [[ ! -f "$IMAGE_FILE" ]]; then
+            echo "错误: 解压失败"
+            exit 1
+        fi
+        echo "解压完成: $IMAGE_FILE"
+    else
+        echo "错误: 镜像文件 '$IMAGE_FILE' 和 '${IMAGE_FILE}.xz' 都不存在"
+        exit 1
+    fi
 fi
 
 echo "开始构建: make $BUILD_TYPE"

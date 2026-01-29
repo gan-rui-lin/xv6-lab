@@ -1,0 +1,91 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.55",
+    splines=ortho,
+    label="",
+    labelloc="t",
+    labeljust="c",
+    fontname="Noto Sans CJK SC",
+    fontsize=14,
+    fontcolor="#0f172a"
+  ];
+
+  edge [
+    color="#2f8f8a",
+    penwidth=1.2,
+    arrowsize=0.8,
+    fontname="Noto Sans CJK SC",
+    fontsize=10,
+    fontcolor="#0f172a"
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.18,0.12"
+  ];
+
+  // Entry (left)
+  node [fixedsize=false, fillcolor="#d8f1ef", fontsize=10];
+  entry [label="新建/唤醒\n进入 L0"];
+
+  // Ready queues (uniform size, stacked)
+  node [fixedsize=true, width=3.20, height=0.82, fillcolor="#bfe6e3", fontsize=12];
+  q0 [label="就绪队列 L0\nslice=2"];
+  q1 [label="就绪队列 L1\nslice=4"];
+  q2 [label="就绪队列 L2\nslice=8"];
+  q3 [label="就绪队列 L3\nslice=16"];
+
+  // CPU shown as a neat stacked column (keeps all dispatch arrows perfectly horizontal)
+  node [fixedsize=true, width=2.05, height=0.82, fillcolor="#d8f1ef", fontsize=14];
+  cpu0 [label="CPU"];
+  cpu1 [label="CPU", fontsize=18];
+  cpu2 [label="CPU"];
+  cpu3 [label="CPU"];
+
+  // Bottom note (brief; mentions aging test)
+  // node [fixedsize=false, fillcolor="#d8f1ef", fontsize=10];
+  // note [label="规则简述\n 选择：总是挑最高 level 的 RUNNABLE\n slice 用完且非 yield：level++（降级）\n- yield：不降级，ticks_used=0\n- Boost/Aging：每 100 ticks 全体回到 L0（可用 aging 测例验证防饥饿）"];
+
+  // Stack queues vertically
+  edge [style=invis];
+  q0 -> q1 -> q2 -> q3;
+  edge [style=solid];
+
+  // Row alignment: each queue aligns with its CPU slice so arrows are horizontal.
+  { rank=same; entry; q0; cpu0; }
+  { rank=same; q1; cpu1; }
+  { rank=same; q2; cpu2; }
+  { rank=same; q3; cpu3; }
+
+  // Keep columns compact (entry -> queues -> cpu)
+  edge [style=invis, weight=10];
+  q0 -> cpu0;
+  edge [style=solid];
+
+  // Entry arrow
+  entry -> q0;
+
+  // Dispatch arrows (straight horizontal, labels use xlabels for ortho)
+  q0 -> cpu0 [xlabel="S0"];
+  q1 -> cpu1 [xlabel="S1"];
+  q2 -> cpu2 [xlabel="S2"];
+  q3 -> cpu3 [xlabel="S3"];
+
+  // Optional: show periodic boost back to top (kept minimal)
+  edge [style=dashed, penwidth=1.0, arrowsize=0.7, color="#2f8f8a"];
+  q3 -> q0 [constraint=false, xlabel="Boost/Aging\n每 100 ticks"];
+
+  // Place note under the whole diagram
+  // edge [style=invis];
+  // cpu3 -> note;
+}

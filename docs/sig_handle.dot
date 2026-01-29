@@ -2,7 +2,7 @@ digraph signal_flow {
   graph [
     fontname="Microsoft YaHei",
     rankdir=TB,
-    bgcolor="white",
+    bgcolor="transparent",
     splines=ortho,
     nodesep=0.4,
     ranksep=0.55

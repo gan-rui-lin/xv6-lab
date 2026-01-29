@@ -659,7 +659,7 @@ sys_faccessat(void)
     return -ENOENT;
 
   //claude: 记录 faccessat 调用以追踪动态链接器的文件访问
-  printf("[faccessat] pid=%d name=%s path='%s' mode=%d\n", p->pid, p->name, path, mode);
+  log_debug("[faccessat] pid=%d name=%s path='%s' mode=%d\n", p->pid, p->name, path, mode);
 
   begin_op(ROOTDEV);
   struct file *dirf = 0;
@@ -689,12 +689,12 @@ sys_faccessat(void)
 
   if(ip == 0){
     //claude: 记录文件访问失败
-    printf("[faccessat] pid=%d name=%s ENOENT: '%s'\n", p->pid, p->name, path);
+    log_debug("[faccessat] pid=%d name=%s ENOENT: '%s'\n", p->pid, p->name, path);
     end_op(ROOTDEV);
     return -ENOENT;
   }
   //claude: 记录文件访问成功
-  printf("[faccessat] pid=%d name=%s SUCCESS: '%s'\n", p->pid, p->name, path);
+  log_debug("[faccessat] pid=%d name=%s SUCCESS: '%s'\n", p->pid, p->name, path);
   iput(ip);
   end_op(ROOTDEV);
   return 0;
@@ -1160,7 +1160,7 @@ sys_openat(void)
   while(npath[0] == '.' && npath[1] == '/') npath += 2;
   //claude: 启用日志以诊断动态链接器的文件访问
   struct proc *p = myproc();
-  printf("[openat] pid=%d name=%s path='%s' flags=0x%x\n", p->pid, p->name, path, flags);
+  log_debug("[openat] pid=%d name=%s path='%s' flags=0x%x\n", p->pid, p->name, path, flags);
 
   begin_op(ROOTDEV);
 
@@ -1223,7 +1223,7 @@ sys_openat(void)
     } else {
       //claude: 记录文件未找到，帮助诊断动态链接器加载失败
       struct proc *p = myproc();
-      printf("[openat] pid=%d name=%s ENOENT: '%s'\n", p->pid, p->name, npath);
+      log_debug("[openat] pid=%d name=%s ENOENT: '%s'\n", p->pid, p->name, npath);
       end_op(ROOTDEV);
       return -ENOENT;
     }
@@ -1290,7 +1290,7 @@ sys_openat(void)
   end_op(ROOTDEV);
 
   //claude: 记录成功打开的文件，追踪动态链接器行为
-  printf("[openat] pid=%d name=%s SUCCESS: fd=%d path='%s'\n",
+  log_debug("[openat] pid=%d name=%s SUCCESS: fd=%d path='%s'\n",
             myproc()->pid, myproc()->name, fd, path);
   return fd;
 }

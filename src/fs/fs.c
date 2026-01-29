@@ -372,15 +372,15 @@ ilock(struct inode *ip)
     brelse(bp);
     ip->valid = 1;
     if(ip->type == 0){
-        printf("ilock: no type, inum=%d, dev=%d, ref=%d\n", 
+        log_error("ilock: no type, inum=%d, dev=%d, ref=%d\n",
         ip->inum, ip->dev, ip->ref);
 
-        printf("Disk inode content:\n");
-        printf("  dip->type: %d\n", dip->type);
-        printf("  dip->major: %d\n", dip->major);
-        printf("  dip->minor: %d\n", dip->minor);
-        printf("  dip->nlink: %d\n", dip->nlink);
-        printf("  dip->size: %d\n", dip->size);
+        log_error("Disk inode content:\n");
+        log_error("  dip->type: %d\n", dip->type);
+        log_error("  dip->major: %d\n", dip->major);
+        log_error("  dip->minor: %d\n", dip->minor);
+        log_error("  dip->nlink: %d\n", dip->nlink);
+        log_error("  dip->size: %d\n", dip->size);
         panic("ilock: no type");
     }
   }

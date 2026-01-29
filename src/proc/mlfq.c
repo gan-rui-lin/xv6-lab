@@ -27,9 +27,9 @@ mlfq_init(void)
     mlfq_sched.level_counts[i] = 0;
   }
 
-  printf("[MLFQ] Initialized: %d levels, boost interval=%d ticks\n",
+  log_info("[MLFQ] Initialized: %d levels, boost interval=%d ticks\n",
          MLFQ_LEVELS, MLFQ_BOOST_INTERVAL);
-  printf("[MLFQ] Time slices: L0=%d, L1=%d, L2=%d, L3=%d\n",
+  log_info("[MLFQ] Time slices: L0=%d, L1=%d, L2=%d, L3=%d\n",
          MLFQ_TIME_SLICE_0, MLFQ_TIME_SLICE_1,
          MLFQ_TIME_SLICE_2, MLFQ_TIME_SLICE_3);
 }
@@ -208,7 +208,7 @@ mlfq_boost_priority(void)
   //claude: 重置boost计时器
   mlfq_sched.boost_timer = 0;
 
-  printf("[MLFQ] Priority boost: moving all processes to L0\n");
+  log_info("[MLFQ] Priority boost: moving all processes to L0\n");
 
   //claude: 遍历所有进程，提升到最高优先级
   for(p = proc; p < &proc[NPROC]; p++){
@@ -239,28 +239,28 @@ mlfq_print_stats(void)
 {
   acquire(&mlfq_lock);
 
-  printf("\n=== MLFQ Statistics ===\n");
-  printf("Total context switches: %d\n", mlfq_sched.total_switches);
-  printf("Ticks since last boost: %d/%d\n",
+  log_info("\n=== MLFQ Statistics ===\n");
+  log_info("Total context switches: %d\n", mlfq_sched.total_switches);
+  log_info("Ticks since last boost: %d/%d\n",
          mlfq_sched.boost_timer, MLFQ_BOOST_INTERVAL);
 
-  printf("\nProcesses by level:\n");
+  log_info("\nProcesses by level:\n");
   for(int i = 0; i < MLFQ_LEVELS; i++){
-    printf("  Level %d (slice=%d): %d processes\n",
+    log_info("  Level %d (slice=%d): %d processes\n",
            i, mlfq_get_timeslice(i), mlfq_sched.level_counts[i]);
   }
 
-  printf("\nActive processes:\n");
+  log_info("\nActive processes:\n");
   struct proc* p;
   for(p = proc; p < &proc[NPROC]; p++){
     if(p->state == RUNNING || p->state == RUNNABLE){
-      printf("  PID %d: L%d, used=%d/%d, total=%d ticks\n",
+      log_info("  PID %d: L%d, used=%d/%d, total=%d ticks\n",
              p->pid, p->mlfq.level, p->mlfq.ticks_used,
              p->mlfq.time_slice, p->mlfq.total_ticks);
     }
   }
 
-  printf("=======================\n\n");
+  log_info("=======================\n\n");
 
   release(&mlfq_lock);
 }

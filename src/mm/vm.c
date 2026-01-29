@@ -164,7 +164,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
     #ifdef PAGE_TABLE_DEBUG
     if (va == TRAMPOLINE)
     {
-        printf("[debug]: walk: va %p\n", va, cpuid());
+        log_debug("[debug]: walk: va %p\n", va, cpuid());
     }
     #endif
 
@@ -178,13 +178,13 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
         pte_t *pte = &pagetable[index];
         #ifdef PAGE_TABLE_DEBUG
         if (va == TRAMPOLINE)
-            printf("[debug]: walk: level %d, index %d, *pte %p pte:%p\n", level, index, *pte, pte);
+            log_debug("[debug]: walk: level %d, index %d, *pte %p pte:%p\n", level, index, *pte, pte);
         #endif
         if (is_pte_valid(*pte))
         {
             #ifdef PAGE_TABLE_DEBUG
             if (va == TRAMPOLINE)
-                printf("(valid)\n");
+                log_debug("(valid)\n");
             #endif
             // PTE有效，获取下一级页表的物理地址
             uint64 next_pa = get_next_page_table_pa(*pte);
@@ -209,7 +209,7 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
             *pte = create_page_table_pte((uint64)new_table);
             #ifdef PAGE_TABLE_DEBUG
             if(va == TRAMPOLINE)
-                printf("(new page table allocated at %p)\n", new_table);
+                log_debug("(new page table allocated at %p)\n", new_table);
             #endif
             pagetable = new_table;
         }
@@ -221,11 +221,11 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
     if (va == TRAMPOLINE){
         print_once += 1;
         pte_t leaf = pagetable[leaf_index];
-        printf("[debug]: walk: level 0, index %d, pte %p\n", leaf_index, leaf);
+        log_debug("[debug]: walk: level 0, index %d, pte %p\n", leaf_index, leaf);
         if (is_pte_valid(leaf) && is_pte_leaf(leaf)) {
-            printf("[debug]: the %p va is mapped to pa %p\n", va, PTE2PA(leaf));
+            log_debug("[debug]: the %p va is mapped to pa %p\n", va, PTE2PA(leaf));
         } else {
-            printf("[debug]: the %p va is currently not mapped to a leaf (no PA)\n", va);
+            log_debug("[debug]: the %p va is currently not mapped to a leaf (no PA)\n", va);
         }
     }
     #endif

@@ -289,6 +289,10 @@ enum SysNum
     SYS_getegid = 177, // form tsh
     SYS_gettid = 178,
     SYS_sysinfo = 179,
+    SYS_msgget = 186,    //claude: 消息队列：创建或访问队列
+    SYS_msgsnd = 187,    //claude: 消息队列：发送消息
+    SYS_msgrcv = 188,    //claude: 消息队列：接收消息
+    SYS_msgctl = 189,    //claude: 消息队列：控制操作（IPC_STAT/IPC_SET/IPC_RMID）
     SYS_semget = 190,
     SYS_semctl = 191,
     SYS_semtimedop = 192,

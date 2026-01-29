@@ -25,6 +25,7 @@ void main()
 
         kinit(); // 物理页面分配器初始化
         shm_init(); // 共享内存子系统初始化
+        msg_init(); // 消息队列子系统初始化
         mlfq_init(); //claude: 初始化MLFQ调度器
 
         log_info("xv6 is booting!\n");

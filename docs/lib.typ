@@ -1,0 +1,588 @@
+#import "@preview/numbly:0.1.0": numbly
+#import "@preview/tablem:0.2.0": tablem, three-line-table
+#import "@preview/mitex:0.2.5": *
+#import "@preview/cmarker:0.1.2": render as cmarker-render
+#import "@preview/theorion:0.3.2": *
+#import "@preview/zebraw:0.4.4": *
+#import "@preview/a2c-nums:0.0.1": int-to-cn-num, int-to-cn-ancient-num, int-to-cn-simple-num, num-to-cn-currency
+#import cosmos.fancy: *
+#import "@preview/equate:0.3.2": equate
+#import "@preview/codly:1.3.0": codly, codly-init
+#import "@preview/codly:1.3.0": *
+#import "@preview/codly-languages:0.1.10": *
+#import "@preview/gentle-clues:1.2.0": clue
+#import "@preview/cuti:0.3.0": fakebold
+#import "@preview/chic-hdr:0.5.0": *
+// #import "@preview/lovelace:0.3.0"
+
+#let md = cmarker-render.with(math: mitex)
+
+#let font-box = ((name: "Georgia", covers: "latin-in-cjk"), "KaiTi")
+
+// 定义
+#let definition(title: "", ..args) = {
+  clue(
+    title: fakebold(font: font-box, fill: rgb("#2A5DAA"), size: 14pt)[ 定义：#title ],
+    accent-color: rgb("#4C97FF"),
+    ..args,
+  )
+}
+
+#let derivation(title: "", ..args) = {
+  clue(
+    title: fakebold(font: font-box, fill: rgb("#6A3E91"), size: 14pt)[ 推导：#title ],
+    accent-color: rgb("#A06CD5"),
+    ..args,
+  )
+}
+
+#let conclusion(title: "", ..args) = {
+  clue(
+    title: fakebold(font: font-box, fill: rgb("#2A6E5A"), size: 14pt)[ 结论：#title ],
+    accent-color: rgb("#43AA8B"),
+    ..args,
+  )
+}
+
+// 中文报告常用字体与配色）
+#let default-font = (
+  main: "Times New Roman",
+  mono: "IBM Plex Mono",
+  cjk: "SimSun",
+  cjk-bold: "SimHei",
+  emph-cjk: "KaiTi",
+  math: "New Computer Modern Math",
+  math-cjk: "Noto Serif SC",
+)
+#let cn-primary-color = rgb("#1f2020")
+
+// 数学定义
+#let prox = math.op("prox")
+#let proj = math.op("proj")
+#let argmax = math.op("argmax", limits: true)
+#let argmin = math.op("argmin", limits: true)
+
+#let cover(
+  cover_header: "武汉大学计算机学院",
+  report_title: "本科生课程设计报告",
+  title: "XXX系统总体设计与实现",
+  major: "计算机科学与技术",
+  course: "嵌入式系统设计",
+  teacher1: ("张三", "副教授"),
+  teacher2: none, // 设为 none 可隐藏教师二
+  student_id: "2023XXXXXXX",
+  student_name: "王五",
+  year: "2025",
+  month: "10",
+) = {
+  let line-cell(content, width: 18em) = {
+    box(width: width)[
+      #grid(
+        columns: (1fr),
+        row-gutter: 0.19em,
+        align: (center,),
+        [
+          #align(center)[#content]
+        ],
+        [
+          #box(width: 100%, height: 0.6pt, fill: black)
+        ],
+      )
+    ]
+  }
+  let has-teacher1 = teacher1 != none and teacher1.at(0) != ""
+  let has-teacher2 = teacher2 != none and teacher2.at(0) != ""
+  let advisor-names = if has-teacher1 and has-teacher2 {
+    [#teacher1.at(0) 、 #teacher2.at(0)]
+  } else if has-teacher1 {
+    teacher1.at(0)
+  } else if has-teacher2 {
+    teacher2.at(0)
+  } else {
+    ""
+  }
+  // 构建 rows 列表
+  let rows = (
+  //   [
+  //   #set text(font: "SimSun", size: 15pt)
+  //   专 业 名 称 ：
+  // ], [
+  //   #set text(font: "SimSun", size: 15pt)
+  //   #major
+  // ], [
+  //   #set text(font: "SimSun", size: 15pt)
+  //   课 程 名 称 ：
+  // ], [
+  //   #set text(font: "SimSun", size: 15pt)
+  //   #course
+  // ],
+  )
+  rows += ([
+    #set text(font: "SimSun", size: 15pt)
+    参 赛 队 名 ：
+  ],
+  [
+    #set text(font: "SimSun", size: 15pt)
+    #line-cell(student_id)
+  ], [
+    #set text(font: "SimSun", size: 15pt)
+    队 伍 成 员 ：
+  ], [
+    #set text(font: "SimSun", size: 15pt)
+    #line-cell(student_name)
+  ], [
+    #set text(font: "SimSun", size: 15pt)
+    指 导 老 师 ：
+  ], [
+    #set text(font: "SimSun", size: 15pt)
+    #line-cell(advisor-names)
+  ],)
+
+  box(width: 100%, height: 100%)[
+    #v(-2em)
+    #align(center)[
+      #image("./logo/WHU-comb.png", width: 80%)
+    ]
+    #v(1.5em)
+    // 顶部学校信息
+    #align(center)[
+      #set text(font: "SimHei", size: 50pt)
+      #cover_header
+    ]
+    #align(center)[
+      #set text(font: "SimSun", size: 26pt)
+      #report_title
+    ]
+
+    #v(.5em)
+
+    // #align(center)[
+    //   #image("./logo/WHU-logo.png", width: 30%)
+    // ]
+
+    #v(.5em)
+
+    // 主标题
+    #align(center)[
+      #set text(font: "SimHei", size: 22pt)
+      #set par(leading: 32pt)
+      #title
+    ]
+
+    #v(1em)
+
+    // 信息栏
+    #align(center)[
+      #grid(
+        columns: (auto, auto),
+        row-gutter: 30pt,
+        align: (right, left),
+        ..rows, // 动态展开，不会出现空白行
+      )
+    ]
+
+    #v(5em)
+
+    // 日期
+    #align(center)[
+      #set text(font: "SimSun", size: 15pt)
+      // 二〇#year 年 #month 月
+      #int-to-cn-simple-num(year) 年 #int-to-cn-num(month) 月
+    ]
+  ]
+}
+
+#let ori(
+  abstract: none,
+  author: none,
+  course: none,
+  cover_header: none,
+  first-line-indent: (amount: 0pt, all: false),
+  first_level_heading_centered: true,
+  font: default-font,
+  heading_numbering: numbly("", default: "1.1 "),
+  keywords: none,
+  lang: "zh",
+  major: "计算机科学与技术",
+  makeabstract: false,
+  makeoutline: false,
+  maketitle: false,
+  media: "print",
+  month: 6,
+  outline-depth: 2,
+  region: "cn",
+  report_title: none,
+  screen-size: 10.5pt,
+  size: 10.5pt,
+  student_id: "2023XXXXXXXXX",
+  student_name: none,
+  subject: none,
+  teacher1: none,
+  teacher2: none,
+  theme: "light",
+  title: none,
+  year: 2025,
+  body,
+) = context {
+  assert(media == "screen" or media == "print", message: "media must be 'screen' or 'print'")
+  assert(theme == "light" or theme == "dark", message: "theme must be 'light' or 'dark'")
+  let page-margin = if media == "screen" { (x: 35pt, y: 35pt) } else { auto }
+  let text-size = if media == "screen" { screen-size } else { size }
+  let bg-color = if theme == "dark" { rgb("#1f1f1f") } else { rgb("#ffffff") }
+  let text-color = if theme == "dark" { rgb("#ffffff") } else { rgb("#000000") }
+  let raw-color = if theme == "dark" { rgb("#27292c") } else { rgb("#f0f0f0") }
+
+  // 选择字体
+  let font_used = default-font
+  if font != none {
+    font_used = font
+  }
+
+  // 收集封面信息
+  let cover_info = (
+    cover_header: cover_header,
+    report_title: report_title,
+    title: title,
+    major: major,
+    course: course,
+    teacher1: teacher1, // (name, title)
+    teacher2: teacher2, // (name, title)
+    student_id: student_id,
+    student_name: student_name,
+    year: year,
+    month: month,
+  )
+
+  // 正文：拉丁字母用 Times New Roman，CJK 用宋体
+  set text(font: ((name: font_used.main, covers: "latin-in-cjk"), font_used.cjk), size: 12pt)
+
+  show smartquote: set text(font: font_used.main)
+  set par(leading: 11pt) // 12pt + 11pt = 23pt 基线距
+  // emph：拉丁用 TNR，中文用楷体；中文稍微放大一点，避免显小
+  show emph: it => {
+    // 先设置基准字体（拉丁 → TNR，中文 → KaiTi）
+    set text(font: (
+      (name: font_used.main, covers: "latin-in-cjk"), // Times New Roman
+      font_used.emph-cjk, // KaiTi
+    ))
+
+    // 对整段 emph 内容应用 fakebold 加粗
+    // fakebold 会自动根据当前字体分别对中西文做伪粗体
+    fakebold(
+      weight: none, // 基于 regular 字重描边，更稳定
+    )[
+      // 仅中文（Han）放大 6%
+      #show regex("\\p{script=Han}"): set text(size: 1.06em)
+      #it
+    ]
+  }
+
+  show raw: set text(font: ((name: font_used.mono, covers: "latin-in-cjk"), font_used.cjk))
+  show math.equation: it => {
+    set text(font: font_used.math)
+    show regex("\p{script=Han}"): set text(font: font_used.math-cjk)
+    it
+  }
+
+  // 强调：拉丁保留 TNR，CJK 使用黑体，并加粗
+  show strong: it => [
+    #fakebold(font: (
+      (name: font_used.main, covers: "latin-in-cjk"), // 西文 fakebold: Times New Roman
+      font_used.cjk, // 中文 fakebold: SimSun
+    ), weight: "medium")[ #it ]
+  ]
+
+  // 标题样式
+  show heading: it => {
+    show h.where(amount: 0.3em): none
+    it
+  }
+  show heading: set block(spacing: 1.2em)
+
+  let first_level_heading_position = if first_level_heading_centered {
+    center
+  } else {
+    left
+  }
+
+  show heading.where(level: 1): it => [
+    // 重置图片和表格计数器
+    #counter(figure.where(kind: image)).update(0)
+    #counter(figure.where(kind: table)).update(0)
+    #pagebreak(weak: true)
+
+    // 中西文自动切换字体：英文→Consolas，中文→cjk-bold
+    #set text(font: (
+      (name: "Consolas", covers: "latin-in-cjk"),
+      font_used.cjk-bold, // 黑体 or SimHei
+    ), size: 18pt)
+
+    #text(weight:"extrabold")[
+      #align(first_level_heading_position)[#it]
+    ]
+
+    #v(11.5pt)
+  ]
+
+  // 标题编号：
+  // - 一级保持“一、”
+  // - 其它级别使用层级编号：2级为“1 ”，3级为“1.1 ”，4级为“1.1.1 ”，以此类推
+  set heading(numbering: (..nums) => {
+    let lvl = nums.pos().len()
+    if lvl == 1 {
+      numbering("一、", ..nums)
+    } else if lvl == 2 {
+      numbering("1.1 ", ..nums)
+    } else if lvl == 3 {
+      numbering("1.1 ", ..nums)
+    } else if lvl == 4 {
+      numbering("1.1.1 ", ..nums)
+    } else if lvl == 5 {
+      numbering("1.1.1.1 ", ..nums)
+    } else if lvl == 6 {
+      numbering("1.1.1.1.1 ", ..nums)
+    } else {
+      numbering("1.1 ", ..nums)
+    }
+  })
+
+  // 二级标题：黑体 四号（14pt）
+  show heading.where(level: 2): it => [
+    #set text(font: (
+      (name: "Consolas", covers: "latin-in-cjk"),
+      font_used.cjk-bold,
+    ), size: 14pt, weight: "bold")
+    #it
+  ]
+
+  // 三级标题 黑体 小四号
+  show heading.where(level: 3): it => [
+    #set text(font: (
+      (name: "Consolas", covers: "latin-in-cjk"),
+      font_used.cjk-bold,
+    ), size: 12pt)
+    #it
+  ]
+  // 四级标题 黑体 小四号
+  show heading.where(level: 4): it => [
+    #set text(font: (
+      (name: "Consolas", covers: "latin-in-cjk"),
+      font_used.cjk-bold,
+    ), size: 12pt)
+    #it
+  ]
+  // 代码块样式
+  show raw.where(block: false): body => box(fill: raw-color, inset: (x: 3pt, y: 0pt), outset: (x: 0pt, y: 3pt), radius: 2pt, {
+    set par(justify: false)
+    body
+  })
+  show raw.where(block: true): zebraw
+  show raw.where(block: true): it => v(-1em) + it
+
+  // 链接样式
+  show link: it => {
+    if type(it.dest) == str {
+      set text(fill: blue)
+      it
+    } else { it }
+  }
+
+  // 公式样式
+  show: equate.with(breakable: true, sub-numbering: true)
+  set math.equation(numbering: "(1.1)")
+
+  let equation_c = counter("equation")
+
+  // 引用样式（中文）：
+  // - 图：图 章号.序号
+  // - 表：表 章号.序号
+  // - 标题：第 n 章/节（使用标题自身的编号串）
+  // - 公式：式 (n)（遵循公式编号格式）
+  // 其中 n 部分可点击并显示为红色
+  // 其他类型引用保持默认
+  show ref: it => {
+    let el = it.element
+    if el == none { return it }
+
+    // 图与表（figure）
+    if el.func() == figure {
+      let is-table = el.kind == table
+      let prefix = if is-table { "表" } else { "图" }
+
+      // 获取一级标题编号和图片/表格编号
+      let h1 = counter(heading).at(el.location()).first()
+      let fig-num = counter(figure.where(kind: el.kind)).at(el.location()).first()
+
+      [
+        #prefix
+        #link(el.location())[
+          #set text(fill: red)
+          #numbering("1.1", h1, fig-num)
+        ]
+      ]
+    } else if el.func() == heading {
+      let num = numbering(el.numbering, ..counter(heading).at(el.location()))
+      let tail = if el.level == 1 { "章" } else { "节" }
+      [
+        第
+        #link(el.location())[
+          #set text(fill: red)
+          #num
+        ]
+        #tail
+      ]
+    } else if el.func() == math.equation {
+      let num = numbering(el.numbering, ..counter(equation).at(el.location()))
+      [
+        式 (
+        #link(el.location())[
+          #set text(fill: red)
+          #num
+        ]
+        )
+      ]
+    } else {
+      it
+    }
+  }
+
+  // 表格样式
+  // 统一将图注前缀改为中文"图"，表格为"表"
+  // 图片编号格式：图 章节号.图序号（例如：图 1.1, 图 1.2, 图 2.1）
+  set figure(supplement: "图", numbering: n => {
+    let h1 = counter(heading).get().first()
+    numbering("1.1", h1, n)
+  })
+  show figure.where(kind: table): set figure(supplement: "表", numbering: n => {
+    let h1 = counter(heading).get().first()
+    numbering("1.1", h1, n)
+  })
+  show figure.where(kind: table): set figure.caption(position: top)
+
+  // 列表样式
+  set list(indent: 2em)
+  show list: it => {
+    set list(indent: 2pt);
+    set enum(indent: 2pt)
+    it
+  }
+  set enum(indent: 2em)
+  show enum: it => {
+    set enum(indent: 2pt);
+    set list(indent: 2pt);
+    it
+  }
+  set enum(numbering: numbly("{1:1}.", "{2:1})", "{3:a}."), full: true)
+
+  // 引用样式
+  set bibliography(style: "ieee")
+
+  // 文档基本信息
+  set document(title: title, author: if type(author) == str { author } else { () }, date: none)
+
+  // 代码段设置
+  show: codly-init.with()
+  codly(languages: codly-languages)
+
+  // 页面计数器
+  counter(page).update(1)
+
+  // 页面设置
+  set page(paper: "a4", header: if here().page() == 1 and maketitle { none } else {
+    counter(footnote).update(0)
+  }, fill: bg-color, numbering: "1", margin: page-margin)
+
+  // 标题页
+  if maketitle {
+    // 使用 cover_info 渲染封面（无需手动调用 cover(...)）
+    let cv = cover_info
+    cover(
+      cover_header: cv.cover_header,
+      report_title: cv.report_title,
+      title: cv.title,
+      major: cv.major,
+      course: cv.course,
+      teacher1: cv.teacher1,
+      teacher2: cv.teacher2,
+      student_id: cv.student_id,
+      student_name: cv.student_name,
+      year: if cv.year != none { cv.year } else { 0 },
+      month: if cv.month != none { cv.month } else { 0 },
+    )
+    pagebreak()
+  }
+
+  // 摘要页（可选，局部样式不污染全局）
+  if makeabstract {
+    pagebreak(weak: true)
+    align(center)[
+      #set text(font: font_used.cjk-bold, size: 18pt)
+      摘要
+    ]
+    v(1em)
+    // 摘要正文（局部）
+    box(width: 100%)[
+      #set par(first-line-indent: 2em)
+      #par()[#text()[#h(0.0em)]]
+      #set text(font: ((name: font_used.main, covers: "latin-in-cjk"), font_used.cjk), size: 12pt)
+      #if abstract != none [#abstract]
+    ]
+    // v(1.2em)
+    // // 关键词（局部）：标签黑体小四，词条宋体小四
+    // box(width: 100%)[
+
+    //   #set text(font: ((name: font_used.main, covers: "latin-in-cjk"), font_used.cjk), size: 12pt)
+    //   *关键词*：
+    //   #if keywords != none [
+    //     #let kw = if type(keywords) == array { keywords.join("；") } else { keywords }
+    //     #kw
+    //   ]
+    // ]
+    pagebreak()
+  }
+
+  // 目录
+  if makeoutline {
+    // 覆盖可能由外部包注入的目录标题（如"Contents"）
+    show outline: it => it
+    // 目录标题：黑体小二
+    align(center)[
+      #set text(font: font_used.cjk-bold, size: 18pt)
+      目录
+    ]
+    v(0.8em)
+
+    // 目录样式：章 黑体四号；其他 小四宋体
+    // 先设默认（其他）
+    show outline.entry: it => {
+      // 按层级动态设置字号和粗细
+      let size = if it.level == 1 { 14pt } else { 12pt }
+      let font_chosen = if it.level == 1 { font_used.cjk-bold } else { font_used.cjk }
+      set text(font: font_chosen, size: size)
+      it
+    }
+    show outline.entry: set block(spacing: 1em)
+    outline(depth: outline-depth, indent: 2em, title: none)
+    pagebreak(weak: true)
+  }
+
+  // 段落样式
+  set par(justify: true, first-line-indent: if first-line-indent == auto {
+    (amount: 2em, all: true)
+  } else {
+    first-line-indent
+  })
+
+  // 定理环境
+  show: show-theorion
+
+  show: chic.with(
+    chic-footer(center-side: chic-page-number()),
+    chic-header(left-side: emph(title), right-side: emph(chic-heading-name(fill: true))),
+    chic-separator(1pt),
+    // chic-offset(7pt),
+    chic-height(1.5cm),
+  )
+
+  body
+}

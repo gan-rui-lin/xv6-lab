@@ -19,7 +19,6 @@ mkfs
 .vscode/
 user/initcode.bin
 temp*
-*.typ
 kernel-qemu
 ~*
 *.obj

@@ -6,6 +6,7 @@
 #include "sleeplock.h"
 #include "errno.h"
 #include "mm/vma.h"
+#include "proc/mlfq.h"  //claude: MLFQ调度算法
 #include "../fs/fs.h"
 #include "../fs/file.h"
 
@@ -154,6 +155,15 @@ found:
   memset(p->fdflags, 0, sizeof(p->fdflags));
   vma_init(p);
 
+  // 初始化共享内存附加表
+  for(int i = 0; i < 16; i++) {  // SHM_MAX_ATTACH
+    p->shm_attach[i].valid = 0;
+  }
+  p->uid = 0;  // root user
+  p->gid = 0;  // root group
+
+  //claude: 初始化MLFQ调度信息，新进程从最高优先级开始
+  mlfq_add_process(p);
 
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -278,6 +288,9 @@ either_copyin(void *dst, int user_src, uint64 src, uint64 len)
 void
 freeproc(struct proc *p)
 {
+  //claude: 从MLFQ调度器中移除进程
+  mlfq_remove_process(p);
+
   if(p->vma)
     vma_free_all(p);
   if(p->trapframe)
@@ -320,68 +333,62 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 // 进行进程调度 - 优先级调度
 // 选择优先级最高（priority值最小）的RUNNABLE进程运行
 void
+//claude: MLFQ调度器主循环
 scheduler(void)
 {
   struct proc *p;
-  struct proc *highest_prio_proc;
   struct cpu *c = mycpu();
-  
-  // myproc() 暂时返回 NULL
+
+  //claude: myproc() 暂时返回 NULL
   c->proc = 0;
   for(;;){
-    // Avoid deadlock by ensuring that devices can interrupt.
+    //claude: Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    // 优先级调度：遍历所有进程，找到优先级最高的RUNNABLE进程
-    highest_prio_proc = 0;
-    int highest_prio = PRIO_MAX + 1;  // 初始化为比最低优先级还低
+    //claude: 使用MLFQ算法选择下一个进程
+    //claude: MLFQ会从高优先级队列到低优先级队列依次查找RUNNABLE进程
+    p = mlfq_pick_next();
 
-    // 第一遍扫描：找到优先级最高的进程
-    for(p = proc; p < &proc[NPROC]; p++) {
+    //claude: 如果找到了可运行的进程，切换到它
+    if(p != 0) {
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        if(p->priority < highest_prio) {
-          // 释放之前选中进程的锁（如果有）
-          if(highest_prio_proc != 0) {
-            release(&highest_prio_proc->lock);
-          }
-          highest_prio = p->priority;
-          highest_prio_proc = p;
-        } else {
-          release(&p->lock);
-        }
-      } else {
-        release(&p->lock);
+
+      //claude: 再次检查状态（可能在pick_next之后被其他CPU修改）
+      if(p->state == RUNNABLE){
+        //claude: Switch to chosen process.  It is the process's job
+        //claude: to release its lock and then reacquire it
+        //claude: before jumping back to us.
+        p->state = RUNNING;
+
+        //claude: myproc() 返回当前运行的进程
+        c->proc = p;
+
+        //claude: 保存调度器上下文，切换到进程上下文
+        //claude: 之后通过 mycpu()->context 切换回调度器
+        swtch(&c->context, &p->context);
+
+        //claude: Process is done running for now.
+        //claude: It should have changed its p->state before coming back.
+        c->proc = 0;
       }
-    }
 
-    // 如果找到了可运行的进程，运行它
-    if(highest_prio_proc != 0) {
-      p = highest_prio_proc;
-      // Switch to chosen process.  It is the process's job
-      // to release its lock and then reacquire it
-      // before jumping back to us.
-      p->state = RUNNING;
-      // myproc() 返回当前运行的进程
-      c->proc = p;
-      // 保存调度器上下文，切换到进程上下文
-      // 之后通过 mycpu()->context 切换回调度器
-      swtch(&c->context, &p->context);
-
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
       release(&p->lock);
     }
   }
 }
 
-// Give up the CPU for one scheduling round.
+//claude: Give up the CPU for one scheduling round.
+//claude: 主动让出CPU（I/O等待等），在MLFQ中不会降级
 void
 yield(void)
 {
   struct proc *p = myproc();
   acquire(&p->lock);
+
+  //claude: 标记为主动让出，MLFQ不会因此降级进程优先级
+  //claude: 这样可以让I/O密集型进程保持高优先级
+  mlfq_yield(p);
+
   p->state = RUNNABLE;
   sched();
   release(&p->lock);
@@ -764,6 +771,9 @@ exit(int status)
       p->fdflags[fd] = 0;
     }
   }
+
+  // Clean up shared memory attachments
+  shm_cleanup_proc(p);
 
   // CLONE_CHILD_CLEARTID: clear and (optionally) futex-wake (not implemented)
   if(p->clear_child_tid != 0){

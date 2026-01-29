@@ -191,6 +191,10 @@ extern uint64 sys_sbrk(void);
 extern uint64 sys_setpriority(void);
 extern uint64 sys_getpriority(void);
 extern uint64 sys_set_robust_list(void);
+extern uint64 sys_shmget(void);
+extern uint64 sys_shmat(void);
+extern uint64 sys_shmdt(void);
+extern uint64 sys_shmctl(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
@@ -277,6 +281,10 @@ static uint64 (*syscalls[])(void) = {
     [SYS_accept] sys_accept,
     [SYS_xv6_sbrk] sys_sbrk,
     [SYS_set_robust_list] sys_set_robust_list,
+    [SYS_shmget] sys_shmget,
+    [SYS_shmat] sys_shmat,
+    [SYS_shmdt] sys_shmdt,
+    [SYS_shmctl] sys_shmctl,
 
 };
 

@@ -208,8 +208,9 @@ UPROGS=\
 	$U/_cat \
 	$U/_echo \
 	$U/_mkdir \
-	$U/_ls   \
-	
+	$U/_ls \
+	$U/_test_shm \
+
 # 额外的 apps 名称（位于 user/apps/<name>）
 APP_NAMES := \
 	wait \

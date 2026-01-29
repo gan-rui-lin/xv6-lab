@@ -383,26 +383,7 @@ struct msg_queue {
 
 === 发送与接收流程
 
-消息队列的发送与接收流程可以概括为“校验 → 拷贝 → 链表操作 → 唤醒”。整体流程可用如下 DOT 描述（可直接用于渲染工具）：
-
-```dot
-digraph MsgQueueFlow {
-  rankdir=LR;
-  node [shape=box, style=rounded];
-  Send [label="msgsnd\n(copyin + enqueue)"];
-  Recv [label="msgrcv\n(dequeue + copyout)"];
-  Q [label="Kernel Queue\n(head/tail)"];
-  WaitS [label="sleep(send_chan)"];
-  WaitR [label="sleep(recv_chan)"];
-
-  Send -> Q [label="append"];
-  Q -> Recv [label="match type"];
-  Send -> WaitS [label="full & !NOWAIT"];
-  Recv -> WaitR [label="empty & !NOWAIT"];
-  WaitS -> Send [label="wakeup"];
-  WaitR -> Recv [label="wakeup"];
-}
-```
+消息队列的发送与接收流程可以概括为“校验 → 拷贝 → 链表操作 → 唤醒”。
 
 *发送（msgsnd）*：
 - 校验 `mtype > 0` 与 `msgsz <= MSG_MAX_SIZE`；
@@ -418,6 +399,13 @@ digraph MsgQueueFlow {
 - 将消息拷贝回用户态，释放内核缓冲区；
 - 更新 `msg_qnum`、`bytes_used` 与接收 PID；
 - 唤醒等待发送的进程。
+
+消息队列的收发与阻塞/唤醒关系如 @ruos-msgqueue-flow 所示：
+
+#figure(
+  image("msgqueue_sd_rx.png"),
+  caption: [消息队列收发与阻塞/唤醒流程图]
+) <ruos-msgqueue-flow>
 
 === 类型过滤语义
 
@@ -461,7 +449,7 @@ RuOS 兼容 System V 消息队列的接收语义：
 
 从资源角度，消息队列在“系统级上限”与“队列级上限”之间做双重约束，保证高负载场景下不会被单个队列耗尽内存。
 
-=== 典型用法（精简示意）
+=== 典型用法
 
 ```c
 // 发送方

@@ -1,0 +1,55 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.45",
+    ranksep="0.55",
+    splines=ortho
+  ];
+
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+
+  s1 [label="1) 创建（shmget）\n- kalloc 分配物理页\n- memset 清零\n- 初始化元数据"];
+  s2 [label="2) 附加（shmat）\n- 选择虚拟地址\n- mappages 建立映射\n- 记录附加信息\n- refcount++"];
+  s3 [label="3) 使用\n进程直接读写共享内存\n其他进程立即可见"];
+  s4 [label="4) 分离（shmdt）\n- uvmunmap 取消映射\n- 清除附加记录\n- refcount--"];
+  s5 [label="5) 删除（shmctl: IPC_RMID）\n标记删除（可延迟释放）"];
+
+  d1 [shape=diamond, margin="0.16,0.10", label="refcount == 0 ?"];
+  free_now [fillcolor="#d8f1ef", label="立即释放物理页\nkfree(phys)"];
+  free_later [fillcolor="#d8f1ef", label="仍有进程附加\n仅标记删除\n(等待最后一次 shmdt)"];
+  done [fillcolor="#d8f1ef", label="结束"];
+
+  // Row 1: 1 -> 2 -> 3 (left-to-right)
+  { rank=same; s1; s2; s3; }
+  s1 -> s2 -> s3;
+
+  // Row 2: drop down to 4, then go left to 5 and decision
+  { rank=same; d1; s5; s4; }
+  // enforce left-to-right order for row2 while keeping arrows reversed where needed
+  d1 -> s5 -> s4 [style=invis, weight=10];
+
+  s3 -> s4;
+  s4 -> s5;
+  s5 -> d1;
+
+  // Row 3: decision outcomes
+  { rank=same; free_now; free_later; }
+  free_now -> free_later [style=invis, weight=10];
+  d1 -> free_now   [xlabel="是"];
+  d1 -> free_later [xlabel="否"];
+  free_now -> done;
+  free_later -> done;
+}

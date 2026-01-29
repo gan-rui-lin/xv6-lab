@@ -16,11 +16,12 @@
 
 === 实现方案
 
-本项目采用渐进式优化策略，通过三个版本迭代实现调度算法的演进：
+本项目采用渐进式优化策略，通过三个版本迭代实现调度算法的演进，如 @scheduler-evolution 所示：
 
 #figure(
   image("scheduler-evolution.png"),
-)
+  caption: [调度算法演进]
+) <scheduler-evolution>
 
 == 多级反馈队列调度算法
 
@@ -89,7 +90,7 @@ struct mlfq_scheduler {
 
 ==== 核心调度逻辑
 
-调度器主循环（src/proc/proc.c:329-375）：
+调度器主循环（src/proc/proc.c）：
 
 ```c
 void scheduler(void) {
@@ -128,7 +129,7 @@ void scheduler(void) {
 
 MLFQ的核心创新在于根据进程行为自动调整优先级：
 
-时钟中断处理（src/trap/trap.c:376-383）：
+时钟中断处理（src/trap/trap.c）：
 
 ```c
 void clockintr() {
@@ -252,11 +253,12 @@ Per-CPU调度器：
 - 所有CPU从全局进程表中竞争选择进程
 - 通过进程锁（`proc->lock`）实现互斥访问
 
-调度流程图：
+调度流程图如 @process-diagram-01 所示：
 
 #figure(
   image("diagrams/process-diagram-01.png"),
-)
+  caption: [多核调度示意图]
+) <process-diagram-01>
 
 === 简单负载均衡设计
 
@@ -380,7 +382,7 @@ fork() 函数（src/proc/proc.c）：
 
 // ==== 进程分配（allocproc）
 
-// allocproc() 函数（src/proc/proc.c:127-191）：
+// allocproc() 函数（src/proc/proc.c）：
 
 // ```c
 // static struct proc* allocproc(void)
@@ -432,7 +434,7 @@ fork() 函数（src/proc/proc.c）：
 
 // ==== 进程销毁（exit与wait）
 
-// exit() 函数（src/proc/proc.c:727-781）：
+// exit() 函数（src/proc/proc.c）：
 
 // ```c
 // void exit(int status)
@@ -476,7 +478,7 @@ fork() 函数（src/proc/proc.c）：
 // }
 // ```
 
-// wait() 函数（src/proc/proc.c:586-637）：
+// wait() 函数（src/proc/proc.c）：
 
 // ```c
 // int wait(uint64 addr)
@@ -530,7 +532,7 @@ fork() 函数（src/proc/proc.c）：
 
 // ==== 上下文结构
 
-// context 结构定义（src/proc/proc.h:15-32）：
+// context 结构定义（src/proc/proc.h）：
 
 // ```c
 // struct context {

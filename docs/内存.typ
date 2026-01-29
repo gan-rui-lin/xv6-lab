@@ -12,11 +12,12 @@
 - 内存碎片严重，无法合并
 - 不支持引用计数，无法实现COW（写时复制）
 
-本项目解决方案：
+本项目解决方案如 @memory-diagram-01 所示：
 
 #figure(
   image("diagrams/memory-diagram-01.png"),
-)
+  caption: "RuOS 物理内存管理"
+) <memory-diagram-01>
 
 === 核心特性
 
@@ -97,14 +98,11 @@ static struct buddy_page buddy_pages[MAX_BUDDY_PAGES];  // 页面描述符数组
 
 地址映射宏：
 ```c
-#define pa2index(pa) \
-    (((uint64)(pa) - kmem.managed_start) / PGSIZE + kmem.base_idx)
+#define pa2index(pa) (((uint64)(pa) - kmem.managed_start) / PGSIZE + kmem.base_idx)
 
-#define index2pa(idx) \
-    (void *)(kmem.managed_start + ((uint64)(idx) - kmem.base_idx) * PGSIZE)
+#define index2pa(idx) (void *)(kmem.managed_start + ((uint64)(idx) - kmem.base_idx) * PGSIZE)
 
-#define pa2page(pa) \
-    (&buddy_pages[pa2index(pa)])
+#define pa2page(pa) (&buddy_pages[pa2index(pa)])
 ```
 
 ==== buddy_area - 空闲链表
@@ -123,7 +121,7 @@ static struct buddy_area buddy_free_areas[MAX_BUDDY_ORDER + 1];
 
 ==== 全局管理结构
 
-定义（src/mm/kalloc.c:93-99）：
+定义（src/mm/kalloc.c）：
 
 ```c
 struct {
@@ -138,21 +136,21 @@ struct {
 
 === 分配算法
 
-图解分配过程：
+图解分配过程如 @memory-diagram-05 所示：
 
 #figure(
   image("diagrams/memory-diagram-05.png"),
-)
+    caption: "Buddy 分配过程"
+) <memory-diagram-05>
 
 === 释放与合并算法
 
-buddy_free_pages_internal() 核心实现（src/mm/kalloc.c:256-305）：
-
-图解合并过程：
+图解合并过程如 @memory-diagram-06 所示：
 
 #figure(
   image("diagrams/memory-diagram-06.png"),
-)
+  caption: "Buddy 合并过程"
+) <memory-diagram-06>
 
 伙伴合并条件：
 1. 伙伴块的order必须相同
@@ -164,7 +162,7 @@ buddy_free_pages_internal() 核心实现（src/mm/kalloc.c:256-305）：
 
 引用计数支持COW（Copy-On-Write）和页面共享。
 
-增加引用计数（src/mm/kalloc.c:337-351）：
+增加引用计数（src/mm/kalloc.c）：
 
 ```c
 void kref_inc(uint64 pa)
@@ -216,7 +214,7 @@ Slab Allocator核心思想：
 
 ==== slab_page - Slab页面元数据
 
-定义（src/mm/kalloc.c:58-68）：
+定义（src/mm/kalloc.c）：
 
 ```c
 struct slab_page {
@@ -247,7 +245,7 @@ bitmap[1]: bit0-63  表示对象64-127的分配状态
 
 ==== slab_cache - 对象缓存
 
-定义（src/mm/kalloc.c:70-77）：
+定义（src/mm/kalloc.c）：
 
 ```c
 struct slab_cache {
@@ -263,7 +261,7 @@ struct slab_cache {
 
 ==== Size Class预定义
 
-定义（src/mm/kalloc.c:26-33）：
+定义（src/mm/kalloc.c）：
 
 ```c
 #define SLAB_CLASS_COUNT 7
@@ -288,7 +286,7 @@ Size Class示例：
 ```
 // === 对象分配算法
 
-// slab_alloc_from_cache() 核心流程（src/mm/kalloc.c:517-600）：
+// slab_alloc_from_cache() 核心流程（src/mm/kalloc.c）：
 
 // ```c
 // static void *slab_alloc_from_cache(struct slab_cache *cache)
@@ -368,7 +366,7 @@ Size Class示例：
 
 // === 对象释放算法
 
-// slab_free_object() 核心流程（src/mm/kalloc.c:602-668）：
+// slab_free_object() 核心流程（src/mm/kalloc.c）：
 
 // ```c
 // static void slab_free_object(struct slab_page *slab, void *addr)
@@ -588,10 +586,11 @@ xv6使用RISC-V的Sv39分页机制：
 - 三级页表：L2 → L1 → L0
 - 页大小4KB
 
-页表项格式：
+页表项格式如 @rv_addr_trans 所示：
 #figure(
   image("stages/image/01/rv_addr_trans.png"),
-)
+  caption: [Sv39三级页表PTE]
+) <rv_addr_trans>
 
 
 
@@ -725,11 +724,12 @@ int cow_alloc(pagetable_t pagetable, uint64 va)
 }
 ```
 
-COW处理流程图：
+COW处理流程图如 @memory-diagram-17 所示：
 
 #figure(
-  image("diagrams/memory-diagram-17.png"),
-)
+  image("diagrams/memory-diagram-17.png",height: 95%),
+  caption: [COW 处理流程图]
+) <memory-diagram-17>
 
 性能优化点：
 1. 引用计数优化：如果只有1个引用，直接升级权限（零复制）
@@ -738,7 +738,7 @@ COW处理流程图：
 
 ==== 缺页处理集成
 
-usertrap中的COW处理（src/trap/trap.c:90-105）：
+usertrap中的COW处理（src/trap/trap.c）：
 
 ```c
 if (scause == ECODE_STORE_PAGE_FAULT) {
@@ -765,10 +765,11 @@ if (scause == ECODE_STORE_PAGE_FAULT) {
 }
 ```
 
-处理流程：
+处理流程如 @memory-diagram-18 所示：
 #figure(
-  image("diagrams/memory-diagram-18.png"),
-)
+  image("diagrams/memory-diagram-18.png",height: 79%),
+  caption: [缺页处理流程]
+) <memory-diagram-18>
 
 ==== 性能收益
 
@@ -819,7 +820,7 @@ fork性能对比：
 
 ==== 全局零页实现
 
-零页管理（src/mm/vm.c:248-271）：
+零页管理（src/mm/vm.c）：
 
 ```c
 static uint64 zero_page_pa = 0;      // 全局零页物理地址
@@ -943,9 +944,12 @@ void deep_recursion(int depth) {
 
 ==== 三种机制协同工作
 
+通过 COW + 共享零页 + 延迟分配，RuOS 显著提升了内存利用率和性能。三种机制的协同工作如 @memory-diagram-21 所示：
+
 #figure(
   image("diagrams/memory-diagram-21.png"),
-)
+  caption: [COW + 共享零页 + 延迟分配协同工作示意图]
+) <memory-diagram-21>
 
 ==== fork性能对比
 
@@ -983,252 +987,11 @@ void deep_recursion(int depth) {
 
 ==== 缺页处理流程总览
 
+缺页处理流程如 @memory-diagram-22 所示：
 #figure(
   image("diagrams/memory-diagram-22.png"),
-)
-
-
-== 共享内存IPC机制
-
-=== System V共享内存
-
-==== 设计背景与目标
-
-共享内存（Shared Memory）是进程间通信（IPC）最高效的方式之一。与管道、消息队列等需要数据在内核态和用户态之间复制不同，共享内存允许多个进程直接访问同一块物理内存，从而实现零拷贝通信。
-
-我们实现了System V IPC标准的共享内存接口，提供以下特性：
-
-- *标准兼容*：遵循System V IPC规范（shmget/shmat/shmdt/shmctl）
-- *多段支持*：最多128个共享内存段
-- *权限控制*：基于uid/gid的访问控制
-- *自动清理*：进程退出时自动分离附加的共享内存
-- *引用计数*：支持多进程同时附加同一内存段
-
-==== 内存共享原理
-
-共享内存的核心思想是让不同进程的虚拟地址映射到同一物理页：
-
-```
-进程A页表              物理内存              进程B页表
-┌──────────┐          ┌──────────┐        ┌──────────┐
-│0x70000000│─────────▶│  共享页  │◀───────│0x70000000│
-│ (虚拟地址)│          │(物理地址)│        │(虚拟地址)│
-└──────────┘          └──────────┘        └──────────┘
-```
-
-当进程A写入共享内存时，进程B立即可见，无需任何内核干预。
-
-==== 核心数据结构
-
-*共享内存段描述符*（src/mm/shm.h）：
-
-```c
-struct shm_seg {
-  int valid;                 // 槽位是否使用中
-  int key;                   // IPC密钥，用于多进程查找
-  struct shmid_ds ds;        // 元数据（权限、时间戳等）
-  void* kaddr;               // 内核虚拟地址（指向物理页）
-  uint64 size;               // 实际大小（页对齐）
-  int refcount;              // 当前附加的进程数
-};
-```
-
-*进程附加记录*（src/proc/proc.h）：
-
-```c
-struct shm_attach {
-  int shmid;       // 共享内存段ID
-  void* vaddr;     // 附加的虚拟地址
-  int valid;       // 记录是否有效
-};
-
-struct proc {
-  ...
-  struct shm_attach shm_attach[16];  // 最多附加16个共享内存段
-  uint uid, gid;                     // IPC权限字段
-  ...
-};
-```
-
-*全局管理表*（src/mm/shm.c）：
-
-```c
-struct {
-  struct spinlock lock;              // 保护并发访问
-  struct shm_seg segs[SHM_MAXSEGS]; // 最多128个段
-  int next_id;
-} shm_table;
-```
-
-==== API接口实现
-
-*shmget - 创建/获取共享内存段*
-
-```c
-int shmget(int key, size_t size, int flags);
-```
-
-功能：
-- 根据key查找现有段，若存在则返回shmid
-- 若不存在且设置了`IPC_CREAT`标志，则创建新段
-- 创建时分配物理页（`kalloc()`）并清零
-- 初始化元数据（uid、gid、权限、创建时间等）
-
-*shmat - 附加到进程地址空间*
-
-```c
-void* shmat(int shmid, void* addr, int flags);
-```
-
-核心步骤：
-1. *选择虚拟地址*：若addr为0，自动选择地址（0x70000000 + offset）
-2. *映射页表*：调用`mappages()`将共享内存映射到进程页表
-3. *记录附加*：在进程的`shm_attach`数组中记录{shmid, vaddr}
-4. *更新元数据*：增加引用计数（`refcount++`），记录附加时间
-
-权限处理：
-- 默认读写权限（PTE_R | PTE_W | PTE_U）
-- 若设置`SHM_RDONLY`标志，则只读（PTE_R | PTE_U）
-
-*shmdt - 分离共享内存*
-
-```c
-int shmdt(void* addr);
-```
-
-核心步骤：
-1. *查找附加记录*：遍历进程的`shm_attach`数组
-2. *取消映射*：调用`uvmunmap()`从页表移除（不释放物理页）
-3. *更新元数据*：减少引用计数（`refcount--`）
-4. *延迟删除*：若段标记为删除且无附加，则释放物理页
-
-*shmctl - 控制操作*
-
-```c
-int shmctl(int shmid, int cmd, struct shmid_ds* buf);
-```
-
-支持的命令：
-- *IPC_STAT*：获取段信息（大小、附加数、权限等）
-- *IPC_RMID*：标记删除，当所有进程分离后释放物理页
-
-==== 生命周期管理
-
-共享内存段的完整生命周期：
-
-```
-1. 创建（shmget）
-   ├─ 分配物理页（kalloc）
-   ├─ 清零内存（memset）
-   └─ 初始化元数据
-
-2. 附加（shmat）
-   ├─ 选择虚拟地址
-   ├─ 映射到进程页表（mappages）
-   ├─ 记录附加信息
-   └─ refcount++
-
-3. 使用
-   ├─ 进程直接读写共享内存
-   └─ 其他进程立即可见
-
-4. 分离（shmdt）
-   ├─ 取消页表映射（uvmunmap）
-   ├─ 清除附加记录
-   └─ refcount--
-
-5. 删除（shmctl IPC_RMID）
-   ├─ 若有附加：标记删除（延迟释放）
-   └─ 若无附加：立即释放物理页（kfree）
-```
-
-*自动清理机制*：
-
-进程退出时（`exit()`），调用`shm_cleanup_proc(p)`自动分离所有附加的共享内存，防止内存泄漏。
-
-==== 使用示例
-
-*示例1：父子进程通信*
-
-```c
-int main() {
-  // 父进程创建共享内存
-  int shmid = shmget(0x1234, 4096, IPC_CREAT | 0666);
-  char* ptr = shmat(shmid, 0, 0);
-  strcpy(ptr, "Message from parent");
-
-  int pid = fork();
-  if (pid == 0) {
-    // 子进程附加相同共享内存
-    char* child_ptr = shmat(shmid, 0, 0);
-    printf("Child reads: %s\n", child_ptr);  // 立即可见父进程的数据
-
-    strcpy(child_ptr, "Reply from child");
-    shmdt(child_ptr);
-    exit(0);
-  } else {
-    wait(0);
-    printf("Parent reads: %s\n", ptr);  // 看到子进程的修改
-
-    shmdt(ptr);
-    shmctl(shmid, IPC_RMID, 0);  // 删除共享内存
-  }
-  exit(0);
-}
-```
-
-*示例2：查询段信息*
-
-```c
-struct shmid_ds buf;
-shmctl(shmid, IPC_STAT, &buf);
-
-printf("Size: %d bytes\n", buf.shm_segsz);
-printf("Creator PID: %d\n", buf.shm_cpid);
-printf("Attachments: %d\n", buf.shm_nattch);
-printf("Permissions: 0%o\n", buf.shm_perm.mode & 0777);
-```
-
-==== 实现亮点
-
-1. *零拷贝通信*：进程间数据交换无需系统调用和内存复制
-2. *灵活映射*：支持自动地址分配和指定地址附加
-3. *安全隔离*：基于uid/gid的权限控制
-4. *资源管理*：引用计数+延迟删除+自动清理，防止内存泄漏
-5. *标准兼容*：遵循System V IPC规范，API与Linux兼容
-
-==== 性能优势
-
-与其他IPC机制对比：
-
-#figure(
-  table(
-    align: center,
-    columns: (auto, auto, auto, auto),
-    row-gutter: auto,
-    inset: 10pt,
-    [IPC机制],
-    [数据复制次数],
-    [系统调用次数],
-    [典型延迟],
-    [管道（Pipe）],
-    [2次（用户→内核→用户）],
-    [2次（write+read）],
-    [~10 µs],
-    [信号（Signal）],
-    [0次],
-    [1次（kill）],
-    [~5 µs],
-    [*共享内存*],
-    [*0次（直接访问）*],
-    [*0次（使用时）*],
-    [*~0.1 µs*],
-  ),
-  caption: [共享内存 vs 其他IPC性能对比]
-)
-
-使用共享内存后，进程间通信带宽可达数GB/s（仅受内存带宽限制），延迟降低至纳秒级。
-
+  caption:[缺页处理流程总览]
+) <memory-diagram-22>
 
 == 性能分析与优化
 
@@ -1362,9 +1125,12 @@ size = (size + 7) & ~7;  // 8字节对齐
 
 ==== 三链表管理策略
 
+三链表管理策略如 @memory-diagram-27 所示：
+
 #figure(
   image("diagrams/memory-diagram-27.png"),
-)
+  caption: [三链表管理策略]
+) <memory-diagram-27>
 
 优势：
 - 最小化buddy调用（批量操作）

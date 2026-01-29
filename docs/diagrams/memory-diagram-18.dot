@@ -4,7 +4,8 @@ digraph Diagram {
     bgcolor="transparent",
     pad="0.25",
     nodesep="0.50",
-    ranksep="0.60"
+    ranksep="0.65",
+    splines=ortho
   ];
   edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
   node [
@@ -17,11 +18,37 @@ digraph Diagram {
     fontsize=12,
     margin="0.22,0.16"
   ];
-  step1 [label="Store Page Fault (scause=15)\l"];
-  step2 [label="获取va = r_stval()\l"];
-  step3 [label="检查va < p->sz (合法地址范围)\l"];
-  step4 [label="尝试zero_page_alloc → 成功？返回\\n↓ 失败\\n尝试cow_alloc → 成功？返回\\n↓ 失败\\n尝试vma_handle_fault → 成功？返回\\n↓ 失败\\n杀死进程（非法访问）\l"];
-  step1 -> step2;
-  step2 -> step3;
-  step3 -> step4;
+  step1 [label="Store Page Fault\n(scause=15)"];
+  step2 [label="获取 va = r_stval()"];
+  step3 [shape=diamond, margin="0.16,0.10", label="va < p->sz ?\n(合法地址范围)"];
+
+  // 处理链：把原本“超长最后节点”拆成分层节点
+  z0 [label="zero_page_alloc(pagetable, va)"];
+  z1 [shape=diamond, margin="0.16,0.10", label="返回 0 ?"];
+
+  c0 [label="cow_alloc(pagetable, va)"];
+  c1 [shape=diamond, margin="0.16,0.10", label="返回 0 ?"];
+
+  v0 [label="vma_handle_fault(p, va, WRITE)"];
+  v1 [shape=diamond, margin="0.16,0.10", label="返回 0 ?"];
+
+  ok [fillcolor="#d8f1ef", label="缺页已处理\n返回用户态继续执行"];
+  kill [fillcolor="#ffd6d6", color="#b42318", fontcolor="#7a1212", label="处理失败\nsetkilled(p)\n(非法访问)"];
+
+  step1 -> step2 -> step3;
+
+  step3 -> z0 [xlabel="是"];
+  step3 -> kill [xlabel="否"];
+
+  z0 -> z1;
+  z1 -> ok [xlabel="是"];
+  z1 -> c0 [xlabel="否"];
+
+  c0 -> c1;
+  c1 -> ok [xlabel="是"];
+  c1 -> v0 [xlabel="否"];
+
+  v0 -> v1;
+  v1 -> ok [xlabel="是"];
+  v1 -> kill [xlabel="否"];
 }

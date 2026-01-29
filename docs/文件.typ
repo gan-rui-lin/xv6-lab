@@ -11,11 +11,12 @@
 - 不支持符号链接
 - 缺乏文件系统抽象层
 
-而 RuOS 则构建一个类VFS（Virtual File System）架构，实现多文件系统并存：
+而 RuOS 则构建一个类VFS（Virtual File System）架构，实现多文件系统并存，如 @file-diagram-01 所示：
 
 #figure(
   image("diagrams/file-diagram-01.png"),
-)
+  caption: [RuOS 的 VFS 设计]
+) <file-diagram-01>
 
 === 核心特性
 
@@ -58,7 +59,7 @@ VFS的核心职责：
 
 === 统一inode结构
 
-核心数据结构（src/fs/file.h:10-30）：
+核心数据结构（src/fs/file.h）：
 
 ```c
 struct inode {
@@ -84,7 +85,7 @@ struct inode {
 };
 ```
 
-major字段编码（src/fs/file.h:33-36）：
+major字段编码（src/fs/file.h）：
 
 ```c
 #define FAT32_INODE_TAG  0xF32    // FAT32文件系统标识
@@ -102,7 +103,7 @@ major字段编码（src/fs/file.h:33-36）：
 
 // === inode缓存管理
 
-// 全局inode缓存（src/fs/fs.c:215-266）：
+// 全局inode缓存（src/fs/fs.c）：
 
 // ```c
 // struct {
@@ -143,7 +144,7 @@ major字段编码（src/fs/file.h:33-36）：
 // }
 // ```
 
-// inode释放（src/fs/fs.c:313-337）：
+// inode释放（src/fs/fs.c）：
 
 // ```c
 // void iput(struct inode *ip)
@@ -186,15 +187,16 @@ major字段编码（src/fs/file.h:33-36）：
 
 === FAT32架构概述
 
-FAT32布局：
+FAT32布局如 @file-diagram-04 所示：
 
 #figure(
-  image("diagrams/file-diagram-04.png"),
-)
+  image("diagrams/file-diagram-04.png",height: 40%),
+  caption: [FAT32 分区布局]
+) <file-diagram-04>
 
 === 初始化与元数据解析
 
-fat结构体（src/fs/fat32.c:60-71）：
+fat结构体（src/fs/fat32.c）：
 
 ```c
 static struct {
@@ -211,7 +213,7 @@ static struct {
 } fat;
 ```
 
-初始化流程（src/fs/fat32.c:95-143）：
+初始化流程（src/fs/fat32.c）：
 
 ```c
 void fat32_init(uint dev)
@@ -282,7 +284,7 @@ BPB字段解析示意图：
 
 ==== 簇号到扇区的转换
 
-clus_to_sec() 函数（src/fs/fat32.c:145-150）：
+clus_to_sec() 函数（src/fs/fat32.c）：
 
 ```c
 static uint32 clus_to_sec(uint32 clus)
@@ -303,7 +305,7 @@ static uint32 clus_to_sec(uint32 clus)
 
 ==== FAT表遍历
 
-fat_next_clus() - 获取下一簇（src/fs/fat32.c:152-168）：
+fat_next_clus() - 获取下一簇（src/fs/fat32.c）：
 
 ```c
 static uint32 fat_next_clus(uint32 clus)
@@ -370,10 +372,11 @@ FAT32支持两种文件名格式：
 ==== 短文件名（SFN）匹配
 
 
-SFN编码示例：
+SFN编码示例如 @file-diagram-07 所示：
 #figure(
   image("diagrams/file-diagram-07.png"),
-)
+  caption: [SFN 编码示例]
+) <file-diagram-07>
 
 ==== 长文件名（LFN）解析
 
@@ -393,15 +396,16 @@ struct lfn_entry {
 };
 ```
 
-LFN存储顺序示例（逆序）：
+LFN存储顺序示例（逆序）如 @file-diagram-08 所示：
 
 #figure(
   image("diagrams/file-diagram-08.png"),
-)
+  caption: [LFN 存储顺序示例]
+) <file-diagram-08>
 
 // === 目录查找核心算法
 
-// dir_find() - 三层嵌套遍历（src/fs/fat32.c:489-606）：
+// dir_find() - 三层嵌套遍历（src/fs/fat32.c）：
 
 // ```c
 // static int dir_find(uint32 dir_clus, const char *comp,
@@ -485,7 +489,7 @@ LFN存储顺序示例（逆序）：
 
 // ==== 读取操作
 
-// fat32_readi() 核心流程（src/fs/fat32.c:853-967）：
+// fat32_readi() 核心流程（src/fs/fat32.c）：
 
 // ```c
 // int fat32_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
@@ -572,11 +576,12 @@ LFN存储顺序示例（逆序）：
 
 === lwext4适配架构
 
-xv6的EXT4实现基于开源库lwext4，通过适配层桥接：
+RuOS 的EXT4实现基于开源库lwext4，通过适配层桥接，如 @file-diagram-11 所示：
 
 #figure(
   image("diagrams/file-diagram-11.png"),
-)
+  caption: [RuOS 适配 EXT4 fs]
+) <file-diagram-11>
 
 === 块设备接口适配
 
@@ -587,7 +592,7 @@ xv6的EXT4实现基于开源库lwext4，通过适配层桥接：
 - lwext4扇区：512字节
 - 映射比例：1块 = 2扇区
 
-映射函数（src/fs/ext4fs.c:30-37）：
+映射函数（src/fs/ext4fs.c）：
 
 ```c
 static inline uint sector_block(uint64 lba) {
@@ -599,7 +604,7 @@ static inline uint sector_offset(uint64 lba) {
 }
 ```
 
-读取实现（src/fs/ext4fs.c:39-63）：
+读取实现（src/fs/ext4fs.c）：
 
 ```c
 static int bdev_read(struct ext4_blockdev *bdev, void *buf,
@@ -623,7 +628,7 @@ static int bdev_read(struct ext4_blockdev *bdev, void *buf,
 ```
 
 
-写入实现（src/fs/ext4fs.c:65-97）：
+写入实现（src/fs/ext4fs.c）：
 
 ```c
 static int bdev_write(struct ext4_blockdev *bdev, const void *buf,
@@ -825,7 +830,7 @@ RuOS 的缓冲区缓存机制与 xv6 完全一致，采用固定数量的缓冲�
 // };
 // ```
 
-// 全局缓存管理（src/fs/bio.c:23-28）：
+// 全局缓存管理（src/fs/bio.c）：
 
 // ```c
 // struct {
@@ -839,7 +844,7 @@ RuOS 的缓冲区缓存机制与 xv6 完全一致，采用固定数量的缓冲�
 
 // ==== 缓存查找与分配
 
-// bget() - 获取缓冲区（src/fs/bio.c:60-96）：
+// bget() - 获取缓冲区（src/fs/bio.c）：
 
 // ```c
 // static struct buf* bget(uint dev, uint blockno)
@@ -875,7 +880,7 @@ RuOS 的缓冲区缓存机制与 xv6 完全一致，采用固定数量的缓冲�
 // }
 // ```
 
-// bread() - 读取块（src/fs/bio.c:98-109）：
+// bread() - 读取块（src/fs/bio.c）：
 
 // ```c
 // struct buf* bread(uint dev, uint blockno)
@@ -892,7 +897,7 @@ RuOS 的缓冲区缓存机制与 xv6 完全一致，采用固定数量的缓冲�
 // }
 // ```
 
-// bwrite() - 写入块（src/fs/bio.c:111-118）：
+// bwrite() - 写入块（src/fs/bio.c）：
 
 // ```c
 // void bwrite(struct buf *b)
@@ -904,7 +909,7 @@ RuOS 的缓冲区缓存机制与 xv6 完全一致，采用固定数量的缓冲�
 // }
 // ```
 
-// brelse() - 释放缓冲区（src/fs/bio.c:120-136）：
+// brelse() - 释放缓冲区（src/fs/bio.c）：
 
 // ```c
 // void brelse(struct buf *b)
@@ -956,7 +961,7 @@ RuOS 的缓冲区缓存机制与 xv6 完全一致，采用固定数量的缓冲�
 
 === 扇区读写封装
 
-read_sector512() - FAT32/EXT4使用（src/fs/fat32.c:73-81）：
+read_sector512() - FAT32/EXT4使用（src/fs/fat32.c）：
 
 ```c
 static void read_sector512(uint dev, uint32 lba, uint8 *dst)
@@ -970,7 +975,7 @@ static void read_sector512(uint dev, uint32 lba, uint8 *dst)
 }
 ```
 
-write_sector512() - 写扇区（src/fs/fat32.c:83-93）：
+write_sector512() - 写扇区（src/fs/fat32.c）：
 
 ```c
 static void write_sector512(uint dev, uint32 lba, const uint8 *src)
@@ -998,7 +1003,7 @@ static void write_sector512(uint dev, uint32 lba, const uint8 *src)
 
 // === open/openat实现
 
-// 标志位规范化（src/syscall/sysfile.c:115-125）：
+// 标志位规范化（src/syscall/sysfile.c）：
 
 // ```c
 // static int normalize_open_flags(int flags)
@@ -1019,7 +1024,7 @@ static void write_sector512(uint dev, uint32 lba, const uint8 *src)
 // }
 // ```
 
-// sys_openat() 核心流程（src/syscall/sysfile.c:127-240）：
+// sys_openat() 核心流程（src/syscall/sysfile.c）：
 
 // ```c
 // uint64 sys_openat(void)
@@ -1114,7 +1119,7 @@ static void write_sector512(uint dev, uint32 lba, const uint8 *src)
 
 // === read/write实现
 
-// sys_read() 实现（src/syscall/sysfile.c:65-85）：
+// sys_read() 实现（src/syscall/sysfile.c）：
 
 // ```c
 // uint64 sys_read(void)
@@ -1132,7 +1137,7 @@ static void write_sector512(uint dev, uint32 lba, const uint8 *src)
 // }
 // ```
 
-// fileread() 分发（src/fs/file.c:80-114）：
+// fileread() 分发（src/fs/file.c）：
 
 // ```c
 // int fileread(struct file *f, uint64 addr, int n)
@@ -1186,7 +1191,7 @@ static void write_sector512(uint dev, uint32 lba, const uint8 *src)
 
 // === stat/fstat实现
 
-// sys_fstatat() 实现（src/syscall/sysfile.c:322-378）：
+// sys_fstatat() 实现（src/syscall/sysfile.c）：
 
 // ```c
 // uint64 sys_fstatat(void)
@@ -1267,7 +1272,7 @@ static void write_sector512(uint dev, uint32 lba, const uint8 *src)
 
 // === getdents64实现
 
-// sys_getdents64() 入口（src/syscall/sysfile.c:454-492）：
+// sys_getdents64() 入口（src/syscall/sysfile.c）：
 
 // ```c
 // uint64 sys_getdents64(void)

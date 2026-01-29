@@ -4,6 +4,8 @@
 
 #include "types.h"
 
+struct proc;
+
 //claude: MLFQ配置参数
 #define MLFQ_LEVELS 4              //claude: 优先级队列数量（0最高，3最低）
 #define MLFQ_TIME_SLICE_0 2        //claude: 级别0的时间片（ticks）- 交互式进程

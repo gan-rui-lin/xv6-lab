@@ -1,0 +1,40 @@
+digraph Diagram {
+  graph [
+    // Use TB so rank=same forms a horizontal row.
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.85",
+    ranksep="0.60",
+    splines=ortho
+  ];
+
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+
+  // Page tables (process-local)
+  pta [label="进程 A 页表\n0x70000000\n(虚拟地址)"];
+  ptb [label="进程 B 页表\n0x70000000\n(虚拟地址)"];
+
+  // Physical page (shared)
+  phys [label="共享页\n(物理地址)"];
+
+  // Put A / shared / B on one row, and force the order A -- Shared -- B.
+  { rank=same; pta; phys; ptb; }
+  pta -> phys [style=invis, weight=10, minlen=2];
+  phys -> ptb [style=invis, weight=10, minlen=2];
+
+  // Visible mapping arrows (straight, without affecting layout constraints)
+  pta -> phys [constraint=false, minlen=2];
+  phys -> ptb [dir=back, constraint=false, minlen=2];
+}

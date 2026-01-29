@@ -2,6 +2,7 @@
 #include "types.h"
 #include "spinlock.h"
 #include "proc/signal.h"
+#include "proc/mlfq.h"
 
 #if !defined(PROC_T)
 #define PROC_T
@@ -11,15 +12,6 @@ struct shm_attach {
   int shmid;       // shared memory ID
   void *vaddr;     // virtual address in process space
   int valid;       // 1 if this entry is in use
-};
-
-//claude: MLFQ进程信息结构（前向声明，完整定义在mlfq.h）
-struct mlfq_proc_info {
-  int level;              //claude: 当前所在的优先级级别（0-3）
-  uint64 time_slice;      //claude: 当前级别分配的时间片大小
-  uint64 ticks_used;      //claude: 在当前级别已使用的时间片
-  uint64 total_ticks;     //claude: 进程总运行时间（用于统计）
-  int voluntary_yield;    //claude: 是否主动让出CPU（I/O等待）
 };
 
 

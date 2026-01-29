@@ -21,9 +21,9 @@ digraph SchedulerEvolution {
     height=0.95
   ];
 
-  v1 [label="Version 1: 轮转调度\n(Round-Robin)"];
-  v2 [label="Version 2: 优先级调度\n(Priority Scheduling)", fillcolor="#d8f1ef"];
-  v3 [label="Version 3: 优先级队列调度\n(Priority Queue Scheduling)", fillcolor="#d8f1ef"];
+  v1 [label="Version 1: 轮转调度"];
+  v2 [label="Version 2: 优先级调度", fillcolor="#d8f1ef"];
+  v3 [label="Version 3: 优先级队列调度", fillcolor="#d8f1ef"];
 
   v1 -> v2;
   v2 -> v3;

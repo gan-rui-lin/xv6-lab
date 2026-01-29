@@ -6,11 +6,17 @@
 
 演示视频的分享链接在[此处](https://pan.baidu.com/s/1KLQgivU_ztO14eKqb95Z9w?pwd=ruos)。
 
+**重要**：本项目的决赛文档是[docs/RUOS决赛文档.pdf](docs/RUOS决赛文档.pdf) 。
+
 ## 项目架构
 
-RUOS 的整体架构如下所示：
+RUOS 初赛的整体架构如下所示：
 
 ![RUOS 架构图](./img/architecture.png)
+
+RUOS 决赛的整体架构如下所示：
+
+![RUOS 决赛架构图](docs/final-architecture.jpg)
 
 ## 项目特性
 

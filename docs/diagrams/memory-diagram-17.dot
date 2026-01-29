@@ -3,8 +3,9 @@ digraph Diagram {
     rankdir=TB,
     bgcolor="transparent",
     pad="0.25",
-    nodesep="0.50",
-    ranksep="0.60"
+    nodesep="0.80",
+    ranksep="0.60",
+    splines=polyline
   ];
   edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
   node [
@@ -13,32 +14,54 @@ digraph Diagram {
     fillcolor="#bfe6e3",
     color="#2f8f8a",
     fontcolor="#0f172a",
-    fontname="Noto Sans CJK SC",
+    fontname="Microsoft YaHei",
     fontsize=12,
     margin="0.22,0.16"
   ];
-  step1 [label="进程写入 COW 页\n→ Store Page Fault"];
+
+  // 顶部节点（居中）
+  step1 [label="进程写入 COW 页\n Store Page Fault"];
   step2 [label="cow_alloc(va)"];
   step3 [label="读取物理页引用计数\nrefcnt = kref_get(PA)"];
-
   d1 [shape=diamond, margin="0.16,0.10", label="refcnt == 1 ?"];
 
-  yes1 [label="直接升级权限\n清除 PTE_COW\n设置 PTE_W (可写)"];
+  // 左侧分支（是）
+  yes1 [label="直接升级权限\n清除 PTE_COW\n设置 PTE_W (可写)", fixedsize=true, width=2.8, height=1.0];
 
-  no1 [label="分配新页 new = kalloc()"];
-  no2 [label="memmove(new, PA, PGSIZE)"];
-  no3 [label="更新 PTE 指向 new\n清除 PTE_COW\n设置 PTE_W (可写)"];
-  no4 [label="kref_dec(PA)\n(旧页引用计数--)"];
+  // 右侧分支（否）
+  no1 [label="分配新页 new = kalloc()", fixedsize=true, width=2.8, height=1.0];
+  no2 [label="memmove(new, PA, PGSIZE)", fixedsize=true, width=2.8, height=0.85];
+  no3 [label="更新 PTE 指向 new\n清除 PTE_COW\n设置 PTE_W (可写)", fixedsize=true, width=2.8, height=1.0];
+  no4 [label="kref_dec(PA)\n(旧页引用计数--)", fixedsize=true, width=2.8, height=0.85];
 
+  // 左侧占位节点（与右侧对齐）
+  pad2 [label="", style=invis, fixedsize=true, width=2.8, height=0.85];
+  pad3 [label="", style=invis, fixedsize=true, width=2.8, height=1.0];
+  pad4 [label="", style=invis, fixedsize=true, width=2.8, height=0.85];
+
+  // 底部节点（居中）
   step9 [label="返回用户态继续执行"];
 
+  // 主流程（居中）
   step1 -> step2 -> step3 -> d1;
+
+  // 分支边（斜向）
   d1 -> yes1 [label="是"];
   d1 -> no1  [label="否"];
 
-  no1 -> no2 -> no3 -> no4;
-  yes1 -> step9;
-  no4  -> step9;
+  // 左侧占位连接
+  yes1 -> pad2 -> pad3 -> pad4 [style=invis];
 
+  // 右侧分支连接
+  no1 -> no2 -> no3 -> no4;
+
+  // 汇合到底部（斜向）
+  yes1 -> step9;
+  no4 -> step9;
+
+  // 强制同一层对齐
   { rank=same; yes1; no1; }
+  { rank=same; pad2; no2; }
+  { rank=same; pad3; no3; }
+  { rank=same; pad4; no4; }
 }

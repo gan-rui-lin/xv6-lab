@@ -1,0 +1,45 @@
+
+digraph MsgQueueFlow {
+  graph [
+    fontname="Helvetica",
+    rankdir=TB,
+    bgcolor="transparent",
+    splines=spline,
+    nodesep=0.5,
+    ranksep=0.6
+  ];
+  node  [
+    fontname="Helvetica",
+    shape=box,
+    style="rounded,filled",
+    color="#4FA9B8",
+    fillcolor="#DFF3F7",
+    penwidth=1.2
+  ];
+  edge  [
+    arrowsize=0.9,
+    penwidth=1.2,
+    color="#2C6FAE",
+    labeldistance=1.2,
+    labelfloat=true,
+    fontsize=10
+  ];
+
+  Send [label="msgsnd\n(copyin + enqueue)"];
+  Recv [label="msgrcv\n(dequeue + copyout)"];
+  Q [label="Kernel Queue\n(head/tail)", fillcolor="#D7EBF1"];
+  WaitS [label="sleep(send_chan)", fillcolor="#EEF8FB"];
+  WaitR [label="sleep(recv_chan)", fillcolor="#EEF8FB"];
+
+  Send -> Q [label="append", minlen=1];
+  Q -> Recv [label="match type", minlen=1];
+
+  edge [color="#2B8A3E", style=dashed];
+  Send -> WaitS [label="full & !NOWAIT", constraint=false, minlen=2];
+  Recv -> WaitR [label="empty & !NOWAIT", constraint=false, minlen=2];
+  WaitS -> Send [label="wakeup", constraint=false, minlen=2];
+  WaitR -> Recv [label="wakeup", constraint=false, minlen=2];
+
+  { rank=same; WaitS; WaitR; }
+  WaitS -> WaitR [style=invis];
+}

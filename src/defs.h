@@ -13,6 +13,7 @@
 #endif
 
 struct buf;
+struct msqid_ds;  //claude: 消息队列统计结构的前置声明（定义在 msgqueue.h 中）
 struct context;
 struct file;
 struct inode;
@@ -138,6 +139,13 @@ uint64          shm_at(int, uint64, int);
 int             shm_dt(uint64);
 int             shm_ctl(int, int, uint64);
 void            shm_cleanup_proc(struct proc*);
+
+//claude: msgqueue.c - System V 消息队列
+void            msg_init(void);                       //claude: 消息队列子系统初始化
+int             msgget(int, int);                     //claude: 创建或访问消息队列（key, msgflg）
+int             msgsnd(int, const void*, uint, int);  //claude: 向队列发送消息（msqid, msgp, msgsz, msgflg）
+int             msgrcv(int, void*, uint, long, int);  //claude: 从队列接收消息（msqid, msgp, msgsz, msgtyp, msgflg）
+int             msgctl(int, int, struct msqid_ds*);   //claude: 消息队列控制操作（msqid, cmd, buf）
 uint64          sys_shmget(void);
 uint64          sys_shmat(void);
 uint64          sys_shmdt(void);

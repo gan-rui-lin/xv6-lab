@@ -335,7 +335,7 @@ exec(char *path, char **argv, char **envp)
   oldpagetable = p->pagetable;
   p->pagetable = pagetable;
   p->sz = sz;
-  printf("[exec] %s: sz=%p entry=%p (interp=%d interp_entry=%p)\n",
+  log_debug("[exec] %s: sz=%p entry=%p (interp=%d interp_entry=%p)\n",
          path, sz, elf.entry, have_interp, interp_entry);
 
   // Create VMA for a large address range to handle lazy page faults.
@@ -348,7 +348,7 @@ exec(char *path, char **argv, char **envp)
     vma_end = sz;
   if (vma_add(p, 0, vma_end, PROT_READ | PROT_WRITE | PROT_EXEC,
               MAP_PRIVATE | MAP_ANONYMOUS, 0, 0, sz) < 0) {
-    printf("[exec] Warning: failed to create VMA for address space\n");
+    log_error("[exec] Warning: failed to create VMA for address space\n");
   }
 
   // 如果是动态链接，先跳转到解释器入口，解释器负责加载主程序。

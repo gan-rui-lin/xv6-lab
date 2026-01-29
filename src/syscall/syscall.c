@@ -191,6 +191,11 @@ extern uint64 sys_sbrk(void);
 extern uint64 sys_setpriority(void);
 extern uint64 sys_getpriority(void);
 extern uint64 sys_set_robust_list(void);
+//claude: System V 消息队列系统调用
+extern uint64 sys_msgget(void);      //claude: 创建或访问消息队列
+extern uint64 sys_msgsnd(void);      //claude: 发送消息到队列
+extern uint64 sys_msgrcv(void);      //claude: 从队列接收消息
+extern uint64 sys_msgctl(void);      //claude: 消息队列控制操作
 extern uint64 sys_shmget(void);
 extern uint64 sys_shmat(void);
 extern uint64 sys_shmdt(void);
@@ -281,6 +286,11 @@ static uint64 (*syscalls[])(void) = {
     [SYS_accept] sys_accept,
     [SYS_xv6_sbrk] sys_sbrk,
     [SYS_set_robust_list] sys_set_robust_list,
+    //claude: System V 消息队列系统调用注册
+    [SYS_msgget] sys_msgget,     //claude: 186 - 消息队列创建/访问
+    [SYS_msgsnd] sys_msgsnd,     //claude: 187 - 消息发送
+    [SYS_msgrcv] sys_msgrcv,     //claude: 188 - 消息接收
+    [SYS_msgctl] sys_msgctl,     //claude: 189 - 消息队列控制
     [SYS_shmget] sys_shmget,
     [SYS_shmat] sys_shmat,
     [SYS_shmdt] sys_shmdt,
@@ -772,7 +782,7 @@ void syscall_handler(void)
   }
   else
   {
-    printf("%d %s: unimplemented sys call %s\n",
+    log_error("%d %s: unimplemented sys call %s\n",
            p->pid, p->name, sysname(num));
     p->trapframe->a0 = -1;
   }

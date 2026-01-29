@@ -95,4 +95,11 @@ void free(void*);
 int atoi(const char*);
 int memcmp(const void *, const void *, uint);
 void *memcpy(void *, const void *, uint);
+
+// System V shared memory
+int shmget(int key, uint64 size, int flags);
+void* shmat(int shmid, void* addr, int flags);
+int shmdt(void* addr);
+int shmctl(int shmid, int cmd, void* buf);
+
 #endif // _USER_H_

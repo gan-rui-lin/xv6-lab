@@ -24,6 +24,8 @@ void main()
         // printf("xv6 is booting on hart %d\n", cpuid());
 
         kinit(); // 物理页面分配器初始化
+        shm_init(); // 共享内存子系统初始化
+        mlfq_init(); //claude: 初始化MLFQ调度器
 
         log_info("xv6 is booting!\n");
         

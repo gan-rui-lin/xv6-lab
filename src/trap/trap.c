@@ -6,6 +6,7 @@
 #include "defs.h"
 #include "proc.h"
 #include "mm/vma.h"
+#include "proc/mlfq.h"  //claude: MLFQ调度算法
 
 #ifdef TICKER_DEBUG
 volatile static int ticker = 1; // 用于调试的 ticker 变量
@@ -370,6 +371,13 @@ clockintr()
   ticks++;
   wakeup(&ticks);
   release(&tickslock);
+
+  //claude: MLFQ调度：在时钟中断中更新当前进程的时间片
+  //claude: 如果进程用完时间片，mlfq_tick会触发降级
+  struct proc* p = myproc();
+  if(p != 0 && p->state == RUNNING){
+    mlfq_tick(p);  //claude: 更新MLFQ时间片统计和可能的降级
+  }
 
   // Schedule next tick.
   sbi_set_timer(r_time() + TICK_CYCLES);

@@ -131,6 +131,30 @@ void            kref_inc(uint64);
 int             kref_dec(uint64);
 int             kref_get(uint64);
 
+// shm.c - System V shared memory
+void            shm_init(void);
+int             shm_get(int, uint64, int);
+uint64          shm_at(int, uint64, int);
+int             shm_dt(uint64);
+int             shm_ctl(int, int, uint64);
+void            shm_cleanup_proc(struct proc*);
+uint64          sys_shmget(void);
+uint64          sys_shmat(void);
+uint64          sys_shmdt(void);
+uint64          sys_shmctl(void);
+
+// mlfq.c - Multi-Level Feedback Queue scheduler
+void            mlfq_init(void);
+void            mlfq_add_process(struct proc*);
+void            mlfq_remove_process(struct proc*);
+struct proc*    mlfq_pick_next(void);
+void            mlfq_tick(struct proc*);
+void            mlfq_yield(struct proc*);
+void            mlfq_timeslice_expired(struct proc*);
+void            mlfq_boost_priority(void);
+uint64          mlfq_get_timeslice(int);
+void            mlfq_print_stats(void);
+
 // proc.c
 int             cpuid(void);
 void            exit(int);

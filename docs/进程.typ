@@ -35,154 +35,194 @@
 4. 如果进程用完时间片，降低其优先级
 5. 经过一段时间后，将所有进程提升到最高优先级（防止饥饿）
 
-=== 优先级调度实现（当前版本）
+=== MLFQ调度实现
+
+我们实现了完整的多级反馈队列（MLFQ）调度算法，相比简单优先级调度具有显著优势：能够自动识别进程类型（交互式/CPU密集型）并动态调整优先级，无需预先知道进程行为特征。
+
+==== 配置参数
+
+优先级级别与时间片配置（src/proc/mlfq.h）：
+
+```c
+#define MLFQ_LEVELS 4              // 4个优先级队列（Level 0最高）
+#define MLFQ_TIME_SLICE_0 2        // Level 0: 2 ticks（交互式）
+#define MLFQ_TIME_SLICE_1 4        // Level 1: 4 ticks
+#define MLFQ_TIME_SLICE_2 8        // Level 2: 8 ticks
+#define MLFQ_TIME_SLICE_3 16       // Level 3: 16 ticks（CPU密集）
+#define MLFQ_BOOST_INTERVAL 100    // 每100 ticks提升所有进程
+```
+
+设计思想：
+- 高优先级使用短时间片：快速响应交互式任务
+- 低优先级使用长时间片：减少CPU密集型任务的上下文切换开销
+- 时间片呈指数增长：平衡响应性与吞吐量
 
 ==== 数据结构设计
 
-优先级定义：
-```c
-#define PRIO_MIN      1     // 最高优先级
-#define PRIO_MAX      40    // 最低优先级
-#define PRIO_DEFAULT  20    // 默认优先级
-```
+进程MLFQ调度信息（src/proc/proc.h）：
 
-进程控制块扩展 `priority` 字段：
 ```c
-struct proc {
-  struct spinlock lock;       // 保护进程状态的锁
-  int pid;                    // 进程ID
-  int killed;                 // 被杀死标志
-  enum procstate state;       // 进程状态
-  void *chan;                 // 睡眠通道
-  int xstate;                 // 退出状态
-  int priority;               // 进程优先级（1-40，数值越小优先级越高）
-
-  struct proc *parent;        // 父进程指针
-  ... // 其他字段
+struct mlfq_proc_info {
+  int level;              // 当前所在优先级级别（0-3）
+  uint64 time_slice;      // 当前级别分配的时间片大小
+  uint64 ticks_used;      // 在当前级别已使用的时间片
+  uint64 total_ticks;     // 进程总运行时间（统计用）
+  int voluntary_yield;    // 是否主动让出CPU（I/O等待标志）
 };
-```
-
-==== 调度器核心算法
-
-在多级反馈队列的基础上，我们实现了一个简化版本的优先级调度算法，具体如下：
-
-+ 遍历所有进程，找到优先级最高的RUNNABLE进程
-
-+ 如果有多个同优先级进程，按进程表顺序轮转调度
-
-+ 保存调度器上下文，恢复进程上下文，实现进程切换
-
-算法特点：
-- 时间复杂度：O(n)，n为进程总数
-- 抢占式调度：配合时钟中断实现时间片轮转
-- 优先级继承：fork时子进程继承父进程优先级
-- 公平性：同优先级进程按进程表顺序轮转
-
-==== 时间片与抢占机制
-
-RuOS 的进程调度算法是抢占式的，利用时钟中断的机制实现抢占：
-
-时钟中断驱动：
-
-```c
-// 用户态陷阱处理
-void usertrap(void) {
-  // ... 中断处理 ...
-
-  // 检测时钟中断（which_dev == 2 表示定时器中断）
-  if(which_dev == 2){
-    yield();  // 主动让出CPU
-  }
-
-  // ... 信号处理 ...
-}
-```
-
-主动让出CPU：
-
-```c
-void yield(void) {
-  struct proc *p = myproc();
-  acquire(&p->lock);
-  p->state = RUNNABLE;  // 设置为可运行状态
-  sched();              // 调用调度器
-  release(&p->lock);
-}
-```
-
-
-=== 优先级队列调度（设计版本）
-
-虽然当前实现采用优先级调度，但我们已完成优先级队列调度的详细设计，可在后续版本中实现。
-
-==== 数据结构设计
-
-```c
-#define NPRIO  40  // 优先级队列数量
 
 struct proc {
   ...
-  int priority;       // 进程优先级
-  struct proc *next;  // 优先级队列中的下一个进程
+  struct mlfq_proc_info mlfq;  // MLFQ调度状态
   ...
 };
-
-// 全局运行队列
-struct {
-  struct spinlock lock;      // 保护队列的锁
-  struct proc *head[NPRIO];  // 每个优先级队列的头指针
-  struct proc *tail[NPRIO];  // 每个优先级队列的尾指针
-} runqueue;
 ```
 
-==== 队列操作
-
-入队操作（O(1)复杂度）：
+全局调度器状态（src/proc/mlfq.h）：
 
 ```c
-static void enqueue(struct proc *p)
-{
-  int prio = p->priority - 1;  // 优先级1对应索引0
-  if(prio < 0) prio = 0;
-  if(prio >= NPRIO) prio = NPRIO - 1;
-
-  p->next = 0;
-  if(runqueue.tail[prio] != 0) {
-    runqueue.tail[prio]->next = p;
-  } else {
-    runqueue.head[prio] = p;
-  }
-  runqueue.tail[prio] = p;
-}
+struct mlfq_scheduler {
+  uint64 boost_timer;               // 距离上次提升的ticks数
+  uint64 total_switches;            // 总上下文切换次数
+  uint64 level_counts[MLFQ_LEVELS]; // 各级别进程数统计
+};
 ```
 
-出队操作（O(k)复杂度，k为优先级数）：
+==== 核心调度逻辑
+
+调度器主循环（src/proc/proc.c:329-375）：
 
 ```c
-static struct proc* dequeue(void)
-{
+void scheduler(void) {
   struct proc *p;
+  struct cpu *c = mycpu();
 
-  // 从最高优先级开始查找（优先级1 = 索引0）
-  for(int prio = 0; prio < NPRIO; prio++) {
-    if(runqueue.head[prio] != 0) {
-      p = runqueue.head[prio];
-      runqueue.head[prio] = p->next;
-      if(runqueue.head[prio] == 0) {
-        runqueue.tail[prio] = 0;
+  c->proc = 0;
+  for(;;) {
+    intr_on();
+
+    // 使用MLFQ算法选择下一个进程
+    // 从高优先级队列到低优先级队列依次查找RUNNABLE进程
+    p = mlfq_pick_next();
+
+    if(p != 0) {
+      acquire(&p->lock);
+      if(p->state == RUNNABLE) {
+        p->state = RUNNING;
+        c->proc = p;
+        swtch(&c->context, &p->context);  // 上下文切换
+        c->proc = 0;
       }
-      p->next = 0;
-      return p;
+      release(&p->lock);
     }
   }
-  return 0;
 }
 ```
 
-优势分析：
-- 入队：O(1)
-- 出队：O(k)，实际接近O(1)（高优先级队列通常非空）
-- 同优先级进程FIFO调度，保证公平性
+选择下一个进程（src/proc/mlfq.c）：
+
++ 从Level 0（最高优先级）到Level 3依次扫描
++ 在每个级别内使用轮转调度（Round-Robin）
++ 返回第一个找到的RUNNABLE进程
+
+==== 自动优先级调整
+
+MLFQ的核心创新在于根据进程行为自动调整优先级：
+
+时钟中断处理（src/trap/trap.c:376-383）：
+
+```c
+void clockintr() {
+  acquire(&tickslock);
+  ticks++;
+  wakeup(&ticks);
+  release(&tickslock);
+
+  // MLFQ调度：更新当前进程的时间片统计
+  struct proc* p = myproc();
+  if(p != 0 && p->state == RUNNING) {
+    mlfq_tick(p);  // 可能触发降级
+  }
+
+  sbi_set_timer(r_time() + TICK_CYCLES);
+}
+```
+
+优先级调整规则：
+
+1. *用完时间片（CPU密集型）*：降低优先级
+
+调用`mlfq_timeslice_expired()`函数，将进程移动到下一级别（如Level 1→Level 2），分配更长的时间片。
+
+2. *主动让出CPU（I/O密集型）*：保持优先级
+
+进程调用`yield()`时，`mlfq_yield()`函数标记为主动让出，不降级。这确保交互式进程保持高优先级，获得快速响应。
+
+3. *周期性提升（防止饥饿）*：每100 ticks提升所有进程到Level 0
+
+`mlfq_boost_priority()`函数定期执行，给所有进程一个"新机会"，防止低优先级进程被永久忽视。
+
+==== 工作流程示例
+
+*场景1：交互式进程（如文本编辑器）*
+
++ 初始：Level 0，时间片2 ticks
++ 快速执行少量代码后等待用户输入
++ 调用`yield()`主动让出→保持Level 0
++ 用户输入后被唤醒，仍在Level 0
++ *结果*：始终保持高优先级，响应迅速
+
+*场景2：CPU密集型进程（如科学计算）*
+
++ 初始：Level 0，时间片2 ticks
++ 用完2 ticks→降级到Level 1（时间片4）
++ 用完4 ticks→降级到Level 2（时间片8）
++ 用完8 ticks→降级到Level 3（时间片16）
++ *结果*：稳定在Level 3，长时间片减少切换开销
+
+*场景3：防止饥饿*
+
++ 100 ticks后：所有进程提升到Level 0
++ 包括长期运行在Level 3的进程
++ 根据新行为重新分类
++ *结果*：低优先级进程定期获得高优先级机会
+
+==== 性能特性
+
+与简单优先级调度对比：
+
+#figure(
+  table(
+    align: center,
+    columns: (auto, auto, auto),
+    row-gutter: auto,
+    inset: 10pt,
+    [特性],
+    [简单优先级调度],
+    [MLFQ调度],
+    [优先级调整],
+    [静态/手动],
+    [动态/自动],
+    [交互式进程],
+    [需预先设置高优先级],
+    [自动识别并优先],
+    [CPU密集型],
+    [可能长期占用CPU],
+    [自动降级，公平分配],
+    [饥饿问题],
+    [低优先级可能饥饿],
+    [周期性提升防止饥饿],
+    [时间片],
+    [固定],
+    [根据优先级动态调整],
+  ),
+  caption: [MLFQ vs 简单优先级调度]
+)
+
+算法优势：
+- *自适应性*：无需预知进程行为，自动分类优化
+- *响应性*：交互式进程获得快速响应（短时间片+高优先级）
+- *吞吐量*：CPU密集型使用长时间片，减少切换开销
+- *公平性*：周期性提升机制确保所有进程获得执行机会
 
 == 负载均衡机制
 
@@ -671,18 +711,17 @@ $
 - fork时延迟物理页复制
 - 大幅减少进程创建开销
 
+==== 已实现的创新优化
+
+1. *MLFQ多级反馈队列调度*（已实现）
+- 自动识别交互式与CPU密集型进程
+- 动态优先级调整：用完时间片降级，主动让出保持优先级
+- 周期性提升机制防止饥饿（每100 ticks）
+- 4级队列，时间片呈指数增长（2/4/8/16 ticks）
+
 ==== 可进一步优化的方向
 
-1. 优先级队列实现（设计已完成）
-- 从O(n)降低到O(k)，k为优先级数
-- 同优先级进程FIFO调度
-
-2. 动态优先级调整
-- I/O密集型进程提升优先级
-- CPU密集型进程降低优先级
-- 实现真正的MLFQ
-
-3. CPU亲和性
+1. CPU亲和性
 - 进程倾向于在上次运行的CPU上执行
 - 减少缓存失效，提升性能
 

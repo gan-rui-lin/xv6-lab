@@ -1,0 +1,23 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  b1 [label="0x80000000 KERNBASE\l内核代码段 (.text)                                       │  只读\l内核只读数据 (.rodata)                                   │  只读\l内核数据段 (.data)                                       │  读写\lBSS段（未初始化全局变量）                                 │  读写\l内核堆（静态分配）：\l- buddy_pages[32768]      (约2MB)\l- slab_page_pool[32768]   (约4MB)\l- slab_caches[7]\lend ← kmem.managed_start (Buddy管理起始)\l可动态分配物理页（由Buddy管理）：\l部分被Slab占用：\l┌───────────────────────────────────┐\l│ Page X: [obj][obj][obj]...[obj]   │ slab32\l│ Page Y: [obj][obj]...[obj]        │ slab64\l│ Page Z: [obj][obj]...[obj]        │ slab128\l"];
+  b2 [label="Page A: 进程页表\lPage B-C: 大块kmalloc(8KB)\lPage D: 用户程序代码页\l"];
+  b1 -> b2;
+}

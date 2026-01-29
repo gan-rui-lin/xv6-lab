@@ -1,0 +1,39 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  step1 [label="进程A运行 (用户态)\l"];
+  step2 [label="| 时钟中断\l"];
+  step3 [label="usertrap() → yield() → sched()\l"];
+  step4 [label="| swtch(&p->context, &cpu->context)\l"];
+  step5 [label="scheduler() 主循环\l"];
+  step6 [label="| 选择进程B\l"];
+  step7 [label="swtch(&cpu->context, &p->context)\l"];
+  step8 [label="sched() → yield() → usertrap()\l"];
+  step9 [label="| 返回用户态\l"];
+  step10 [label="进程B运行 (用户态)\l"];
+  step1 -> step2;
+  step2 -> step3;
+  step3 -> step4;
+  step4 -> step5;
+  step5 -> step6;
+  step6 -> step7;
+  step7 -> step8;
+  step8 -> step9;
+  step9 -> step10;
+}

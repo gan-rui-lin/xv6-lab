@@ -1,0 +1,86 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60",
+    splines=ortho
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  start [label="用户态缺页异常\n(scause = Page Fault)"];
+  sc [shape=diamond, margin="0.16,0.10", label="scause 类型?"];
+
+  // 统一收敛节点（避免多条长回边）
+  handled [fillcolor="#d8f1ef", label="缺页已处理\n(建立映射/更新PTE)"];
+  ret_user [fillcolor="#d8f1ef", label="返回用户态继续执行"];
+  failed [fillcolor="#ffd6d6", color="#b42318", fontcolor="#7a1212", label="处理失败\n打印信息 + setkilled(p)"];
+
+  // ---------------- STORE ----------------
+  store0 [label="STORE Page Fault\nva = r_stval()"];
+  store_va [shape=diamond, margin="0.16,0.10", label="va < p->sz ?"];
+  store_zero [label="zero_page_alloc(pagetable, va)"];
+  store_zero_ok [shape=diamond, margin="0.16,0.10", label="返回 0 ?"];
+  store_cow [label="cow_alloc(pagetable, va)"];
+  store_cow_ok [shape=diamond, margin="0.16,0.10", label="返回 0 ?"];
+  store_vma [label="vma_handle_fault(p, va, WRITE)"];
+  store_vma_ok [shape=diamond, margin="0.16,0.10", label="返回 0 ?"];
+
+  // ---------------- LOAD ----------------
+  load0 [label="LOAD Page Fault\nva = r_stval()"];
+  load_va [shape=diamond, margin="0.16,0.10", label="va < p->sz ?"];
+  load_vma [label="vma_handle_fault(p, va, READ)"];
+  load_ok [shape=diamond, margin="0.16,0.10", label="返回 0 ?"];
+
+  // ---------------- INST ----------------
+  inst0 [label="INST Page Fault\nva = r_stval()"];
+  inst_vma [label="fault = vma_handle_fault(p, va, EXEC)\n(此处不要求 va < p->sz)"];
+  inst_ok [shape=diamond, margin="0.16,0.10", label="fault == 0 ?"];
+
+  // 顶层分派
+  start -> sc;
+  sc -> store0 [xlabel="STORE"];
+  sc -> load0  [xlabel="LOAD"];
+  sc -> inst0  [xlabel="INST"];
+
+  // STORE: va 检查 -> 依次尝试 zero/COW/mmap
+  store0 -> store_va;
+  store_va -> store_zero [xlabel="是"];
+  store_va -> failed [xlabel="否"];
+  store_zero -> store_zero_ok;
+  store_zero_ok -> handled [xlabel="是"];
+  store_zero_ok -> store_cow [xlabel="否"];
+  store_cow -> store_cow_ok;
+  store_cow_ok -> handled [xlabel="是"];
+  store_cow_ok -> store_vma [xlabel="否"];
+  store_vma -> store_vma_ok;
+  store_vma_ok -> handled [xlabel="是"];
+  store_vma_ok -> failed [xlabel="否"];
+
+  // LOAD: va 检查 -> mmap(read)
+  load0 -> load_va;
+  load_va -> load_vma [xlabel="是"];
+  load_va -> failed [xlabel="否"];
+  load_vma -> load_ok;
+  load_ok -> handled [xlabel="是"];
+  load_ok -> failed [xlabel="否"];
+
+  // INST: 直接交给 VMA 处理 exec lazy
+  inst0 -> inst_vma -> inst_ok;
+  inst_ok -> handled [xlabel="是"];
+  inst_ok -> failed [xlabel="否"];
+
+  handled -> ret_user;
+
+  { rank=same; store0; load0; inst0; }
+}

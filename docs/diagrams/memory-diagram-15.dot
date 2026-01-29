@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="63    54 53       28 27       19 18       10 9  8 7 6 5 4 3 2 1 0\l┌────────┬───────────┬───────────┬───────────┬─────┬─┬─┬─┬─┬─┬─┬─┬─┐\l│Reserved│   PPN[2]  │   PPN[1]  │   PPN[0]  │  RSW│D│A│G│U│X│W│R│V│\l└────────┴───────────┴───────────┴───────────┴─────┴─┴─┴─┴─┴─┴─┴─┴─┘\l                                                     ↑\l                                                     │\l                                                PTE_COW (bit 8)\l                                                使用RSW保留位\l"];
+}

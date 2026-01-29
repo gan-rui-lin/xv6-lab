@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="用户调用sbrk(n)扩展堆：\l    ↓\l内核调用uvmalloc_lazy\l    ↓\l创建页表项，但不分配物理页\l    ↓\l所有新页映射到零页 + PTE_COW标志\l    ↓\l立即返回（极快！）\l\l用户首次读取新内存：\l    ↓\l读取零页（合法，返回0）\l    ↓\l无page fault，无开销\l\l用户首次写入新内存：\l    ↓\l触发Store Page Fault\l    ↓\lzero_page_alloc分配真正的物理页\l    ↓\l清零并更新映射\l    ↓\l继续执行\l"];
+}

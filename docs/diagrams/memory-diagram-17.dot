@@ -1,0 +1,44 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  step1 [label="进程写入 COW 页\n→ Store Page Fault"];
+  step2 [label="cow_alloc(va)"];
+  step3 [label="读取物理页引用计数\nrefcnt = kref_get(PA)"];
+
+  d1 [shape=diamond, margin="0.16,0.10", label="refcnt == 1 ?"];
+
+  yes1 [label="直接升级权限\n清除 PTE_COW\n设置 PTE_W (可写)"];
+
+  no1 [label="分配新页 new = kalloc()"];
+  no2 [label="memmove(new, PA, PGSIZE)"];
+  no3 [label="更新 PTE 指向 new\n清除 PTE_COW\n设置 PTE_W (可写)"];
+  no4 [label="kref_dec(PA)\n(旧页引用计数--)"];
+
+  step9 [label="返回用户态继续执行"];
+
+  step1 -> step2 -> step3 -> d1;
+  d1 -> yes1 [label="是"];
+  d1 -> no1  [label="否"];
+
+  no1 -> no2 -> no3 -> no4;
+  yes1 -> step9;
+  no4  -> step9;
+
+  { rank=same; yes1; no1; }
+}

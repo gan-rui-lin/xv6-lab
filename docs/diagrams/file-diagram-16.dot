@@ -1,0 +1,25 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  b1 [label="xv6缓冲区缓存（1024B块）\l- 30个缓冲区\l- LRU替换\l- 并发访问保护\l"];
+  b2 [label="FAT32/EXT4扇区读写\l- read_sector512()\l- write_sector512()\l- 2:1映射（2扇区=1块）\l"];
+  b3 [label="xv6fs块读写\l- bread/bwrite直接使用\l- 1:1映射\l"];
+  b1 -> b2;
+  b2 -> b3;
+}

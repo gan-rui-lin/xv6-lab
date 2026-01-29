@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="lwext4请求：读取扇区10-11（共2个扇区，1024字节）\l\l扇区10 → xv6块5, 偏移0\l扇区11 → xv6块5, 偏移512\l\l┌─────────────────────────┐\l│  xv6 Block 5 (1024B)    │\l│ ┌──────────┬──────────┐ │\l│ │扇区10    │扇区11    │ │\l│ │0-511     │512-1023  │ │\l│ └──────────┴──────────┘ │\l└─────────────────────────┘\l\l一次bread读取整个块，两次memmove提取512字节\l"];
+}

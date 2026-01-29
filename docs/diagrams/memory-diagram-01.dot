@@ -1,0 +1,34 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  root [label="内存请求"];
+  small [label="小对象 (≤ 2KB)"];
+  large [label="大对象 (> 2KB)"];
+  slab [label="Slab 分配器\n(对象级分配)"];
+  buddy [label="Buddy 分配器\n(页级分配)"];
+  pool [label="物理内存池"];
+  root -> small;
+  root -> large;
+  small -> slab;
+  large -> buddy;
+  slab -> pool;
+  buddy -> pool;
+  { rank=same; small; large; }
+  { rank=same; slab; buddy; }
+}

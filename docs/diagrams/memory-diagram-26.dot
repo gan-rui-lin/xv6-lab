@@ -1,0 +1,25 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  step1 [label="应用层：\\n├─ kalloc/kfree (传统接口，兼容性)\\n└─ kmalloc/kmfree (现代接口，智能分配)\l"];
+  step2 [label="中间层：\\n├─ Slab Allocator (小对象，高效)\\n└─ Large Object Handler (大对象，带header)\l"];
+  step3 [label="底层：\\n└─ Buddy System (物理页，伙伴合并)\l"];
+  step1 -> step2;
+  step2 -> step3;
+}

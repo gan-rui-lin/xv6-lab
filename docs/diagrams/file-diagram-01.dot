@@ -1,0 +1,52 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+
+  title [fillcolor="#d8f1ef", fontsize=13, label="多文件系统架构（VFS 分发）"];
+
+  app [label="应用层（系统调用）\nopen / read / write / stat / getdents ..."];
+  vfs [label="VFS 抽象层（统一接口）\nnamei / readi / writei / dirlookup ..."];
+
+  subgraph cluster_fs {
+    label="文件系统实现层";
+    fontname="Noto Sans CJK SC";
+    fontsize=10;
+    color="#2f8f8a";
+    style="rounded,dashed";
+
+    node [fillcolor="#bfe6e3", fontsize=12];
+    xv6fs [label="xv6fs\n（原生）"];
+    fat32 [label="FAT32\n（Windows/Linux）"];
+    ext4 [label="EXT4\n（Linux，lwext4）"];
+
+    { rank=same; xv6fs; fat32; ext4; }
+  }
+
+  bio [label="块缓冲区层（bio.c）\nLRU 缓存 / 并发控制 / 磁盘 I/O"];
+  drv [label="VirtIO 磁盘驱动"];
+
+  title -> app -> vfs;
+  vfs -> xv6fs;
+  vfs -> fat32;
+  vfs -> ext4;
+  xv6fs -> bio;
+  fat32 -> bio;
+  ext4  -> bio;
+  bio -> drv;
+}

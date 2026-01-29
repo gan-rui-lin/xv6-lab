@@ -1,0 +1,46 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.45",
+    ranksep="0.65"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  // 主流程（左列）
+  start [label="释放 page0\n(1页, order=0)"];
+  d1 [shape=diamond, margin="0.16,0.10", label="伙伴 page1\n空闲且同阶?"];
+  merge1 [label="移除 page1\n合并为 page0(2页)\norder: 0 → 1"];
+  d2 [shape=diamond, margin="0.16,0.10", label="伙伴 page2(2页)\n空闲且同阶?"];
+  insert [label="将 page0(2页)\n插入 Order 1 空闲链表"];
+
+  start -> d1;
+  d1 -> merge1 [label="是", fontname="Noto Sans CJK SC", fontsize=10, fontcolor="#0f172a"];
+  merge1 -> d2;
+  d2 -> insert [label="否", fontname="Noto Sans CJK SC", fontsize=10, fontcolor="#0f172a"];
+
+  // 状态快照（右列）
+  node [shape=box, fillcolor="#d8f1ef", fontsize=10, margin="0.18,0.12"];
+  s0 [label="空闲链表 (初始)\nOrder 0: [page1(1页)] → NULL\nOrder 1: [page4(2页)] → NULL"];
+  s1 [label="空闲链表 (合并后)\nOrder 0: NULL\nOrder 1: [page4(2页)] → NULL"];
+  s2 [label="空闲链表 (结束)\nOrder 1: [page0(2页)] → [page4(2页)] → NULL"];
+
+  edge [style=dashed, arrowhead=none, color="#2f8f8a", penwidth=1.0];
+  start -> s0;
+  merge1 -> s1;
+  insert -> s2;
+
+  { rank=same; start; s0; }
+  { rank=same; merge1; s1; }
+  { rank=same; insert; s2; }
+}

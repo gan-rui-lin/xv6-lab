@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="通用COW:\l写入PA → cow_alloc → 分配新页 → memmove(PA, new) → 更新PTE\l                                 ↑ 4KB内存拷贝\l\l零页COW:\l写入ZEROPAGE → zero_page_alloc → 分配新页 → memset(0) → 更新PTE\l                                              ↑ 只需清零\l"];
+}

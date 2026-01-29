@@ -1,0 +1,40 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.45",
+    ranksep="0.65"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  // 主流程（左列）
+  req [label="内存请求\n分配 1 页 (order=0)"];
+  find [label="向上查找空闲块\n在 Order 2 找到 page0(4页)"];
+  split1 [label="分裂 1 次 (2 → 1)\npage0(4页) → page0(2页) + page4(2页)"];
+  split2 [label="分裂 1 次 (1 → 0)\npage0(2页) → page0(1页) + page1(1页)"];
+  ret [label="返回 page0(1页)\n(满足 order=0)"];
+
+  req -> find -> split1 -> split2 -> ret;
+
+  // 状态快照（右列，作为注释/旁注）
+  node [fillcolor="#d8f1ef", fontsize=10, margin="0.18,0.12"];
+  s0 [label="空闲链表 (初始)\nOrder 0: NULL\nOrder 1: NULL\nOrder 2: [page0(4页)] → NULL"];
+  s1 [label="空闲链表 (分裂后)\nOrder 0: [page1(1页)] → NULL\nOrder 1: [page4(2页)] → NULL\nOrder 2: NULL"];
+
+  edge [style=dashed, arrowhead=none, color="#2f8f8a", penwidth=1.0];
+  find -> s0;
+  split2 -> s1;
+
+  { rank=same; find; s0; }
+  { rank=same; split2; s1; }
+}

@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="src/fs/\l├── fs.h              # VFS核心数据结构定义\l├── fs.c              # xv6fs实现 + VFS分发逻辑\l├── file.h            # 统一inode和文件描述符结构\l├── file.c            # 文件操作接口（readi/writei）\l├── fat32.c           # FAT32完整实现（1200+行）\l├── fat32.h           # FAT32数据结构定义\l├── ext4fs.c          # EXT4适配层（700+行）\l├── ext4fs.h          # EXT4接口定义\l├── bio.c             # 块缓冲区缓存\l├── log.c             # 事务日志系统\l├── procfs.c          # ProcFS虚拟文件系统\l└── lwext4/           # EXT4外部库\l"];
+}

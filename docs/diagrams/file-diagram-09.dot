@@ -1,0 +1,29 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  b1 [label="遍历簇链：2 → 3 → 5\l"];
+  b2 [label="簇2的每个扇区\l"];
+  b3 [label="扇区中的每个32B项\l"];
+  b4 [label="attr=0x0F?\l"];
+  b5 [label="匹配comp?\l"];
+  b1 -> b2;
+  b2 -> b3;
+  b3 -> b4;
+  b4 -> b5;
+}

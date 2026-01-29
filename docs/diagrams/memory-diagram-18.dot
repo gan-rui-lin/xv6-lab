@@ -1,0 +1,27 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  step1 [label="Store Page Fault (scause=15)\l"];
+  step2 [label="获取va = r_stval()\l"];
+  step3 [label="检查va < p->sz (合法地址范围)\l"];
+  step4 [label="尝试zero_page_alloc → 成功？返回\\n↓ 失败\\n尝试cow_alloc → 成功？返回\\n↓ 失败\\n尝试vma_handle_fault → 成功？返回\\n↓ 失败\\n杀死进程（非法访问）\l"];
+  step1 -> step2;
+  step2 -> step3;
+  step3 -> step4;
+}

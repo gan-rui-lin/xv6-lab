@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="请求8000字节：\l  total = 8000 + 16 = 8016字节\l  需要 8192字节（2页，order=1）\l\l  内存布局：\l  ┌─────────────────────────────────────┐\l  │ Header(16B) │ 用户数据(8000B) │ 浪费(176B) │\l  └─────────────────────────────────────┘\l  0x1000        0x1010            0x3020  0x3000\l"];
+}

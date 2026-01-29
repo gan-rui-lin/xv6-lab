@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="值范围              含义\l─────────────────────────────────\l0x00000000         空闲簇\l0x00000002-0x0FFFFFEF  下一簇号\l0x0FFFFFF0-0x0FFFFFF6  保留\l0x0FFFFFF7         坏簇\l0x0FFFFFF8-0x0FFFFFFF  簇链结束标志（EOC）\l"];
+}

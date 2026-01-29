@@ -29,20 +29,6 @@ digraph stack_layout {
       <TR><TD BGCOLOR="#fffacd">argv[1] → Address of next env string</TD></TR>
       <TR><TD BGCOLOR="#fffacd">argv[0] → Address of first arg string</TD></TR>
 
-
-
-
-      <!-- 辅助向量区域：修正位置，移至此处 -->
-      <TR>
-        <TD BGCOLOR="#e6e6fa">Auxiliary Vector (auxv[]) <BR/>
-          <FONT POINT-SIZE="9">AT_PHDR (Program Header address)<BR/>
-          AT_PHENT (Size of program header entry)<BR/>
-          AT_PHNUM (Number of program headers)<BR/>
-          AT_ENTRY (Program entry point address)<BR/>
-          ...<BR/>
-          AT_NULL (End of vector)</FONT>
-        </TD>
-      </TR>
       <!-- 栈顶区域 -->
       <TR>
         <TD BGCOLOR="#f5f5f5">argc (Argument count, e.g., 3)</TD>

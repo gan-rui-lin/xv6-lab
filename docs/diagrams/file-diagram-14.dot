@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="目录包含3个文件：\l- \"file1.txt\" (8字符)\l- \"a.c\" (3字符)\l- \"very_long_filename.dat\" (22字符)\l\l输出布局（按8字节对齐）：\l┌─────────────────────────────────────┐\l│ 记录1 (32字节)                       │\l│ ino=100, off=1, reclen=32, type=8   │\l│ name=\"file1.txt\\0\" + 填充           │\l├─────────────────────────────────────┤\l│ 记录2 (24字节)                       │\l│ ino=101, off=2, reclen=24, type=8   │\l│ name=\"a.c\\0\" + 填充                 │\l├─────────────────────────────────────┤\l│ 记录3 (48字节)                       │\l│ ino=102, off=3, reclen=48, type=8   │\l│ name=\"very_long_filename.dat\\0\" +填充│\l└─────────────────────────────────────┘\l总计：104字节\l"];
+}

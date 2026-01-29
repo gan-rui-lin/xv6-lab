@@ -99,11 +99,11 @@ RuOS 通过了初赛的所有系统调用测试，初赛得分为 102/102:
 
 初赛架构图如 @ruos-architecture-diagram 所示：
 
-#figure(image("/assets/image.png"), caption: "RuOS 初赛架构图") <ruos-architecture-diagram>
+#figure(image("/assets/architecture.jpg"), caption: "RuOS 初赛架构图") <ruos-architecture-diagram>
 
-决赛架构图（草稿）如 @ruos-architecture-diagram-final 所示：
+决赛架构图如 @ruos-architecture-diagram-final 所示：
 
-#figure(image("final-architecture.png"), caption: "RuOS 决赛架构图（草稿）") <ruos-architecture-diagram-final>
+#figure(image("final-architecture.jpg"), caption: "RuOS 决赛架构图") <ruos-architecture-diagram-final>
 
 #include "进程.typ"
 
@@ -112,11 +112,11 @@ RuOS 通过了初赛的所有系统调用测试，初赛得分为 102/102:
 #include "文件.typ"
 = 进程间通信
 
-== 1 信号机制
+== 信号机制
 
 RuOS 实现了类 Linux 的信号子系统，支持 pending 信号、屏蔽字以及用户态信号处理函数。内核提供了 `rt_sigaction`、`rt_sigprocmask`、`rt_sigtimedwait`、`rt_sigreturn` 和 `kill_signal` 等系统调用，允许用户进程注册信号处理函数、修改信号屏蔽字、等待信号以及发送信号。信号处理过程遵循 Linux 语义，确保与现有用户态程序的兼容性。
 
-=== 1.1 信号来源与语义
+=== 信号来源与语义
 
 信号可以看作是软件层面对中断机制的抽象，主要来源包括：
 - 程序错误：如除零、非法内存访问等；
@@ -125,7 +125,7 @@ RuOS 实现了类 Linux 的信号子系统，支持 pending 信号、屏蔽字�
 
 与 Linux 保持一致，信号号范围为 `1..64`，并保留非实时信号 (`1..31`) 与实时信号 (`34..64`) 的划分语义。在当前实现中，待处理信号使用*位图*表示，使用`sigpending` 字段进行记录。因此同一信号可能被合并（非实时语义），后续*可扩展为队列*以完善实时信号特性。
 
-=== 1.2 关键数据结构
+=== 关键数据结构
 
 + `struct proc`
 
@@ -180,7 +180,7 @@ RuOS 实现了类 Linux 的信号子系统，支持 pending 信号、屏蔽字�
     ```
 `SIGKILL` 与 `SIGSTOP` 在任何情况下都不可屏蔽，内核在更新屏蔽字时强制清除这两位。
 
-=== 1.3 发送与递送流程
+=== 发送与递送流程
 
 发送信号时，内核通过 `signal_send`/`signal_send_pid` 校验信号号并设置 `sigpending` 位图，同时将 `SLEEPING` 进程唤醒为 `RUNNABLE`。
 递送发生在用户态陷入返回之前：`usertrap` 中调用 `signal_handle` 检查并派发信号。
@@ -191,7 +191,7 @@ RuOS 实现了类 Linux 的信号子系统，支持 pending 信号、屏蔽字�
 - `SIG_DFL` 执行默认动作：`SIGCHLD`/`SIGURG`/`SIGWINCH` 默认忽略，其余触发进程终止，并对核心转储类信号设置退出状态 `0x80`；
 - 对于用户自定义处理函数，进入用户态 handler。
 
-=== 1.4 用户态 handler 构造与返回
+=== 用户态 handler 构造与返回
 
 由于信号处理程序是由用户提供的，所以信号处理程序的代码是在用户态的。而从系统调用返回到用户态前还是属于内核态，CPU是禁止内核态执行用户态代码的。因此我们需要在用户栈上构造一个信号帧 `sigframe`，并修改 `trapframe` 使得返回到用户态时跳转到用户态的信号处理函数。
 
@@ -214,9 +214,9 @@ RuOS 集成了 ONPS TCP/IP 协议栈，支持 TCP/UDP 协议。ONPS 协议栈面
 
 在 RuOS 中，我们保留与以太网、IPv4、TCP/UDP相关的核心功能，关闭 PPP、IPv6 及网络工具等非必需模块，减小内核体积并降低维护成本。RuOS 可通过 virtio-net 设备驱动与虚拟网卡交互，实现数据包的发送与接收。用户态程序可以通过标准的 socket 接口进行网络通信。
 
-== 1 QEMU 网络模式
+== QEMU 网络模式
 
-=== 1.1 User Networking（SLIRP）
+=== User Networking（SLIRP）
 
 User Networking (SLIRP) 是 QEMU 的默认网络后端，无需 root 权限即可使用，但存在以下典型限制：
 
@@ -238,14 +238,14 @@ User Networking (SLIRP) 是 QEMU 的默认网络后端，无需 root 权限即�
 
 该拓扑可以用@qemu-usernet-topology 表示：
 
-#figure(image("default-qemu-networking.png"), caption: "QEMU User Networking 拓扑图") <qemu-usernet-topology>
+#figure(image("default-qemu-networking.jpg"), caption: "QEMU User Networking 拓扑图") <qemu-usernet-topology>
 
 结合 SLIRP 的限制可以理解：
 
 - 从虚拟机向宿主机发 UDP 包（`10.0.2.2`）可以到达，但如果宿主机没有服务监听，就无法得到回包。
 - 想让宿主机主动连虚拟机，需要额外设置 `-netdev user,hostfwd=...`。
 
-=== 1.2 Tap Networking
+=== Tap Networking
 
 当切换到 tap/bridge 模式时，虚拟机不再经过 SLIRP 的用户态 NAT，而是把二层包直接丢给宿主机桥接设备。这样可以观察更真实的 ARP/TCP 行为，也便于做入站连接或更复杂的网络验证。
 
@@ -271,9 +271,9 @@ sudo ip link set br0 up
 
 Tap 模式下的一种可能的网络拓扑如 @qemu-tap-topology 所示：
 
-#figure(image("tap-bridge-networking.png", height: 70%), caption: "QEMU Tap Networking 拓扑图") <qemu-tap-topology>
+#figure(image("tap-bridge-networking.jpg", height: 70%), caption: "QEMU Tap Networking 拓扑图") <qemu-tap-topology>
 
-== 2 设备层
+== 设备层
 
 设备层负责“把网卡的数据拿进来、把要发的数据送出去”，并保证中断驱动下的持续收发：
 
@@ -309,7 +309,7 @@ net_rx_deliver(const uint8 *data, int len)
 
 通过“预分配缓冲 + 中断驱动 + ring 回收”的机制，设备层为协议栈提供稳定、连续的收发通路。
 
-== 3 网络层：以太网、ARP 与 IPv4
+== 网络层：以太网、ARP 与 IPv4
 
 网络层由 ONPS 提供，RuOS 侧需要做的核心是网卡注册与地址配置（接口聚合在 `src/network/net.c`），原因很直接：ONPS 只有在拿到网卡的 MAC/IP、发送回调 和 接收线程入口 后，才能把驱动当作一个可用的 `netif` （Network Interface，网络接口）来管理。
 
@@ -338,7 +338,7 @@ typedef struct _ST_IPV4_ {
 
 完成注册后，ONPS 就能对 `eth0` 做 ARP 解析、IPv4 解包与封装，并驱动接收线程处理进入协议栈的数据。该层承担“二层帧 → 三层包”的转换，并提供路由与地址解析基础。
 
-== 4 传输层：UDP/TCP
+== 传输层：UDP/TCP
 
 传输层由 ONPS 提供实现，它保证了传输层的基础能力（包含TCP/UDP连接管理、数据收发、超时控制、错误码返回等核心能力），RuOS不重复开发底层能力，仅做接口封装和语义对齐，只选用当前业务需要的功能子集。
 
@@ -365,7 +365,7 @@ ONPS虽支持TCP/UDP全量基础能力，但RuOS仅封装实际用到的核心�
 
 ONPS返回的原生错误码，在内核层统一映射为Linux风格的`errno`，确保用户态程序感知到的错误码语义、行为与Linux系统一致。
 
-== 5 数据路径
+== 数据路径
 
 RuOS 通过 virtio-net 驱动与虚拟网卡交互，ONPS 协议栈处理网络协议逻辑。具体发送与接收路径如下：
 
@@ -380,7 +380,7 @@ RuOS 通过 virtio-net 驱动与虚拟网卡交互，ONPS 协议栈处理网络�
 
 RuOS 支持 ELF 可执行文件的装载与*动态链接*，完善了*用户栈参数传递*与解释器装载等细节，提升了与 Linux 用户态程序的兼容性。
 
-== 1 ELF 文件格式
+== ELF 文件格式
 
 ELF（Executable and Linkable Format）是一种通用的文件格式，用于存储可执行文件、目标代码和共享库。ELF 文件由多个部分组成，主要包括：
 
@@ -450,7 +450,7 @@ readelf -l /musl/ltp/testcases/bin/waitpid01 | grep ".interp"
 
 至于 `.dynamic` 段和 `.rela.dyn` 段，它们也在动态链接中起着重要作用，但是相关工作由动态链接器负责处理，因此在这里我们不做过多展开。
 
-== 2 用户栈的初始化与参数传递
+== 用户栈的初始化与参数传递
 
 用户栈的初始化与参数传递需要遵循相关 ABI 规范。在 RISCV64 架构下，没有严格规定`ENVP` 和 `AUXV` 的压栈方式(#link(
   "https://github.com/riscv-non-isa/riscv-elf-psabi-doc/releases/download/v1.0/riscv-abi.pdf",
@@ -534,7 +534,7 @@ static inline long __syscall2(long n, long a, long b)
 #endif // __SYSCALL_LL_E
 ```
 
-== 1 调用路径概览
+== 调用路径概览
 
 系统调用是用户态陷入内核态的最常见路径，其核心链路如下（对应 `src/trap/` 与 `src/syscall/`）：
 
@@ -554,7 +554,7 @@ caption: "系统调用全流程"
 ) <ruos-syscall-flow>
 
 
-== 2 TRAMPOLINE 与 trapframe 机制
+== TRAMPOLINE 与 trapframe 机制
 
 TRAMPOLINE 与 trapframe 的设计解决了“切换时地址必须一直有效、且用户不可伪造上下文”的关键问题：陷入发生时 CPU 仍在用户页表下执行，必须有一段在用户页表与内核页表中都映射到同一虚拟地址的入口代码；同时寄存器保存区必须对内核可写、对用户不可写，否则用户可篡改返回现场或内核信息。将 TRAMPOLINE 固定映射到最高虚拟地址页、trapframe 固定映射到其下一页且 `PTE_U=0`，既保证陷入/返回路径的地址稳定，又避免在每次陷入时复制寄存器结构体，兼顾安全性与性能。
 
@@ -565,7 +565,7 @@ TRAMPOLINE 与 trapframe 的设计解决了“切换时地址必须一直有效�
 
 `trapframe` 中保存了用户态寄存器与返回上下文，同时还包括内核态需要的“跳板信息”（内核页表、内核栈顶、`usertrap` 入口、hartid）。`uservec` 先把用户寄存器写入 `trapframe`，再切换 `satp` 到内核页表；`userret` 在返回时反向恢复寄存器并 `sret` 回到用户态。这种布局的好处是：内核可以在不信任用户态内存的前提下完成寄存器搬运，同时避免每次陷入都复制结构体。
 
-== 3 参数传递与用户指针解码
+== 参数传递与用户指针解码
 
 系统调用参数通过寄存器传递：`a0..a5` 为 6 个参数槽，`a7` 为系统调用号。`src/syscall/syscall.c` 中提供了一套统一的参数解码函数：
 
@@ -575,7 +575,7 @@ TRAMPOLINE 与 trapframe 的设计解决了“切换时地址必须一直有效�
 
 这一层“参数解码 + 安全拷贝”的抽象很关键：它把用户指针与内核指针严格隔离，所有用户内存访问都必须经过 `copyin/copyout`。因此即使用户传入非法地址，内核也只会返回 `-EFAULT`，而不会发生越界访问。
 
-== 4 系统调用分发与返回
+== 系统调用分发与返回
 
 系统调用分发由 `syscall_handler()` 完成，其逻辑非常直接：
 
@@ -587,7 +587,7 @@ TRAMPOLINE 与 trapframe 的设计解决了“切换时地址必须一直有效�
 
 在实现上，RuOS 保留了统一的跟踪开关 `syscall_trace_all`（默认关闭），便于在 GDB 中快速启用系统调用日志；此外还保留了错误打印与返回码映射路径，用于调试用户态程序兼容性。
 
-== 5 系统调用集合
+== 系统调用集合
 
 RuOS 实现了接近 Linux 语义的系统调用集合，涵盖文件系统、进程管理、内存管理、时间管理与网络通信等核心功能。主要系统调用包括：
 
@@ -600,7 +600,7 @@ RuOS 实现了接近 Linux 语义的系统调用集合，涵盖文件系统、�
 - 系统/挂载：`uname`、`mount`、`umount2`、`shutdown`、`prlimit64`；
 - 网络：`socket`、`bind`、`connect`、`listen`、`accept`、`sendto`、`recvfrom`、`sendfile`、`ppoll`、`ioctl`。
 
-== 6 错误码与语义对齐
+== 错误码与语义对齐
 
 为了尽量与 Linux 用户态兼容，RuOS 的系统调用返回值遵循“成功返回非负，失败返回负 errno”的约定。内核中每个 `sys_*` 会根据底层模块的错误返回值进行映射：
 
@@ -639,7 +639,7 @@ RuOS 实现了接近 Linux 语义的系统调用集合，涵盖文件系统、�
 
 这一层错误码语义是 busybox 等程序正常运行的关键：用户态不需要理解内核内部细节，只需按 POSIX/LINUX 的方式判断返回值即可。
 
-== 7 调试与扩展点
+== 调试与扩展点
 
 系统调用相关的扩展与调试主要集中在以下位置：
 
@@ -656,7 +656,7 @@ RuOS 运行在 QEMU `virt` 平台上，主要外设都以 memory-mapped I/O (MMI
 
 本章围绕 `src/devs/uart.c`、`src/devs/plic.c` 与 `src/virtIO/`，从 MMIO、PLIC、中断分发到 VirtIO virtqueue/ring（包括 tx_ring 的发送完成回收），系统性说明 RuOS 的设备驱动基础知识与实现细节。
 
-== 1 MMIO：设备寄存器与内存序
+== MMIO：设备寄存器与内存序
 
 在 RISC‑V 上，MMIO 通常表现为一段“不可缓存、具有副作用”的地址区间：读寄存器可能清状态、写寄存器可能触发发送/通知。RuOS 在实现上采用两条简单但关键的规则：
 
@@ -665,7 +665,7 @@ RuOS 运行在 QEMU `virt` 平台上，主要外设都以 memory-mapped I/O (MMI
 
 QEMU `virt` 的关键 MMIO 地址在 `src/memlayout.h` 中定义。这些物理地址在内核页表中保持可访问，因此驱动可以直接以物理地址形式进行寄存器读写）。
 
-== 2 设备与中断拓扑
+== 设备与中断拓扑
 
 外设的数据通路与中断通路通常是“分离”的：数据通路走 MMIO/DMA，中断通路走 PLIC。RuOS 的总体拓扑如 @ruos-device-topology 所示：
 
@@ -676,7 +676,7 @@ caption: "RuOS 设备与中断拓扑（MMIO 数据通路 + PLIC 中断通路）"
 
 在启动阶段（`src/boot/main.c`），hart0 完成全局初始化：`consoleinit()` 初始化 UART；`plicinit()` 设置外设 IRQ 的优先级；随后每个 hart 都会调用 `plicinithart()` 配置自己的 S‑mode 使能与阈值，并打开 `SIE_SEIE`（Supervisor External Interrupt Enable），从而允许设备中断进入 `devintr()`。
 
-== 3 UART：控制台与早期调试
+== UART：控制台与早期调试
 
 UART 是最朴素也最重要的外设之一：它提供早期打印、交互式 shell 输入输出，是定位启动问题和内核崩溃的“生命线”。RuOS 使用 QEMU virt 默认的 16550 兼容 UART（`UART0@0x10000000`），驱动实现位于 `src/devs/uart.c`，并由 `src/devs/console.c` 提供行缓冲与用户态 `read/write` 的对接。
 
@@ -688,7 +688,7 @@ UART 驱动的关键点包括：
 
 这种设计把“慢速字节流设备”和“面向行的用户交互”分层：UART 专注于寄存器与中断，Console 专注于缓冲与语义，这也是 RuOS 后续接入更多 TTY/伪终端能力的良好起点。
 
-== 4 PLIC：外部中断控制器
+== PLIC：外部中断控制器
 
 PLIC（Platform Level Interrupt Controller）负责把多个外设的 IRQ 汇聚到各个 hart，并提供优先级、屏蔽与 claim/complete 的握手机制。对驱动开发而言，理解 PLIC 的三个接口就足够：
 
@@ -701,13 +701,12 @@ RuOS 的中断分发逻辑在 `src/trap/trap.c:devintr()`：根据 claim 到的 
 PLIC 的工作机制如 @ruos-plic-flow 所示：
 
 #figure(
-image("plic-flow.png"),
+image("plic-flow.jpg"),
 caption: "PLIC 中断工作机制"
 ) <ruos-plic-flow>
 
 
-
-== 5 VirtIO：半虚拟化设备与 mmio legacy 接口
+== VirtIO：半虚拟化设备与 mmio legacy 接口
 
 VirtIO 是 QEMU virt 平台上常用的半虚拟化设备规范，核心思想是：驱动与设备共享一段内存队列（virtqueue），通过少量 MMIO 寄存器完成特性协商、队列注册与通知。RuOS 选择实现 QEMU 的legacy virtio‑mmio接口（`src/virtIO/virtio.h` 给出了寄存器偏移与状态位），其初始化流程可概括为：
 
@@ -725,7 +724,7 @@ RuOS 的 virtio‑blk 与 virtio‑net 都采用“2 页队列布局”：
 
 具体代码见 `src/virtIO/virtio_disk.c` 与 `src/virtIO/virtio_net.c` 的 `pages[2*PGSIZE]`/`rx_pages/tx_pages`。
 
-== 6 virtqueue 与 ring：从入队到回收
+== virtqueue 与 ring：从入队到回收
 
 virtqueue 的数据结构由三部分组成：描述符表 `desc[]`、驱动侧可用环 `avail`、设备侧完成环 `used`。其典型交互过程如 @ruos-virtqueue-layout 所示：
 
@@ -742,7 +741,7 @@ caption: "VirtIO virtqueue/ring 基本交互"
 
 所谓tx_ring（发送环）本质上就是“用于发送方向的 virtqueue”：以 virtio‑net 为例，队列 1 作为 TX queue，驱动把“报文头 + 报文数据”的 descriptor 链入队；设备把完成项写入 used ring；驱动在 `virtio_net_tx_complete()` 里根据 used ring 回收链表并释放对应缓冲，从而实现发送完成的资源回收与背压控制。
 
-== 7 virtio‑blk：块设备 I/O
+== virtio‑blk：块设备 I/O
 
 RuOS 的 virtio‑blk 驱动采用中断完成的同步模型：发起 I/O 的线程在睡眠中等待中断唤醒。每次读写会构造3 个 descriptor 的链表，这是 legacy virtio‑blk 的标准做法：
 
@@ -752,7 +751,7 @@ RuOS 的 virtio‑blk 驱动采用中断完成的同步模型：发起 I/O 的�
 
 驱动用 `vdisk_lock` 保护 free list、`avail/used` 指针与 `used_idx`，当 descriptor 不足时对 `free[0]` 睡眠等待；发起请求后把链表头塞入 avail ring 并 notify，然后在 `b->disk==1` 时对 `b` 睡眠。中断处理函数 `virtio_disk_intr()` 扫描 used ring：校验 status、清除 `b->disk`、唤醒等待该 buf 的线程，并回收整个 descriptor 链。该模型简单可靠，足以支撑文件系统与 busybox 的大量 I/O。
 
-== 8 virtio‑net：收发队列与协议栈对接
+== virtio‑net：收发队列与协议栈对接
 
 virtio‑net 相比块设备更强调吞吐与并发，RuOS 采用 *双队列* 设计：队列 0 为 RX，队列 1 为 TX。
 
@@ -761,7 +760,7 @@ virtio‑net 相比块设备更强调吞吐与并发，RuOS 采用 *双队列* �
 
 `virtio_net_intr()` 负责统一 ACK `INTERRUPT_STATUS` 并串行执行 RX/TX 回收逻辑；`vnet.lock` 保护队列状态与 free list，避免发送线程与中断处理并发修改 ring 造成索引错乱。
 
-== 9 工程化细节与可扩展点
+== 工程化细节与可扩展点
 
 设备驱动往往是“最像硬件、最容易出现时序 bug”的部分。RuOS 在实现时做了几处工程化取舍以降低风险：
 

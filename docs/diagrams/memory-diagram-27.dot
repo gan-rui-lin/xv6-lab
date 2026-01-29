@@ -1,0 +1,67 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.55",
+    ranksep="0.55"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+
+  // 结构体层级
+  cache [label="kmem_cache\n(高速缓存描述符)"];
+  node0 [label="kmem_cache_node\n(节点管理)"];
+  cache -> node0;
+
+  // 三条链表头（与示意一致：partial/full/free）
+  partial_h [label="slabs_partial\n(部分占用)"];
+  full_h    [label="slabs_full\n(全部占用)"];
+  free_h    [label="slabs_free\n(全空闲)"];
+  node0 -> partial_h;
+  node0 -> full_h;
+  node0 -> free_h;
+
+  // slab 节点样式略淡，突出“链表结构”
+  node [fillcolor="#d8f1ef", fontsize=11, margin="0.18,0.12"];
+  p1 [label="Slab 1"];
+  p2 [label="Slab 2"];
+  f1 [label="Slab 3"];
+  f2 [label="Slab 4"];
+  e1 [label="Slab 5"];
+  e2 [label="Slab 6"];
+
+  // 双向链表：用双向箭头表现 <->，并用 dashed 连接头指向首节点
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  p1 -> p2 [dir=both];
+  f1 -> f2 [dir=both];
+  e1 -> e2 [dir=both];
+
+  edge [style=dashed, arrowhead=normal, arrowsize=0.7, penwidth=1.0];
+  partial_h -> p1;
+  full_h    -> f1;
+  free_h    -> e1;
+
+  // 布局：三条链表同一行，结构体层级在上方
+  { rank=same; partial_h; full_h; free_h; }
+  { rank=same; p1; f1; e1; }
+  { rank=same; p2; f2; e2; }
+
+  // 迁移规则（简洁说明，保持风格一致）
+  node [fillcolor="#bfe6e3", fontsize=11, margin="0.18,0.12"];
+  rules [label="迁移策略（简化）\nfree → partial：开始分配\npartial → full：分配至满\nfull/partial → partial：释放后仍有占用\npartial → free：全部释放\nfree → buddy：超过保留数则回收"];
+
+  edge [style=solid, arrowhead=normal, arrowsize=0.8, penwidth=1.2];
+  free_h -> rules [style=invis];
+  node0 -> rules [style=invis];
+  { rank=max; rules; }
+}

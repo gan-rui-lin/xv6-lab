@@ -1,0 +1,25 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  b1 [label="尝试ext4fs_init()\l- 读取超级块（1024B偏移）\l- 验证magic=0xEF53\l"];
+  b2 [label="尝试fat32_init()\l- 读取LBA 0\l- 验证签名0x55AA\l"];
+  b3 [label="读取xv6 superblock\l- 验证magic=0x10203040\l"];
+  b1 -> b2;
+  b2 -> b3;
+}

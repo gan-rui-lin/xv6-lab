@@ -1,0 +1,45 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  cpu0_s0 [label="CPU 0\nscheduler()"];
+  cpu0_s1 [label="CPU 0\n遍历进程表"];
+  cpu0_s2 [label="CPU 0\n获取 proc 锁"];
+  cpu0_s3 [label="CPU 0\n选择最高优先级\nRUNNABLE 进程"];
+  cpu1_s0 [label="CPU 1\nscheduler()"];
+  cpu1_s1 [label="CPU 1\n遍历进程表"];
+  cpu1_s2 [label="CPU 1\n获取 proc 锁"];
+  cpu1_s3 [label="CPU 1\n选择最高优先级\nRUNNABLE 进程"];
+  cpu2_s0 [label="CPU 2\nscheduler()"];
+  cpu2_s1 [label="CPU 2\n遍历进程表"];
+  cpu2_s2 [label="CPU 2\n获取 proc 锁"];
+  cpu2_s3 [label="CPU 2\n选择最高优先级\nRUNNABLE 进程"];
+  { rank=same; cpu0_s0 cpu1_s0 cpu2_s0 }
+  { rank=same; cpu0_s1 cpu1_s1 cpu2_s1 }
+  { rank=same; cpu0_s2 cpu1_s2 cpu2_s2 }
+  { rank=same; cpu0_s3 cpu1_s3 cpu2_s3 }
+  cpu0_s0 -> cpu0_s1;
+  cpu0_s1 -> cpu0_s2;
+  cpu0_s2 -> cpu0_s3;
+  cpu1_s0 -> cpu1_s1;
+  cpu1_s1 -> cpu1_s2;
+  cpu1_s2 -> cpu1_s3;
+  cpu2_s0 -> cpu2_s1;
+  cpu2_s1 -> cpu2_s2;
+  cpu2_s2 -> cpu2_s3;
+}

@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="Order 0 (1页):   [page5] → [page12] → [page23] → NULL\lOrder 1 (2页):   [page8] → [page16] → NULL\lOrder 2 (4页):   [page0] → NULL\lOrder 3 (8页):   NULL\l...\lOrder 15 (32768页): NULL\l"];
+}

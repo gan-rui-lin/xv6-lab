@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="src/proc/\l├── proc.c          # 核心调度器\l├── proc.h          # 数据结构定义\l├── swtch.S         # 上下文切换汇编\l├── exec.c          # 程序加载\l├── kthread.c       # 内核线程\l└── signal.c        # 信号处理\l"];
+}

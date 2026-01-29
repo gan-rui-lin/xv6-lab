@@ -1,0 +1,78 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.45",
+    ranksep="0.55"
+  ];
+
+  edge [
+    color="#2f8f8a",
+    penwidth=1.2,
+    arrowsize=0.8,
+    fontname="Noto Sans CJK SC",
+    fontsize=10,
+    fontcolor="#0f172a"
+  ];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+
+  start [label="slab_alloc_from_cache(cache)\ncreated = NULL"];
+
+  // 持锁流程（核心路径）
+  acquire [label="acquire(lock)\nslab = cache->partial"];
+  choose [label="选择 slab（优先级）\n1) partial\n2) 若 partial 为空且 empty 非空：\n   empty → partial\n3) 若仍为空且 created 非空：\n   created → partial（created=NULL）"];
+  d_slab [shape=diamond, margin="0.16,0.10", label="slab\n存在?"];
+
+  find_idx [label="idx = slab_find_free_index(slab)"];
+  d_race [shape=diamond, margin="0.16,0.10", label="idx < 0 ?\n(竞态: 意外满)"];
+  race_full [label="partial → full\nslab->state = FULL\nrelease(lock)\ncontinue 重试"];
+
+  mark [label="slab_set_bit(idx)\nslab->free_count--\naddr = mem + idx*obj_size"];
+  d_full [shape=diamond, margin="0.16,0.10", label="free_count == 0 ?"];
+  to_full [label="partial → full\nslab->state = FULL"];
+
+  unlock [label="release(lock)"];
+  destroy [fillcolor="#d8f1ef", label="如果 created 仍存在\nslab_destroy_page(created)"];
+  ret_addr [fillcolor="#d8f1ef", label="return addr"];
+
+  // 无锁路径（创建新 slab）
+  unlock2 [fillcolor="#d8f1ef", label="release(lock)"];
+  d_need_create [shape=diamond, fillcolor="#d8f1ef", margin="0.16,0.10", label="created == NULL ?"];
+  create [fillcolor="#d8f1ef", label="created = slab_create_page(cache)\n(向 buddy 申请整页)"];
+  d_oom [shape=diamond, fillcolor="#d8f1ef", margin="0.16,0.10", label="created == NULL ?"];
+  ret_null [fillcolor="#d8f1ef", label="return NULL\n(内存不足/仍失败)"];
+
+  start -> acquire -> choose -> d_slab;
+  d_slab -> find_idx [label="是"];
+  d_slab -> unlock2 [label="否"];
+
+  find_idx -> d_race;
+  d_race -> race_full [label="是"];
+  d_race -> mark [label="否"];
+  race_full -> acquire [style=dashed, label="重试"];
+
+  mark -> d_full;
+  d_full -> to_full [label="是"];
+  d_full -> unlock [label="否"];
+  to_full -> unlock;
+
+  unlock -> destroy -> ret_addr;
+
+  unlock2 -> d_need_create;
+  d_need_create -> create [label="是"];
+  d_need_create -> ret_null [label="否"];
+  create -> d_oom;
+  d_oom -> ret_null [label="是"];
+  d_oom -> acquire [style=dashed, label="回到循环"];
+}

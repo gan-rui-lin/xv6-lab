@@ -324,8 +324,26 @@
     #v(11.5pt)
   ]
 
+  // 标题编号：
+  // - 一级保持“一、”
+  // - 其它级别使用层级编号：2级为“1 ”，3级为“1.1 ”，4级为“1.1.1 ”，以此类推
   set heading(numbering: (..nums) => {
-    if nums.pos().len() == 1 { numbering("一、", ..nums) } else { none }
+    let lvl = nums.pos().len()
+    if lvl == 1 {
+      numbering("一、", ..nums)
+    } else if lvl == 2 {
+      numbering("1.1 ", ..nums)
+    } else if lvl == 3 {
+      numbering("1.1 ", ..nums)
+    } else if lvl == 4 {
+      numbering("1.1.1 ", ..nums)
+    } else if lvl == 5 {
+      numbering("1.1.1.1 ", ..nums)
+    } else if lvl == 6 {
+      numbering("1.1.1.1.1 ", ..nums)
+    } else {
+      numbering("1.1 ", ..nums)
+    }
   })
 
   // 二级标题：黑体 四号（14pt）

@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="输入                         输出\l───────────────────────────────────────\l\"/home/./user/../docs\"   →  \"/home/docs\"\l\"../../etc/./passwd\"     →  \"/etc/passwd\"\l\"/./././home\"            →  \"/home\"\l\"/home/user/..\"          →  \"/home\"\l"];
+}

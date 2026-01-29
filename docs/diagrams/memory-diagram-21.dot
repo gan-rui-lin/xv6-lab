@@ -1,0 +1,55 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.55",
+    ranksep="0.65"
+  ];
+
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+
+  title [label="三种机制协同工作（示例场景）\nfork + sbrk + 写入 + exec"];
+
+  fork0 [label="1) fork()\nCOW：共享父进程页\n(仅复制页表项)"];
+  sbrk0 [label="2) sbrk(1MB) 扩展堆\n懒分配：先映射到零页\n(不立刻分配物理页)"];
+  write0 [label="3) 写入 10KB\n触发 Zero Page Fault\n按需分配少量页面"];
+  exec0 [label="4) exec()\n释放旧地址空间\n加载新程序映像"];
+
+  total [label="结果：时间与内存显著降低"];
+
+  title -> fork0 -> sbrk0 -> write0 -> exec0 -> total;
+
+  // 旁注：每步的时间/内存
+  node [fillcolor="#d8f1ef", fontsize=10, margin="0.18,0.12"];
+  fork_n [label="时间：< 1ms\n内存：≈ 0（共享）"];
+  sbrk_n [label="时间：< 0.5ms\n内存：≈ 0（零页）"];
+  write_n [label="时间：< 0.1ms\n内存：≈ 12KB（约 3 页）"];
+  exec_n [label="时间：< 1ms\n内存：≈ 新程序大小"];
+  sum_n [label="总计（示意）\n时间：< 3ms（传统 > 30ms）\n峰值内存：≈ 12KB（传统 ~ 1MB）\n优化：~10× 时间，~83× 内存"];
+
+  edge [style=dashed, arrowhead=none, color="#2f8f8a", penwidth=1.0];
+  fork0 -> fork_n;
+  sbrk0 -> sbrk_n;
+  write0 -> write_n;
+  exec0 -> exec_n;
+  total -> sum_n;
+
+  { rank=same; fork0; fork_n; }
+  { rank=same; sbrk0; sbrk_n; }
+  { rank=same; write0; write_n; }
+  { rank=same; exec0; exec_n; }
+  { rank=same; total; sum_n; }
+}
+

@@ -1,0 +1,28 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+
+  title [fillcolor="#d8f1ef", fontsize=13, label="FAT32 分区布局（逻辑结构）"];
+
+  b1 [label="保留区域 (Reserved Region)\n- LBA 0: 引导扇区（BPB + 启动代码）\n- 后续: FSInfo / 备份引导扇区等"];
+  b2 [label="FAT 区域 (FAT Region)\n- FAT #1: 文件分配表（簇链）\n- FAT #2: 备份 FAT（可选/常见）"];
+  b3 [label="数据区域 (Data Region)\n- Cluster 2: 根目录（通常）\n- Cluster 3+: 文件与目录数据"];
+
+  title -> b1 -> b2 -> b3;
+}

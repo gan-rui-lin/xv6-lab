@@ -1,0 +1,57 @@
+digraph FileSystemStack {
+  rankdir=TB;
+  graph [
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.55",
+    ranksep="0.65",
+    fontname="Noto Sans CJK SC",
+    fontsize=12
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [shape=plain, fontname="Noto Sans CJK SC", fontsize=12];
+
+  vfs [label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#2f8f8a">
+      <TR><TD BGCOLOR="#bfe6e3" ALIGN="CENTER"><B>xv6 VFS 层</B></TD></TR>
+      <TR><TD ALIGN="LEFT">
+        <FONT FACE="DejaVu Sans Mono">ext4_namei</FONT>, <FONT FACE="DejaVu Sans Mono">ext4_readi</FONT>, <FONT FACE="DejaVu Sans Mono">ext4_writei</FONT>
+      </TD></TR>
+    </TABLE>
+  >];
+
+  adapter [label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#2f8f8a">
+      <TR><TD BGCOLOR="#bfe6e3" ALIGN="CENTER"><B>适配层（ext4fs.c）</B></TD></TR>
+      <TR><TD ALIGN="LEFT">
+        • 块设备接口：<FONT FACE="DejaVu Sans Mono">bdev_read</FONT> / <FONT FACE="DejaVu Sans Mono">bdev_write</FONT><BR ALIGN="LEFT"/>
+        • 内存分配钩子：<FONT FACE="DejaVu Sans Mono">kmalloc</FONT> / <FONT FACE="DejaVu Sans Mono">kmfree</FONT><BR ALIGN="LEFT"/>
+        • 路径规范化与符号链接解析
+      </TD></TR>
+    </TABLE>
+  >];
+
+  lwext4 [label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#2f8f8a">
+      <TR><TD BGCOLOR="#bfe6e3" ALIGN="CENTER"><B>lwext4 库（src/fs/lwext4/）</B></TD></TR>
+      <TR><TD ALIGN="LEFT">
+        • 文件 API：<FONT FACE="DejaVu Sans Mono">ext4_fopen</FONT>, <FONT FACE="DejaVu Sans Mono">ext4_fread</FONT>, <FONT FACE="DejaVu Sans Mono">ext4_fwrite</FONT><BR ALIGN="LEFT"/>
+        • 目录/链接：<FONT FACE="DejaVu Sans Mono">ext4_dir_open</FONT>, <FONT FACE="DejaVu Sans Mono">ext4_readlink</FONT><BR ALIGN="LEFT"/>
+        • 元数据：日志、extent、inode 管理
+      </TD></TR>
+    </TABLE>
+  >];
+
+  bio [label=<
+    <TABLE BORDER="0" CELLBORDER="1" CELLSPACING="0" CELLPADDING="10" COLOR="#2f8f8a">
+      <TR><TD BGCOLOR="#bfe6e3" ALIGN="CENTER"><B>xv6 块缓冲层（bio.c）</B></TD></TR>
+      <TR><TD ALIGN="LEFT">
+        <FONT FACE="DejaVu Sans Mono">bread</FONT>, <FONT FACE="DejaVu Sans Mono">bwrite</FONT>, <FONT FACE="DejaVu Sans Mono">brelse</FONT>
+      </TD></TR>
+    </TABLE>
+  >];
+
+  vfs -> adapter;
+  adapter -> lwext4;
+  lwext4 -> bio;
+}

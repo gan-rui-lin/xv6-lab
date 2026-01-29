@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="                   分配最后一个对象\lPARTIAL  ──────────────────────────→  FULL\l   ↑                                     │\l   │              释放任意对象             │\l   └───────────────────────────────────┘\l\l                   释放最后一个对象\lPARTIAL  ──────────────────────────→  EMPTY\l   ↑                                     │\l   │              分配任意对象             │\l   └───────────────────────────────────┘\l\lEMPTY链表管理：\l  保留SLAB_EMPTY_RESERVE=1个\l  超过则释放给Buddy\l"];
+}

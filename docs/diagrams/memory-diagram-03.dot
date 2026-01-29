@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="物理页索引：0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15\l            ├──────────┤  ├──────────┤  ├──────────┤  ├───────────┤\l            块0(4页)     块1(4页)     块2(4页)     块3(4页)\l\l块0 [0-3] 的伙伴是块1 [4-7]    (0 ^ (1<<2) = 0 ^ 4 = 4)\l块1 [4-7] 的伙伴是块0 [0-3]    (4 ^ 4 = 0)\l块2 [8-11]的伙伴是块3 [12-15]  (8 ^ 4 = 12)\l"];
+}

@@ -1,0 +1,21 @@
+digraph Diagram {
+  graph [
+    rankdir=TB,
+    bgcolor="transparent",
+    pad="0.25",
+    nodesep="0.50",
+    ranksep="0.60"
+  ];
+  edge [color="#2f8f8a", penwidth=1.2, arrowsize=0.8];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fillcolor="#bfe6e3",
+    color="#2f8f8a",
+    fontcolor="#0f172a",
+    fontname="Noto Sans Mono CJK SC",
+    fontsize=12,
+    margin="0.22,0.16"
+  ];
+  n0 [label="引导扇区（512字节）：\l┌────────────────────────────────────┐\l│ +0   跳转指令 (3B)                  │\l│ +3   OEM名称 (8B)                   │\l│ +11  BPS (2B) = 512                │ ← 每扇区字节数\l│ +13  SPC (1B) = 8                  │ ← 每簇扇区数\l│ +14  保留扇区 (2B) = 32            │\l│ +16  FAT数量 (1B) = 2              │\l│ +36  FAT大小 (4B) = 4096           │ ← 每个FAT占用扇区数\l│ +44  根目录簇 (4B) = 2             │ ← 根目录起始簇号\l│ +510 签名 (2B) = 0xAA55            │\l└────────────────────────────────────┘\l"];
+}

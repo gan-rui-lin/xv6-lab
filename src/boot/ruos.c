@@ -41,6 +41,4 @@ void print_ruos(){
     
     printf("\033[0m"); // 重置颜色
 
-    printf("\n\n\n");
-
 }

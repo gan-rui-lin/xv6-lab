@@ -325,7 +325,8 @@ run: $K/kernel
 # 	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
 #
 all:
-	$(MAKE) clean
+# !为了演示不重跑很长时间的编译过程，暂时不执行 clean
+	$(MAKE) $(U)/initcode
 	$(MAKE) run
 
 debug:

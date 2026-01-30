@@ -215,7 +215,7 @@ exec(char *path, char **argv, char **envp)
       goto bad;
     }
 
-    // 动态链接器通常是 ET_DYN，这里选择一个简单的基址直接映射。
+    // 动态链接器通常是 ET_DYN
     interp_base = PGROUNDUP(sz);
     for(i = 0, off = interp_elf.phoff; i < interp_elf.phnum; i++, off += sizeof(ph)){
       if(readi(ip_interp, 0, (uint64)&ph, off, sizeof(ph)) != sizeof(ph)){

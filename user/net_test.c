@@ -106,7 +106,7 @@ socket_test()
     return -1;
   }
 
-  const char *msg = "udp loopback hhh";
+  const char *msg = "it's udp loopback message";
   struct sockaddr_in dst;
   dst.sin_family = AF_INET;
   dst.sin_port = htons(ECHO_PORT);
@@ -132,6 +132,12 @@ socket_test()
   close(cli);
   wait(0);
   return 0;
+}
+
+int
+udp_loopback_test()
+{
+  return socket_test();
 }
 
 // 测试 xv6 UDP 栈向 DNS 服务器发送查询并接收应答

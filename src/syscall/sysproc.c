@@ -788,7 +788,7 @@ sys_wait4(void)
 
             // Debug: check parent's PTE before freeing child
             pte_t *parent_pte = walk(p->pagetable, 0x7fa78, 0);
-            printf("[wait4] Before freeproc: parent pid=%d pte=%p\n", p->pid,
+            log_debug("[wait4] Before freeproc: parent pid=%d pte=%p\n", p->pid,
                    parent_pte ? *parent_pte : 0);
 
             if(status != 0 && copyout(p->pagetable, status, (char *)&pp->xstate,
@@ -801,7 +801,7 @@ sys_wait4(void)
 
             // Debug: check parent's PTE after freeing child
             parent_pte = walk(p->pagetable, 0x7fa78, 0);
-            printf("[wait4] After freeproc: parent pid=%d pte=%p\n", p->pid,
+            log_debug("[wait4] After freeproc: parent pid=%d pte=%p\n", p->pid,
                    parent_pte ? *parent_pte : 0);
 
             release(&pp->lock);

@@ -19,7 +19,7 @@
 本项目采用渐进式优化策略，通过三个版本迭代实现调度算法的演进，如 @scheduler-evolution 所示：
 
 #figure(
-  image("scheduler-evolution.png"),
+  image("scheduler-evolution.png", width: 80%),
   caption: [调度算法演进]
 ) <scheduler-evolution>
 
@@ -39,7 +39,7 @@
 MLFQ 的机制可以由 @process-diagram-04 所示流程图直观理解：
 
 #figure(
-  image("diagrams/process-diagram-04.png"),
+  image("diagrams/process-diagram-04.png",width: 80%),
   caption: [MLFQ 多级反馈队列（实现要点）]
 ) <process-diagram-04>
 
@@ -263,7 +263,7 @@ Per-CPU调度器：
 调度流程图如 @process-diagram-01 所示：
 
 #figure(
-  image("diagrams/process-diagram-01.png"),
+  image("diagrams/process-diagram-01.png",width: 70%),
   caption: [多核调度示意图]
 ) <process-diagram-01>
 

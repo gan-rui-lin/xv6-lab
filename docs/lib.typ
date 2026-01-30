@@ -515,11 +515,12 @@
   // 摘要页（可选，局部样式不污染全局）
   if makeabstract {
     pagebreak(weak: true)
+    v(-1cm)
     align(center)[
       #set text(font: font_used.cjk-bold, size: 18pt)
       摘要
     ]
-    v(1em)
+     v(-1.5em)
     // 摘要正文（局部）
     box(width: 100%)[
       #set par(first-line-indent: 2em)

@@ -57,7 +57,7 @@ RuOS 各个模块的具体改进如下表所示：
 
 RuOS 通过了初赛的所有系统调用测试，初赛得分为 102/102:
 
-#figure(image("/assets/score-pre.png", width: 79%, height: 11%))
+ #figure(image("/assets/score-pre.png", width: 78%, height: 11%))
 
 ]
 

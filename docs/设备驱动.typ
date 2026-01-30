@@ -50,7 +50,7 @@ RuOS 的中断分发逻辑在 `src/trap/trap.c:devintr()`：根据 claim 到的 
 PLIC 的工作机制如 @ruos-plic-flow 所示：
 
 #figure(
-image("plic-flow.jpg"),
+image("plic-flow.jpg",width: 70%),
 caption: "PLIC 中断工作机制"
 ) <ruos-plic-flow>
 

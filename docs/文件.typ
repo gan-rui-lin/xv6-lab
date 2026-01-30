@@ -14,7 +14,7 @@
 而 RuOS 则构建一个类VFS（Virtual File System）架构，实现多文件系统并存，如 @file-diagram-01 所示：
 
 #figure(
-  image("diagrams/file-diagram-01.png"),
+  image("diagrams/file-diagram-01.png",width: 90%),
   caption: [RuOS 的 VFS 设计]
 ) <file-diagram-01>
 
@@ -190,7 +190,7 @@ major字段编码（src/fs/file.h）：
 FAT32布局如 @file-diagram-04 所示：
 
 #figure(
-  image("diagrams/file-diagram-04.png",height: 40%),
+  image("diagrams/file-diagram-04.png",width: 40%),
   caption: [FAT32 分区布局]
 ) <file-diagram-04>
 
@@ -374,7 +374,7 @@ FAT32支持两种文件名格式：
 
 SFN编码示例如 @file-diagram-07 所示：
 #figure(
-  image("diagrams/file-diagram-07.png"),
+  image("diagrams/file-diagram-07.png",width: 70%),
   caption: [SFN 编码示例]
 ) <file-diagram-07>
 
@@ -399,7 +399,7 @@ struct lfn_entry {
 LFN存储顺序示例（逆序）如 @file-diagram-08 所示：
 
 #figure(
-  image("diagrams/file-diagram-08.png"),
+  image("diagrams/file-diagram-08.png",width: 70%),
   caption: [LFN 存储顺序示例]
 ) <file-diagram-08>
 
@@ -579,7 +579,7 @@ LFN存储顺序示例（逆序）如 @file-diagram-08 所示：
 RuOS 的EXT4实现基于开源库lwext4，通过适配层桥接，如 @file-diagram-11 所示：
 
 #figure(
-  image("diagrams/file-diagram-11.png"),
+  image("diagrams/file-diagram-11.png",width: 70%),
   caption: [RuOS 适配 EXT4 fs]
 ) <file-diagram-11>
 
@@ -1659,12 +1659,6 @@ if(ip->type != T_FILE){
   return -EISDIR;  // 类型不匹配
 }
 ```
-
-所有路径都有错误处理：
-- 磁盘I/O错误
-- 内存分配失败
-- 权限检查失败
-- 文件不存在
 
 ==== POSIX兼容性
 

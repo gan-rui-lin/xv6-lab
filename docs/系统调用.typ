@@ -70,7 +70,7 @@ static inline long __syscall2(long n, long a, long b)
 系统调用全流程如 @ruos-syscall-flow 所示（包含可选 trace/统计与异常处理分支）：
 
 #figure(
-image("syscall-flow.png",height: 85%),
+    image("/assets/image4.jpg"),
 caption: "系统调用全流程"
 ) <ruos-syscall-flow>
 

@@ -15,7 +15,7 @@
 本项目解决方案如 @memory-diagram-01 所示：
 
 #figure(
-  image("diagrams/memory-diagram-01.png"),
+  image("diagrams/memory-diagram-01.png",width: 90%),
   caption: "RuOS 物理内存管理"
 ) <memory-diagram-01>
 
@@ -139,7 +139,7 @@ struct {
 图解分配过程如 @memory-diagram-05 所示：
 
 #figure(
-  image("diagrams/memory-diagram-05.png"),
+  image("diagrams/memory-diagram-05.png",width: 60%),
     caption: "Buddy 分配过程"
 ) <memory-diagram-05>
 
@@ -148,7 +148,7 @@ struct {
 图解合并过程如 @memory-diagram-06 所示：
 
 #figure(
-  image("diagrams/memory-diagram-06.png"),
+  image("diagrams/memory-diagram-06.png",width: 60%),
   caption: "Buddy 合并过程"
 ) <memory-diagram-06>
 
@@ -727,7 +727,7 @@ int cow_alloc(pagetable_t pagetable, uint64 va)
 COW处理流程图如 @memory-diagram-17 所示：
 
 #figure(
-  image("diagrams/memory-diagram-17.png",height: 95%),
+  image("/assets/image.jpg",width: 70%),
   caption: [COW 处理流程图]
 ) <memory-diagram-17>
 
@@ -767,7 +767,7 @@ if (scause == ECODE_STORE_PAGE_FAULT) {
 
 处理流程如 @memory-diagram-18 所示：
 #figure(
-  image("diagrams/memory-diagram-18.png",height: 79%),
+  image("diagrams/memory-diagram-18.png",height: 90%),
   caption: [缺页处理流程]
 ) <memory-diagram-18>
 
@@ -947,7 +947,7 @@ void deep_recursion(int depth) {
 通过 COW + 共享零页 + 延迟分配，RuOS 显著提升了内存利用率和性能。三种机制的协同工作如 @memory-diagram-21 所示：
 
 #figure(
-  image("diagrams/memory-diagram-21.png"),
+  image("diagrams/memory-diagram-21.png",width: 70%),
   caption: [COW + 共享零页 + 延迟分配协同工作示意图]
 ) <memory-diagram-21>
 

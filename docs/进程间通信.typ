@@ -93,7 +93,8 @@ RuOS 实现了类 Linux 的信号子系统，支持 pending 信号、屏蔽字�
 
 RuOS 的信号处理流程如 @ruos-signal-flowchart 所示：
 
-#figure(image("sig_handle.png"), caption: "RuOS 信号处理流程图") <ruos-signal-flowchart>
+#figure(
+  image("/assets/image2.jpg"), caption: "RuOS 信号处理流程图") <ruos-signal-flowchart>
 
 
 == 共享内存
@@ -220,7 +221,7 @@ int shmctl(int shmid, int cmd, struct shmid_ds* buf);
 共享内存段的完整生命周期如 @ipc-shm-lifecycle-diagram 所示：
 
 #figure(
-  image("diagrams/ipc-shm-lifecycle.png"),
+  image("/assets/image1.jpg",width: 60%),
   caption: [共享内存生命周期]
 ) <ipc-shm-lifecycle-diagram>
 
@@ -403,7 +404,7 @@ struct msg_queue {
 消息队列的收发与阻塞/唤醒关系如 @ruos-msgqueue-flow 所示：
 
 #figure(
-  image("msgqueue_sd_rx.png"),
+  image("/assets/image3.jpg",width: 40%),
   caption: [消息队列收发与阻塞/唤醒流程图]
 ) <ruos-msgqueue-flow>
 

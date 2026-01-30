@@ -99,5 +99,5 @@ readelf -l /musl/ltp/testcases/bin/waitpid01 | grep ".interp"
 
 RuOS 用户栈布局如 @ruos-user-stack-layout 所示：
 
-#figure(image("stack_layout.png", height: 70%), caption: "RuOS 用户栈布局图") <ruos-user-stack-layout>
+#figure(image("stack_layout.png", height: 50%), caption: "RuOS 用户栈布局图") <ruos-user-stack-layout>
 

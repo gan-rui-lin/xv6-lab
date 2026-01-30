@@ -29,7 +29,7 @@ User Networking (SLIRP) 是 QEMU 的默认网络后端，无需 root 权限即�
 
 该拓扑可以用@qemu-usernet-topology 表示：
 
-#figure(image("default-qemu-networking.jpg"), caption: "QEMU User Networking 拓扑图") <qemu-usernet-topology>
+#figure(image("default-qemu-networking.jpg",width: 70%), caption: "QEMU User Networking 拓扑图") <qemu-usernet-topology>
 
 结合 SLIRP 的限制可以理解：
 
@@ -62,7 +62,7 @@ sudo ip link set br0 up
 
 Tap 模式下的一种可能的网络拓扑如 @qemu-tap-topology 所示：
 
-#figure(image("tap-bridge-networking.jpg", height: 70%), caption: "QEMU Tap Networking 拓扑图") <qemu-tap-topology>
+#figure(image("tap-bridge-networking.jpg", height: 60%), caption: "QEMU Tap Networking 拓扑图") <qemu-tap-topology>
 
 == 设备层
 

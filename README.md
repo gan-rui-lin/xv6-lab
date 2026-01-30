@@ -4,9 +4,11 @@
 
 本项目的所有文档均位于 [docs/](docs/) 目录下，包含设计说明、调试记录与适配指南等内容。 README 的末尾提供了文档索引以便查阅。
 
-演示视频的分享链接在[此处](https://pan.baidu.com/s/1KLQgivU_ztO14eKqb95Z9w?pwd=ruos)。
+初赛演示视频的分享链接在[此处](https://pan.baidu.com/s/1KLQgivU_ztO14eKqb95Z9w?pwd=ruos)。
 
-**重要**：本项目的决赛文档是[docs/RUOS决赛文档.pdf](docs/RUOS决赛文档.pdf) 。
+决赛演示视频的分享链接在[此处](https://pan.baidu.com/s/1LcnuKQ5apxnlsJx_IKuCzg?pwd=ruos)。
+
+**重要**：本项目的决赛文档是[docs/RUOS决赛文档.pdf](docs/RUOS决赛文档.pdf) 。演示PPT是[docs/PPT/OS内核区域赛答辩version4.pptx](docs/PPT/OS内核区域赛答辩version4.pptx) 。
 
 ## 项目架构
 

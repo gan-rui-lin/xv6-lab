@@ -89,9 +89,9 @@ readelf -l /musl/ltp/testcases/bin/waitpid01 | grep ".interp"
 从高地址到低地址的实际栈布局可理解为：
 
 - `argv` 字符串区、`envp` 字符串区（逐个写入，并对齐到 16 字节）；
+- `auxv` 键值对数组（`AT_PHDR/...`，以 `AT_NULL` 结束）；
 - `argv[]` 指针数组（以 `NULL` 结尾）；
 - `envp[]` 指针数组（以 `NULL` 结尾）；
-- `auxv` 键值对数组（`AT_PHDR/...`，以 `AT_NULL` 结束）；
 - `argc`。
 
 其中 `auxv` 用于向用户态运行时传递 ELF 关键元信息：`AT_PHDR`/`AT_PHENT`/`AT_PHNUM` 指向程序头表，`AT_PAGESZ` 表示页大小，`AT_ENTRY` 为入口地址；若存在动态链接器，还会额外提供 `AT_BASE`（解释器加载基址）。

@@ -44,7 +44,9 @@ exec(char *path, char **argv, char **envp)
   char *s, *last;
   int i, off;
   uint64 argc, sz, sp, stackbase;
-  uint64 ustack[MAXARG * 2 + 2 + (AUXV_ENTRIES + 1) * 2];
+  uint64 uargv[MAXARG + 1];
+  uint64 uenvp[MAXARG + 1];
+  uint64 auxv[(AUXV_ENTRIES + 1) * 2];
   struct elfhdr elf;
   struct inode *ip;
   struct inode *ip_interp = 0;
@@ -256,7 +258,7 @@ exec(char *path, char **argv, char **envp)
   sp = sz;
   stackbase = sp - stack_pages * PGSIZE;
 
-  // Push argument strings, prepare rest of stack in ustack.
+  // Push argument strings, prepare argv/envp pointers and auxv.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
       goto bad;
@@ -266,12 +268,11 @@ exec(char *path, char **argv, char **envp)
       { err = -EFAULT; goto bad; }
     if(copyout(pagetable, sp, argv[argc], strlen(argv[argc]) + 1) < 0)
       { err = -EFAULT; goto bad; }
-    ustack[argc] = sp;
+    uargv[argc] = sp;
   }
-  ustack[argc] = 0; // argv[argc] = NULL
+  uargv[argc] = 0; // argv[argc] = NULL
 
   int envc = 0;
-  int envp_idx = argc + 1;
   if(envp){
     for(envc = 0; envp[envc]; envc++){
       if(envc >= MAXARG)
@@ -282,38 +283,45 @@ exec(char *path, char **argv, char **envp)
         goto bad;
       if(copyout(pagetable, sp, envp[envc], strlen(envp[envc]) + 1) < 0)
         goto bad;
-      ustack[envp_idx + envc] = sp;
+      uenvp[envc] = sp;
     }
   }
-  ustack[envp_idx + envc] = 0; // envp[envc] = NULL
+  uenvp[envc] = 0; // envp[envc] = NULL
 
-  // ! 可能这里的位置还有问题
-  int auxv_idx = envp_idx + envc + 1;
+  int auxv_idx = 0;
   uint64 phdr = load_bias + elf.phoff;
-  ustack[auxv_idx++] = AT_PHDR;   ustack[auxv_idx++] = phdr;
-  ustack[auxv_idx++] = AT_PHENT;  ustack[auxv_idx++] = sizeof(struct proghdr);
-  ustack[auxv_idx++] = AT_PHNUM;  ustack[auxv_idx++] = elf.phnum;
-  ustack[auxv_idx++] = AT_PAGESZ; ustack[auxv_idx++] = PGSIZE;
-  ustack[auxv_idx++] = AT_ENTRY;  ustack[auxv_idx++] = elf.entry;
+  auxv[auxv_idx++] = AT_PHDR;   auxv[auxv_idx++] = phdr;
+  auxv[auxv_idx++] = AT_PHENT;  auxv[auxv_idx++] = sizeof(struct proghdr);
+  auxv[auxv_idx++] = AT_PHNUM;  auxv[auxv_idx++] = elf.phnum;
+  auxv[auxv_idx++] = AT_PAGESZ; auxv[auxv_idx++] = PGSIZE;
+  auxv[auxv_idx++] = AT_ENTRY;  auxv[auxv_idx++] = elf.entry;
   if(have_interp){
-    ustack[auxv_idx++] = AT_BASE;  ustack[auxv_idx++] = interp_base;
+    auxv[auxv_idx++] = AT_BASE;  auxv[auxv_idx++] = interp_base;
   }
-  ustack[auxv_idx++] = AT_NULL;   ustack[auxv_idx++] = 0;
+  auxv[auxv_idx++] = AT_NULL;   auxv[auxv_idx++] = 0;
 
-  // push the array of argv[] pointers.
-  int stack_entries = auxv_idx;
-  sp -= stack_entries * sizeof(uint64);
+  int argv_bytes = (argc + 1) * sizeof(uint64);
+  int envp_bytes = (envc + 1) * sizeof(uint64);
+  int auxv_bytes = auxv_idx * sizeof(uint64);
+  int stack_bytes = argv_bytes + envp_bytes + auxv_bytes;
+
+  // Reserve space for argv/envp/auxv block.
+  sp -= stack_bytes;
   // 调整，使最终栈指针（含 argc）保持 16 字节对齐，同时保证 argv 紧跟在 argc 之后
   if(((sp - sizeof(uint64)) & 15) != 0){
     sp -= sizeof(uint64);
   }
   if(sp < stackbase)
     { err = -EFAULT; goto bad; }
-  if(copyout(pagetable, sp, (char *)ustack, stack_entries * sizeof(uint64)) < 0)
+  uint64 sp_argv = sp;
+  if(copyout(pagetable, sp_argv, (char *)uargv, argv_bytes) < 0)
+    { err = -EFAULT; goto bad; }
+  if(copyout(pagetable, sp_argv + argv_bytes, (char *)uenvp, envp_bytes) < 0)
+    { err = -EFAULT; goto bad; }
+  if(copyout(pagetable, sp_argv + argv_bytes + envp_bytes, (char *)auxv, auxv_bytes) < 0)
     { err = -EFAULT; goto bad; }
   // Place argc on stack so user CRT can read [argc][argv*...] from SP
   uint64 argc64 = argc;
-  uint64 sp_argv = sp;
   sp -= sizeof(uint64); // argc slot
   if(sp < stackbase)
     { err = -EFAULT; goto bad; }

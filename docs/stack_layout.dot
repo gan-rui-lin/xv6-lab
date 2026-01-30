@@ -9,6 +9,9 @@ digraph stack_layout {
   // 栈内容使用HTML表格定义，确保布局精准
   stack [label=<
     <TABLE BORDER="1" CELLBORDER="1" CELLSPACING="0" CELLPADDING="4">
+      <!-- 高地址末端标记 -->
+      <TR><TD BGCOLOR="#ffe4e1">End marker (NULL)</TD></TR>
+
       <!-- 字符串区域：高地址部分 -->
       <TR>
         <TD WIDTH="300" BGCOLOR="#f0f8ff">Environment Variable Strings<BR/><FONT POINT-SIZE="9">(e.g., "PATH=/bin", "HOME=/home/user", ...)</FONT></TD>
@@ -16,7 +19,20 @@ digraph stack_layout {
       <TR>
         <TD BGCOLOR="#f0f8ff">Command-line Argument Strings<BR/><FONT POINT-SIZE="9">(e.g., "ls", "-l", "/home", ...)</FONT></TD>
       </TR>
-      <!-- 指针数组区域 -->
+
+      <!-- 对齐/填充 -->
+      <TR><TD BGCOLOR="#f5f5f5">Padding (0–16 bytes)</TD></TR>
+
+      <!-- auxv 区域 -->
+      <TR><TD BGCOLOR="#e6ffe6">AT_NULL (type=0, val=0)</TD></TR>
+      <TR><TD BGCOLOR="#e6ffe6">...</TD></TR>
+      <TR><TD BGCOLOR="#e6ffe6">AT_PAGESZ (page size)</TD></TR>
+      <TR><TD BGCOLOR="#e6ffe6">AT_PHNUM (ELF program header count)</TD></TR>
+      <TR><TD BGCOLOR="#e6ffe6">AT_PHENT (ELF program header entry size)</TD></TR>
+      <TR><TD BGCOLOR="#e6ffe6">AT_PHDR (ELF program header address)</TD></TR>
+      <TR><TD BGCOLOR="#e6ffe6">AT_ENTRY (ELF entry point)</TD></TR>
+
+      <!-- 指针数组区域：envp/argv/argc（低地址在下方） -->
       <TR><TD BGCOLOR="#fffacd">NULL (0)</TD></TR>
 
       <TR><TD BGCOLOR="#fffacd">...</TD></TR>
@@ -29,7 +45,7 @@ digraph stack_layout {
       <TR><TD BGCOLOR="#fffacd">argv[1] → Address of next env string</TD></TR>
       <TR><TD BGCOLOR="#fffacd">argv[0] → Address of first arg string</TD></TR>
 
-      <!-- 栈顶区域 -->
+      <!-- 栈顶区域（低地址） -->
       <TR>
         <TD BGCOLOR="#f5f5f5">argc (Argument count, e.g., 3)</TD>
       </TR>

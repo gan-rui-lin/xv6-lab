@@ -8,7 +8,7 @@
 
 决赛演示视频的分享链接在[此处](https://pan.baidu.com/s/1LcnuKQ5apxnlsJx_IKuCzg?pwd=ruos)。
 
-**重要**：本项目的决赛文档是[docs/RUOS决赛文档.pdf](docs/RUOS决赛文档.pdf) 。演示PPT是[docs/PPT/OS内核区域赛答辩version4.pptx](docs/PPT/OS内核区域赛答辩version4.pptx) 。
+**重要**：本项目的决赛文档是[docs/RUOS决赛文档.pdf](docs/RUOS决赛文档.pdf) 。演示PPT是[docs/PPT/OS内核区域赛答辩version5.pptx](docs/PPT/OS内核区域赛答辩version5.pptx) 。
 
 ## 项目架构
 

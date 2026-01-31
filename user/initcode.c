@@ -9,31 +9,12 @@
 #define NULL ((void*)0)
 #endif
 
-// 测试函数声明
 void test_(char *name);
-void test_basic();
 void test_busybox();
 void test_lua();
 void test_libc();
+void test_basic();
 void test_all_tests();
-void run_testcode(const char *script_name);
-// static void test_cow(void);
-
-// 网络测试开关
-#define TEST_UDP_HOST_ECHO 0
-#define TEST_UDP_BRIDGE_HOST_ECHO 0
-#define TEST_TCP_LOOPBACK 0
-#define TEST_TCP_HOST_ECHO 0
-
-// 测试组开关 - 根据需要启用/禁用
-#define ENABLE_BASIC_TEST 1
-#define ENABLE_BUSYBOX_TEST 0
-#define ENABLE_LUA_TEST 0
-#define ENABLE_LIBC_TEST 0
-#define ENABLE_ALL_TESTS 0
-
-
-
 
 int main()
 {
@@ -46,53 +27,46 @@ int main()
     dup(0); // stdout
     dup(0); // stderr
 
-    printf("\n=== xv6 RISC-V Operating System ===\n");
-    printf("Initializing test environment...\n\n");
+    test_("getppid");
 
+    test_("chdir");
+    test_("times");
+    test_("sleep");
+    test_("fork");
+    test_("gettimeofday");
 
-    // 网络测试（如果启用）
-#if TEST_UDP_HOST_ECHO
-    printf("Running UDP host echo test...\n");
-    udp_host_echo_test();
-#endif
-#if TEST_UDP_BRIDGE_HOST_ECHO
-    printf("Running UDP bridge host echo test...\n");
-    udp_bridge_host_echo_test();
-#endif
-#if TEST_TCP_LOOPBACK
-    printf("Running TCP loopback test...\n");
-    tcp_loopback_test();
-#endif
-#if TEST_TCP_HOST_ECHO
-    printf("Running TCP host echo test...\n");
-    tcp_host_echo_test();
-#endif
+    test_("open");
+    test_("read");
+    test_("brk");
 
-    // 运行测试套件
-#if ENABLE_ALL_TESTS
-    test_all_tests();  // 运行所有测试
-#else
-    // 按需运行单个测试
-#if ENABLE_BASIC_TEST
-    test_basic();
-#endif
+    test_("getcwd");
 
-#if ENABLE_BUSYBOX_TEST
-    test_busybox();
-#endif
+    test_("openat");
+    test_("getpid");
+    test_("exit");
+    test_("wait");
+    test_("execve");
+    test_("clone");
+    test_("yield");
+    test_("waitpid");
 
-#if ENABLE_LUA_TEST
-    test_lua();
-#endif
+    test_("getcwd");
+    test_("dup");
+    test_("close");
+    test_("mkdir_");
 
-#if ENABLE_LIBC_TEST
-    test_libc();
-#endif
-#endif
+    test_("getdents");
+    test_("pipe");
+    test_("fstat");
+    test_("write");
+    test_("uname");
+    test_("mmap");
+    test_("munmap");
 
-    // 完成测试，关机
-    printf("\n=== All tests completed ===\n");
-    printf("Shutting down...\n");
+    test_("unlink");
+    test_("fstat");
+    test_("dup2");
+
     shutdown();
     return 0;
 }

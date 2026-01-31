@@ -41,7 +41,7 @@ void main()
         iinit();               // 初始化 inode 管理器
         fileinit();      // 初始化文件表的锁
         virtio_disk_init(minor(ROOTDEV)); // 初始化磁盘驱动
-        net_init(); // 初始化网络协议栈与网卡
+        // net_init(); // 初始化网络协议栈与网卡
 
         // 使能 S 模式中断（外部/软件/定时器）并打开全局 SIE
         w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);

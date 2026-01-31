@@ -208,7 +208,7 @@ mlfq_boost_priority(void)
   //claude: 重置boost计时器
   mlfq_sched.boost_timer = 0;
 
-  log_info("[MLFQ] Priority boost: moving all processes to L0\n");
+  // log_info("[MLFQ] Priority boost: moving all processes to L0\n");
 
   //claude: 遍历所有进程，提升到最高优先级
   for(p = proc; p < &proc[NPROC]; p++){

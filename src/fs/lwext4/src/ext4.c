@@ -139,7 +139,7 @@ int ext4_device_register(struct ext4_blockdev *bd,
 
 int ext4_device_unregister(const char *dev_name)
 {
-	ext4_assert(dev_name);
+	ext4_assert(dev_name != NULL);
 
 	for (size_t i = 0; i < CONFIG_EXT4_BLOCKDEVS_COUNT; ++i) {
 		if (strcmp(s_bdevices[i].name, dev_name))

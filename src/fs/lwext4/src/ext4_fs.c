@@ -126,7 +126,7 @@ int ext4_fs_init(struct ext4_fs *fs, struct ext4_blockdev *bdev,
 
 int ext4_fs_fini(struct ext4_fs *fs)
 {
-	ext4_assert(fs);
+	ext4_assert(fs != NULL);
 
 	/*Set superblock state*/
 	ext4_set16(&fs->sb, state, EXT4_SUPERBLOCK_STATE_VALID_FS);

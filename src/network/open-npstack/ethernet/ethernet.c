@@ -284,7 +284,7 @@ INT ethernet_ii_send(PST_NETIF pstNetif, UCHAR ubProtocol, SHORT sBufListHead, v
     buf_list_put_head(&sBufListHead, sHdrNode);
 
     //* 发送数据
-    INT nRtnVal = pstExtra->pfunEmacSend(sBufListHead, penErr); 
+    INT nRtnVal = pstExtra->pfunEmacSend(sBufListHead, (UCHAR *)penErr); 
 
 #if SUPPORT_PRINTF && DEBUG_LEVEL == 3
 	#if PRINTF_THREAD_MUTEX

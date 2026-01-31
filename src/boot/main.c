@@ -19,8 +19,9 @@ void main()
         consoleinit(); // 初始化控制台, 目前只初始化 uart
 
         printfinit(); // 初始化printf功能
-
+        #ifdef RUOS_PRINT_LOGO
         print_ruos();
+        #endif
         // printf("xv6 is booting on hart %d\n", cpuid());
 
         kinit(); // 物理页面分配器初始化

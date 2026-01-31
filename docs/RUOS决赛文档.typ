@@ -10,7 +10,7 @@
 #let teacher1_title = none
 #let teacher2_name = none
 #let teacher2_title = none
-#let student_id = "RUOK"
+#let student_id = "RUOS"
 #let student_name = "干瑞麟 周锦耀 黄文婷"
 #let year = "2026"
 #let month = "1"

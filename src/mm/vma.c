@@ -166,8 +166,11 @@ vma_unmap(struct proc *p, uint64 start, uint64 end)
 
     if (start > v->start && end < v->end) {
       struct vma *right = vma_split(v, end);
-      if (right == 0)
+      if (right == 0) {
+        // vma_split 已分配内存但分割失败
+        // 不过在当前实现中，vma_split 失败时会返回0且不分配，所以安全
         return -1;
+      }
       v->end = start;
       if (v->len > start - v->start)
         v->len = start - v->start;
@@ -190,6 +193,7 @@ vma_protect(struct proc *p, uint64 start, uint64 end, int prot)
   if (start >= end)
     return 0;
 
+  // 第一遍：分割所有需要分割的 VMA
   v = p->vma;
   while (v) {
     if (end <= v->start || start >= v->end) {
@@ -197,20 +201,40 @@ vma_protect(struct proc *p, uint64 start, uint64 end, int prot)
       continue;
     }
 
+    // 需要在 start 处分割
     if (start > v->start && start < v->end) {
-      if (vma_split(v, start) == 0)
+      struct vma *right = vma_split(v, start);
+      if (right == 0) {
+        // 分割失败，VMA 链表可能已部分修改
+        // 但 vma_split 在失败时返回0且不分配，所以安全
         return -1;
+      }
+      v = right; // 继续处理右侧部分
+      continue;
+    }
+
+    // 需要在 end 处分割
+    if (end > v->start && end < v->end) {
+      if (vma_split(v, end) == 0) {
+        return -1;
+      }
+    }
+
+    v = v->next;
+  }
+
+  // 第二遍：修改权限
+  v = p->vma;
+  while (v) {
+    if (end <= v->start || start >= v->end) {
       v = v->next;
       continue;
     }
 
-    if (end > v->start && end < v->end) {
-      if (vma_split(v, end) == 0)
-        return -1;
-    }
-
-    if (start <= v->start && end >= v->end)
+    // 完全覆盖的 VMA
+    if (start <= v->start && end >= v->end) {
       v->prot = prot;
+    }
 
     v = v->next;
   }

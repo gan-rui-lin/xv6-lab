@@ -162,25 +162,8 @@ int main()
     dup(0); // stdout
     dup(0); // stderr
 
-    // Ensure /tmp exists for close_range tests that create temp files.
-    // mkdir("/tmp");
-
-    // test_("cr-1");
-    // test_("cr-2");
-    // test_("cr-3");
-    // test_("cr-4");
-    // test_("cr-5");
-
-    test_("ef2-1");
-    test_("ef2-2");
-    test_("ef2-3");
-    test_("ef2-4");
-    test_("ef2-5");
-
-    // test_("wi-1");
-    // test_("wi-2");
-    // test_("wi-3");
-    // test_("wi-4");
+    // 运行所有测试套件（使用 ext4 镜像）
+    test_all_tests();
 
     shutdown();
     return 0;

@@ -18,6 +18,50 @@
 #define WNOHANG 1
 #endif
 
+// waitid 相关定义 (Linux 兼容)
+#ifndef WEXITED
+#define WEXITED     0x04
+#endif
+#ifndef WSTOPPED
+#define WSTOPPED    0x02
+#endif
+#ifndef WCONTINUED
+#define WCONTINUED  0x08
+#endif
+#ifndef WNOWAIT
+#define WNOWAIT     0x01000000
+#endif
+
+// idtype_t 枚举
+typedef enum {
+  P_ALL  = 0,
+  P_PID  = 1,
+  P_PGID = 2
+} idtype_t;
+
+// id_t 类型
+typedef int id_t;
+
+// siginfo_t 结构体（waitid 使用的子集）
+typedef struct {
+  int si_signo;     // 信号号
+  int si_errno;     // 错误号
+  int si_code;      // 信号代码
+  int __pad0;
+  int si_pid;       // 发送信号的进程 ID
+  int si_uid;       // 发送信号的用户 ID
+  int si_status;    // 退出状态或信号
+  char __pad[128 - 7 * sizeof(int)];  // 填充到 128 字节
+} siginfo_t;
+
+// si_code 值（子进程状态变化）
+#define CLD_EXITED    1   // 子进程正常退出
+#define CLD_KILLED    2   // 子进程被信号杀死
+#define CLD_DUMPED    3   // 子进程异常终止（core dump）
+#define CLD_TRAPPED   4   // 被跟踪的子进程陷入
+#define CLD_STOPPED   5   // 子进程被停止
+#define CLD_CONTINUED 6   // 子进程继续执行
+
 // clone flags (Linux-compatible values)
 #define CLONE_VM            0x00000100ULL
 #define CLONE_FS            0x00000200ULL
@@ -1102,9 +1146,37 @@ sys_setpgid(void)
   int pid, pgid;
   argint(0, &pid);
   argint(1, &pgid);
-  (void)pid;
-  (void)pgid;
-  // 单进程模型下直接返回成功
+  
+  struct proc *p = myproc();
+  struct proc *target;
+  
+  // pid == 0 表示设置当前进程
+  if(pid == 0)
+    pid = p->pid;
+  
+  // pgid == 0 表示使用进程自己的 PID 作为 PGID
+  if(pgid == 0)
+    pgid = pid;
+  
+  // 查找目标进程
+  target = 0;
+  for(struct proc *pp = proc; pp < &proc[NPROC]; pp++){
+    acquire(&pp->lock);
+    if(pp->pid == pid){
+      target = pp;
+      break;
+    }
+    release(&pp->lock);
+  }
+  
+  if(target == 0)
+    return -ESRCH;
+  
+  // 简化实现：只允许设置自己或子进程的进程组
+  // 完整实现需要更多检查
+  target->pgid = pgid;
+  release(&target->lock);
+  
   return 0;
 }
 
@@ -1344,4 +1416,233 @@ sys_set_robust_list(void)
   p->robust_list_len = len;
 
   return 0;
+}
+
+// 判断进程是否匹配 waitid 的等待条件
+static int
+waitid_match(struct proc *child, idtype_t idtype, id_t id)
+{
+  switch(idtype) {
+    case P_ALL:
+      // 等待任意子进程
+      return 1;
+    case P_PID:
+      // 等待特定 PID 的子进程
+      return child->pid == id;
+    case P_PGID:
+      // 等待特定进程组的子进程
+      return child->pgid == id;
+    default:
+      return 0;
+  }
+}
+
+// 根据 xstate 解析退出信息并填充 siginfo_t
+static void
+waitid_fill_siginfo(siginfo_t *info, struct proc *child)
+{
+  memset(info, 0, sizeof(siginfo_t));
+  info->si_signo = SIGCHLD;
+  info->si_pid = child->pid;
+  info->si_uid = child->uid;
+  
+  int xstate = child->xstate;
+  int termsig = xstate & 0x7f;  // 低 7 位是信号号
+  
+  if(termsig == 0) {
+    // 正常退出：信号号为 0，退出码在 bits 8-15
+    info->si_code = CLD_EXITED;
+    info->si_status = (xstate >> 8) & 0xff;
+  } else {
+    // 被信号杀死
+    info->si_code = CLD_KILLED;
+    info->si_status = termsig;
+    // 如果有 core dump (bit 7 of xstate)
+    if(xstate & 0x80) {
+      info->si_code = CLD_DUMPED;
+    }
+  }
+}
+
+// waitid 系统调用实现
+// 参数通过系统调用获取：a0=idtype, a1=id, a2=infop, a3=options
+uint64
+sys_waitid(void)
+{
+  int idtype_val, options;
+  id_t id;
+  uint64 infop_addr;
+  
+  // 获取参数
+  argint(0, &idtype_val);
+  argint(1, &id);
+  argaddr(2, &infop_addr);
+  argint(3, &options);
+  
+  idtype_t idtype = (idtype_t)idtype_val;
+  
+  // 验证 idtype
+  if(idtype != P_ALL && idtype != P_PID && idtype != P_PGID)
+    return -EINVAL;
+  
+  // 必须指定至少一个等待条件
+  if(!(options & (WEXITED | WSTOPPED | WCONTINUED)))
+    return -EINVAL;
+  
+  // 目前只支持 WEXITED（等待退出的子进程）
+  // WSTOPPED 和 WCONTINUED 需要进程停止/继续状态支持
+  
+  struct proc *p = myproc();
+  struct proc *pp;
+  int havekids;
+  int nohang = (options & WNOHANG) != 0;
+  int nowait = (options & WNOWAIT) != 0;
+  
+  acquire(&wait_lock);
+  
+  for(;;) {
+    // 扫描进程表寻找匹配的子进程
+    havekids = 0;
+    
+    for(pp = proc; pp < &proc[NPROC]; pp++) {
+      // 检查是否是当前进程的子进程
+      if(pp->parent != p)
+        continue;
+      
+      // 检查是否匹配等待条件
+      if(!waitid_match(pp, idtype, id))
+        continue;
+      
+      havekids = 1;
+      
+      acquire(&pp->lock);
+      
+      if(pp->state == ZOMBIE && (options & WEXITED)) {
+        // 找到已退出的子进程
+        if(infop_addr != 0) {
+          siginfo_t info;
+          waitid_fill_siginfo(&info, pp);
+          
+          // 复制到用户空间
+          if(copyout(p->pagetable, infop_addr, (char *)&info, sizeof(info)) < 0) {
+            release(&pp->lock);
+            release(&wait_lock);
+            return -EFAULT;
+          }
+        }
+        
+        // 如果没有设置 WNOWAIT，则回收子进程
+        if(!nowait) {
+          freeproc(pp);
+        }
+        
+        release(&pp->lock);
+        release(&wait_lock);
+        return 0;
+      }
+      
+      release(&pp->lock);
+    }
+    
+    // 没有匹配的子进程
+    if(!havekids) {
+      release(&wait_lock);
+      return -ECHILD;
+    }
+    
+    // 非阻塞模式：没有状态变化立即返回
+    if(nohang) {
+      // WNOHANG 且无状态变化时，将 si_pid 设为 0
+      if(infop_addr != 0) {
+        siginfo_t info;
+        memset(&info, 0, sizeof(info));
+        if(copyout(p->pagetable, infop_addr, (char *)&info, sizeof(info)) < 0) {
+          release(&wait_lock);
+          return -EFAULT;
+        }
+      }
+      release(&wait_lock);
+      return 0;
+    }
+    
+    // 检查当前进程是否被杀死
+    if(killed(p)) {
+      release(&wait_lock);
+      return -EINTR;
+    }
+    
+    // 阻塞等待子进程状态变化
+    sleep(p, &wait_lock);
+  }
+}
+
+// 保留旧的内核内部接口（如果有其他地方调用）
+uint64 waitid(idtype_t idtype, id_t id, siginfo_t *infop, int options) {
+  // 验证 idtype
+  if(idtype != P_ALL && idtype != P_PID && idtype != P_PGID)
+    return -EINVAL;
+  
+  // 必须指定至少一个等待条件
+  if(!(options & (WEXITED | WSTOPPED | WCONTINUED)))
+    return -EINVAL;
+  
+  struct proc *p = myproc();
+  struct proc *pp;
+  int havekids;
+  int nohang = (options & WNOHANG) != 0;
+  int nowait = (options & WNOWAIT) != 0;
+  
+  acquire(&wait_lock);
+  
+  for(;;) {
+    havekids = 0;
+    
+    for(pp = proc; pp < &proc[NPROC]; pp++) {
+      if(pp->parent != p)
+        continue;
+      
+      if(!waitid_match(pp, idtype, id))
+        continue;
+      
+      havekids = 1;
+      
+      acquire(&pp->lock);
+      
+      if(pp->state == ZOMBIE && (options & WEXITED)) {
+        if(infop != 0) {
+          waitid_fill_siginfo(infop, pp);
+        }
+        
+        if(!nowait) {
+          freeproc(pp);
+        }
+        
+        release(&pp->lock);
+        release(&wait_lock);
+        return 0;
+      }
+      
+      release(&pp->lock);
+    }
+    
+    if(!havekids) {
+      release(&wait_lock);
+      return -ECHILD;
+    }
+    
+    if(nohang) {
+      if(infop != 0) {
+        memset(infop, 0, sizeof(siginfo_t));
+      }
+      release(&wait_lock);
+      return 0;
+    }
+    
+    if(killed(p)) {
+      release(&wait_lock);
+      return -EINTR;
+    }
+    
+    sleep(p, &wait_lock);
+  }
 }

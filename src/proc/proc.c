@@ -143,6 +143,7 @@ struct proc* allocproc(void)
 found:  
 
   p->pid = allocpid();
+  p->pgid = p->pid;  // 默认进程组ID等于PID
   p->state = USED;
   p->priority = PRIO_DEFAULT;  // 设置默认优先级
   p->clear_child_tid = 0;
@@ -301,6 +302,7 @@ freeproc(struct proc *p)
   p->pagetable = 0;
   p->sz = 0;
   p->pid = 0;
+  p->pgid = 0;
   p->parent = 0;
   p->name[0] = 0;
   p->chan = 0;
@@ -478,8 +480,9 @@ fork(void)
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
-  // 子进程继承父进程的优先级
+  // 子进程继承父进程的优先级和进程组
   np->priority = p->priority;
+  np->pgid = p->pgid;
 
   pid = np->pid;
 
@@ -586,8 +589,9 @@ clone_fork(uint64 stack, uint64 flags, uint64 tls, uint64 ctid, int exit_signal)
 
   safestrcpy(np->name, p->name, sizeof(p->name));
 
-  // 子进程继承父进程的优先级
+  // 子进程继承父进程的优先级和进程组
   np->priority = p->priority;
+  np->pgid = p->pgid;
 
   pid = np->pid;
 

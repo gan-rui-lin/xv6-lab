@@ -191,6 +191,7 @@ extern uint64 sys_sbrk(void);
 extern uint64 sys_setpriority(void);
 extern uint64 sys_getpriority(void);
 extern uint64 sys_set_robust_list(void);
+extern uint64 sys_waitid(void);
 //claude: System V 消息队列系统调用
 extern uint64 sys_msgget(void);      //claude: 创建或访问消息队列
 extern uint64 sys_msgsnd(void);      //claude: 发送消息到队列
@@ -295,7 +296,7 @@ static uint64 (*syscalls[])(void) = {
     [SYS_shmat] sys_shmat,
     [SYS_shmdt] sys_shmdt,
     [SYS_shmctl] sys_shmctl,
-
+    [SYS_waitid] sys_waitid,
 };
 
 // sysname - return the name of the system call for debugging.

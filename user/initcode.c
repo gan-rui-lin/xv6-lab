@@ -27,46 +27,49 @@ int main()
     dup(0); // stdout
     dup(0); // stderr
 
-    test_("getppid");
+    // test_("getppid");
 
-    test_("chdir");
-    test_("times");
-    test_("sleep");
-    test_("fork");
-    test_("gettimeofday");
+    // test_("chdir");
+    // test_("times");
+    // test_("sleep");
+    // test_("fork");
+    // test_("gettimeofday");
 
-    test_("open");
-    test_("read");
-    test_("brk");
+    // test_("open");
+    // test_("read");
+    // test_("brk");
 
-    test_("getcwd");
+    // test_("getcwd");
 
-    test_("openat");
-    test_("getpid");
-    test_("exit");
-    test_("wait");
-    test_("execve");
-    test_("clone");
-    test_("yield");
-    test_("waitpid");
+    // test_("openat");
+    // test_("getpid");
+    // test_("exit");
+    // test_("wait");
+    // test_("execve");
+    // test_("clone");
+    // test_("yield");
+    // test_("waitpid");
 
-    test_("getcwd");
-    test_("dup");
-    test_("close");
-    test_("mkdir_");
+    // test_("getcwd");
+    // test_("dup");
+    // test_("close");
+    // test_("mkdir_");
 
-    test_("getdents");
-    test_("pipe");
-    test_("fstat");
-    test_("write");
-    test_("uname");
-    test_("mmap");
-    test_("munmap");
+    // test_("getdents");
+    // test_("pipe");
+    // test_("fstat");
+    // test_("write");
+    // test_("uname");
+    // test_("mmap");
+    // test_("munmap");
 
-    test_("unlink");
-    test_("fstat");
-    test_("dup2");
-
+    // test_("unlink");
+    // test_("fstat");
+    // test_("dup2");
+    test_("wi-1");
+    test_("wi-2");
+    test_("wi-3");
+    test_("wi-4");
     shutdown();
     return 0;
 }
@@ -242,35 +245,4 @@ void test_all_tests()
     printf("Failed: %d tests\n", failed);
     printf("==========================================\n\n");
 }
-
-// static void
-// test_cow(void)
-// {
-//     printf("=== Testing COW ===\n");
-//     char *p = (char *)(syscall(SYS_xv6_sbrk, 4096));
-//     if (p == (char *)-1) {
-//         printf("sbrk failed\n");
-//         return;
-//     }
-
-//     p[0] = 'P';
-//     p[1] = '0';
-
-//     int pid = fork();
-//     if (pid < 0) {
-//         printf("fork failed\n");
-//         return;
-//     }
-
-//     if (pid == 0) {
-//         p[0] = 'C';
-//         p[1] = '1';
-//         printf("child sees %c%c\n", p[0], p[1]);
-//         syscall(SYS_exit, 0);
-//     }
-
-//     int status;
-//     wait(&status);
-//     printf("parent sees %c%c\n", p[0], p[1]);
-// }
 

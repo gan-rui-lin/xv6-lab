@@ -59,6 +59,7 @@ struct proc
   // 调度器或者其他进程会并发访问这些字段
   struct spinlock lock;       // 保护进程状态的锁
   int pid;                     // 进程ID
+  int pgid;                    // 进程组ID (用于waitid P_PGID支持)
   int killed;                  // If non-zero, have been killed
   enum procstate state;        // Process state
   void *chan;                  // If non-zero, sleeping on chan

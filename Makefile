@@ -78,6 +78,14 @@ CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 &
 CFLAGS += -Wno-infinite-recursion
 
 
+# ===== 可选功能开关（通过 make VAR=1 启用） =====
+# 打印 RUOS 启动 Logo：对应源码中的 #ifdef RUOS_PRINT_LOGO
+RUOS_PRINT_LOGO ?= 0
+ifeq ($(RUOS_PRINT_LOGO),1)
+CFLAGS += -DRUOS_PRINT_LOGO
+endif
+
+
 ifeq ($(mode),debug)
 CFLAGS += -DLOG_DEBUG_ENABLE
 CFLAGS += -DLOG_INFO_ENABLE
@@ -325,7 +333,7 @@ run: $K/kernel
 # 	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
 #
 all:
-	$(MAKE) clean
+	$(MAKE) user/initcode
 	$(MAKE) run
 
 debug:

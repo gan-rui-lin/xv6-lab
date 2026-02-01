@@ -11,6 +11,7 @@
 #include "spinlock.h"
 #include "sleeplock.h"
 #include "file.h"
+#include "eventfd.h"
 #include "errno.h"
 #include "fcntl.h"
 #include "stat.h"
@@ -136,6 +137,8 @@ fileclose(struct file *f)
     end_op(ff.ip->dev);               // 结束 log 操作
   } else if(ff.type == FD_SOCKET){
     close(ff.sock);
+  } else if(ff.type == FD_EVENTFD){
+    eventfd_close(ff.efd);            // eventfd 清理
   }
 }
 
@@ -174,6 +177,11 @@ fileread(struct file *f, uint64 addr, int n)
     if((f->oflags & O_NONBLOCK) && pipe_is_empty(f->pipe) && pipe_write_open(f->pipe))
       return -EAGAIN;
     r = piperead(f->pipe, addr, n);    // 管道读
+  } else if(f->type == FD_EVENTFD){
+    // eventfd 读取（只支持读取8字节）
+    if(n < 8)
+      return -EINVAL;
+    r = eventfd_read(f->efd, addr, f->oflags & O_NONBLOCK);
   } else if(f->type == FD_DEVICE){
     if(f->major < 0 || f->major >= NDEV || !devsw[f->major].read)
       return -1;
@@ -229,6 +237,11 @@ filewrite(struct file *f, uint64 addr, int n)
     if((f->oflags & O_NONBLOCK) && pipe_is_full(f->pipe) && pipe_read_open(f->pipe))
       return -EAGAIN;
     ret = pipewrite(f->pipe, addr, n);    // 管道写
+  } else if(f->type == FD_EVENTFD){
+    // eventfd 写入（只支持写入8字节）
+    if(n < 8)
+      return -EINVAL;
+    ret = eventfd_write(f->efd, addr, f->oflags & O_NONBLOCK);
   } else if(f->type == FD_DEVICE){
     if(f->major < 0 || f->major >= NDEV || !devsw[f->major].write)
       return -1;

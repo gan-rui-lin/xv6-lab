@@ -3,7 +3,7 @@
 #include "fs.h"
 
 struct file {
-  enum { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE, FD_SOCKET } type;
+  enum { FD_NONE, FD_PIPE, FD_INODE, FD_DEVICE, FD_SOCKET, FD_EVENTFD } type;
   int ref; // reference count
   char readable;
   char writable;
@@ -14,6 +14,7 @@ struct file {
   short major;       // FD_DEVICE
   short minor;       // FD_DEVICE
   int sock;          // FD_SOCKET (onps socket handle)
+  struct eventfd *efd; // FD_EVENTFD
 };
 
 #define major(dev)  ((dev) >> 16 & 0xFFFF)

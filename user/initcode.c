@@ -16,6 +16,141 @@ void test_libc();
 void test_basic();
 void test_all_tests();
 
+// 运行评测目录中的测试文件
+void run_onsite_tests()
+{
+    printf("\n");
+    printf("==========================================\n");
+    printf("   Running Onsite Tests\n");
+    printf("==========================================\n\n");
+
+    // 尝试不同的测试目录路径
+    const char *test_dirs[] = {
+        "/sdcard-2025-onsite",
+        "/mnt/sdcard-2025-onsite",
+        "/",  // 根目录
+        NULL
+    };
+
+    const char *working_dir = NULL;
+    for (int i = 0; test_dirs[i] != NULL; i++) {
+        if (chdir(test_dirs[i]) == 0) {
+            printf("Found tests directory: %s\n\n", test_dirs[i]);
+            working_dir = test_dirs[i];
+            break;
+        }
+    }
+
+    if (working_dir == NULL) {
+        printf("ERROR: Cannot find test directory\n");
+        return;
+    }
+
+    // 定义所有测试文件（使用相对路径）
+    const char *test_files[] = {
+        "cr-1", "cr-2", "cr-3", "cr-4", "cr-5",
+        "ef2-1", "ef2-2", "ef2-3", "ef2-4", "ef2-5",
+        "wi-1", "wi-2", "wi-3", "wi-4",
+        NULL  // 结束标记
+    };
+
+    int total = 0;
+    int passed = 0;
+    int failed = 0;
+
+    // 依次运行每个测试
+    for (int i = 0; test_files[i] != NULL; i++)
+    {
+        total++;
+        printf("\n[%d] Running test: %s\n", i + 1, test_files[i]);
+        printf("------------------------------------------\n");
+
+        int pid = fork();
+        if (pid < 0)
+        {
+            printf("ERROR: Fork failed for %s\n", test_files[i]);
+            failed++;
+            continue;
+        }
+
+        if (pid == 0)
+        {
+            // 子进程：执行测试
+            // 构造完整路径
+            char fullpath[128];
+            fullpath[0] = '.';
+            fullpath[1] = '/';
+            int j;
+            for (j = 0; test_files[i][j]; j++) {
+                fullpath[j+2] = test_files[i][j];
+            }
+            fullpath[j+2] = 0;
+
+            char *argv[] = {(char*)test_files[i], NULL};
+            execve(fullpath, argv, NULL);
+
+            printf("ERROR: Failed to exec %s (tried %s)\n", test_files[i], fullpath);
+            syscall(SYS_exit, -1);
+        }
+        else
+        {
+            // 父进程：等待并统计结果
+            int status;
+            wait(&status);
+
+            if (status == 0)
+            {
+                printf("PASSED: %s\n", test_files[i]);
+                passed++;
+            }
+            else
+            {
+                printf("FAILED: %s (status=%d)\n", test_files[i], status);
+                failed++;
+            }
+        }
+
+        printf("------------------------------------------\n");
+    }
+
+    // 打印测试总结
+    printf("\n");
+    printf("==========================================\n");
+    printf("   Test Summary\n");
+    printf("==========================================\n");
+    printf("Total:  %d tests\n", total);
+    printf("Passed: %d tests\n", passed);
+    printf("Failed: %d tests\n", failed);
+    printf("==========================================\n\n");
+}
+
+// 列出目录内容的辅助函数
+void list_directory(const char *path)
+{
+    printf("Listing directory: %s\n", path);
+    int fd = open(path, O_RDWR);
+    if (fd < 0) {
+        printf("  ERROR: Cannot open directory\n");
+        return;
+    }
+
+    char buf[512];
+    int n;
+    while ((n = read(fd, buf, sizeof(buf))) > 0) {
+        // 简单打印前100字节
+        for (int i = 0; i < n && i < 100; i++) {
+            if (buf[i] >= 32 && buf[i] < 127) {
+                printf("%c", buf[i]);
+            } else {
+                printf(".");
+            }
+        }
+        printf("\n");
+        break;  // 只读第一块
+    }
+    close(fd);
+}
+
 int main()
 {
     // 初始化标准输入输出
@@ -27,45 +162,25 @@ int main()
     dup(0); // stdout
     dup(0); // stderr
 
-    test_("getppid");
+    // Ensure /tmp exists for close_range tests that create temp files.
+    // mkdir("/tmp");
 
-    test_("chdir");
-    test_("times");
-    test_("sleep");
-    test_("fork");
-    test_("gettimeofday");
+    // test_("cr-1");
+    // test_("cr-2");
+    // test_("cr-3");
+    // test_("cr-4");
+    // test_("cr-5");
 
-    test_("open");
-    test_("read");
-    test_("brk");
+    test_("ef2-1");
+    test_("ef2-2");
+    test_("ef2-3");
+    test_("ef2-4");
+    test_("ef2-5");
 
-    test_("getcwd");
-
-    test_("openat");
-    test_("getpid");
-    test_("exit");
-    test_("wait");
-    test_("execve");
-    test_("clone");
-    test_("yield");
-    test_("waitpid");
-
-    test_("getcwd");
-    test_("dup");
-    test_("close");
-    test_("mkdir_");
-
-    test_("getdents");
-    test_("pipe");
-    test_("fstat");
-    test_("write");
-    test_("uname");
-    test_("mmap");
-    test_("munmap");
-
-    test_("unlink");
-    test_("fstat");
-    test_("dup2");
+    // test_("wi-1");
+    // test_("wi-2");
+    // test_("wi-3");
+    // test_("wi-4");
 
     shutdown();
     return 0;

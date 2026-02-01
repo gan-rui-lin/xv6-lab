@@ -10,6 +10,7 @@
 #include "sleeplock.h" // TODO 和 fs/file.h 捆绑着引入
 #include "fs/fs.h"     // TODO 和 fs/file.h 捆绑着引入
 #include "fs/file.h"
+#include "fs/eventfd.h"
 #include "fs/stat.h"
 #include "fs/fat32.h"
 #include "fs/ext4fs.h"
@@ -1721,6 +1722,76 @@ sys_pipe2(void)
     p->fdflags[fd1] |= FD_CLOEXEC;
   }
   return 0;
+}
+
+// eventfd2 系统调用
+uint64
+sys_eventfd2(void)
+{
+  int initval;
+  int flags;
+  struct proc *p = myproc();
+  struct file *f;
+  struct eventfd *efd;
+  int fd;
+
+  // 获取参数
+  if(argint(0, &initval) < 0)
+    return -EINVAL;
+  if(argint(1, &flags) < 0)
+    return -EINVAL;
+
+  // 检查 initval 的有效性（必须是非负数）
+  if(initval < 0)
+    return -EINVAL;
+
+  // 检查 flags 的有效性
+  // 注意：Linux 的 EFD_* 标志位需要映射
+  // Linux: EFD_CLOEXEC=02000000, EFD_NONBLOCK=04000, EFD_SEMAPHORE=00000001
+  // 我们内部使用：EFD_CLOEXEC=1, EFD_NONBLOCK=2, EFD_SEMAPHORE=4
+  int internal_flags = 0;
+  if(flags & 02000000)  // Linux O_CLOEXEC
+    internal_flags |= EFD_CLOEXEC;
+  if(flags & 04000)     // Linux O_NONBLOCK
+    internal_flags |= EFD_NONBLOCK;
+  if(flags & 00000001)  // Linux EFD_SEMAPHORE
+    internal_flags |= EFD_SEMAPHORE;
+
+  // 分配 eventfd 对象
+  efd = eventfd_alloc((unsigned int)initval, internal_flags);
+  if(efd == 0)
+    return -ENOMEM;
+
+  // 分配文件结构
+  f = filealloc();
+  if(f == 0){
+    eventfd_close(efd);
+    return -ENFILE;
+  }
+
+  // 初始化文件结构
+  f->type = FD_EVENTFD;
+  f->readable = 1;
+  f->writable = 1;
+  f->efd = efd;
+  f->oflags = 0;
+
+  // 设置非阻塞标志
+  if(internal_flags & EFD_NONBLOCK)
+    f->oflags |= O_NONBLOCK;
+
+  // 分配文件描述符
+  fd = fdalloc(f);
+  if(fd < 0){
+    fileclose(f);
+    return -EMFILE;
+  }
+
+  // 设置 CLOEXEC 标志
+  if(internal_flags & EFD_CLOEXEC)
+    p->fdflags[fd] |= FD_CLOEXEC;
+
+  return fd;
 }
 
 uint64

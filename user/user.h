@@ -102,4 +102,22 @@ void* shmat(int shmid, void* addr, int flags);
 int shmdt(void* addr);
 int shmctl(int shmid, int cmd, void* buf);
 
+// eventfd support
+typedef uint64 eventfd_t;
+int eventfd(unsigned int initval, int flags);
+
+// eventfd flags
+#define EFD_CLOEXEC 02000000   // 0x80000 in octal
+#define EFD_NONBLOCK 04000     // 0x800 in octal
+#define EFD_SEMAPHORE 00000001 // 0x1
+
+// Helper functions for eventfd
+static inline int eventfd_read(int fd, eventfd_t *value) {
+    return read(fd, value, sizeof(eventfd_t)) == sizeof(eventfd_t) ? 0 : -1;
+}
+
+static inline int eventfd_write(int fd, eventfd_t value) {
+    return write(fd, &value, sizeof(eventfd_t)) == sizeof(eventfd_t) ? 0 : -1;
+}
+
 #endif // _USER_H_

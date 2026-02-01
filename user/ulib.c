@@ -324,6 +324,12 @@ long long sbrk(int n)
     return syscall(SYS_brk, n);
 }
 
+// eventfd implementation
+int eventfd(unsigned int initval, int flags)
+{
+    return syscall(SYS_eventfd2, initval, flags);
+}
+
 // .global gettimeofday
 // gettimeofday:
 //  li a7, SYS_xv6_gettimeofday

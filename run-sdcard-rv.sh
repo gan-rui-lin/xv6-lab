@@ -25,9 +25,10 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
+# cp ./oscomp-midwest-onsitefinal-main/testcase-rv-fat32.img ./sdcard-rv.img
+cp ./sdcard-rv.img.backup ./sdcard-rv.img
 echo "===================================="
-echo "使用 sdcard-rv.img 启动 xv6"
+echo "使用 testcase-rv-fat32.img (FAT32) 启动 xv6"
 echo "日志将保存到: $LOG_FILE"
 echo "===================================="
 

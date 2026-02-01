@@ -333,7 +333,7 @@ run: $K/kernel
 # 	cp $(SRC)/bootloader/fw_jump.bin sbi-qemu
 #
 all:
-	$(MAKE) user/initcode
+	$(MAKE) clean
 	$(MAKE) run
 
 debug:

@@ -850,6 +850,7 @@ cow_alloc(pagetable_t pagetable, uint64 va)
         // 只有一个引用，直接复用原物理页
         // 清除COW标志，添加写权限，更新页表项
         *pte = PA2PTE(pa) | ((flags | PTE_W) & ~PTE_COW);
+        sfence_vma();    // 刷新TLB，使新PTE生效
         return 0;        // 成功：无需复制，直接升级权限
     }
 
@@ -868,7 +869,10 @@ cow_alloc(pagetable_t pagetable, uint64 va)
     //    清除COW标志，添加写权限
     *pte = PA2PTE((uint64)mem) | ((flags | PTE_W) & ~PTE_COW);
     
-    // 10. 减少原物理页的引用计数
+    // 10. 刷新TLB，使新PTE生效
+    sfence_vma();
+    
+    // 11. 减少原物理页的引用计数
     //    当最后一个引用释放时，原页会被自动回收
     kref_dec(pa);
     

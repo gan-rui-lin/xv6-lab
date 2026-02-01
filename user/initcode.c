@@ -28,7 +28,7 @@ void run_testcode(const char *script_name);
 
 // 测试组开关 - 根据需要启用/禁用
 #define ENABLE_BASIC_TEST 0
-#define ENABLE_BUSYBOX_TEST 0
+#define ENABLE_BUSYBOX_TEST 1
 #define ENABLE_LUA_TEST 0
 #define ENABLE_LIBC_TEST 0
 #define ENABLE_LTP_TEST 1

@@ -1345,3 +1345,43 @@ sys_set_robust_list(void)
 
   return 0;
 }
+
+// syslog: 读取或控制内核消息缓冲区 (dmesg 使用)
+// 参数：
+//   a0: type - 操作类型
+//   a1: bufp - 用户空间缓冲区
+//   a2: len - 缓冲区长度
+// 返回：读取的字节数或 0
+uint64
+sys_syslog(void)
+{
+  int type;
+  uint64 bufp;
+  int len;
+
+  if(argint(0, &type) < 0)
+    return -EINVAL;
+  if(argaddr(1, &bufp) < 0)
+    return -EFAULT;
+  if(argint(2, &len) < 0)
+    return -EINVAL;
+
+  // 简化实现：返回空的内核日志
+  // type 值含义：
+  // 2 = SYSLOG_ACTION_READ: 读取内核日志
+  // 3 = SYSLOG_ACTION_READ_ALL: 读取并清除
+  // 10 = SYSLOG_ACTION_SIZE_BUFFER: 返回日志缓冲区大小
+  
+  switch(type) {
+    case 2:  // SYSLOG_ACTION_READ
+    case 3:  // SYSLOG_ACTION_READ_ALL
+    case 4:  // SYSLOG_ACTION_READ_CLEAR
+      // 返回空日志（没有数据）
+      return 0;
+    case 10: // SYSLOG_ACTION_SIZE_BUFFER
+      // 返回日志缓冲区大小
+      return 16384;  // 假设 16KB
+    default:
+      return 0;
+  }
+}

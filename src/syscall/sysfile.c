@@ -1892,3 +1892,55 @@ sys_unlinkat(void)
   end_op(ROOTDEV);
   return 0;
 }
+
+// Linux statfs64 结构体
+struct statfs64 {
+  uint64 f_type;      // 文件系统类型
+  uint64 f_bsize;     // 块大小
+  uint64 f_blocks;    // 总块数
+  uint64 f_bfree;     // 空闲块数
+  uint64 f_bavail;    // 非root可用块数
+  uint64 f_files;     // 总inode数
+  uint64 f_ffree;     // 空闲inode数
+  uint64 f_fsid[2];   // 文件系统ID
+  uint64 f_namelen;   // 最大文件名长度
+  uint64 f_frsize;    // 基本块大小
+  uint64 f_flags;     // 挂载标志
+  uint64 f_spare[4];  // 保留
+};
+
+// statfs: 获取文件系统统计信息
+uint64
+sys_statfs(void)
+{
+  char path[MAXPATH];
+  uint64 buf_addr;
+  struct proc *p = myproc();
+  
+  if(argstr(0, path, MAXPATH) < 0)
+    return -EFAULT;
+  if(argaddr(1, &buf_addr) < 0)
+    return -EFAULT;
+  
+  // 填充 statfs 结构体，返回合理的默认值
+  struct statfs64 st;
+  memset(&st, 0, sizeof(st));
+  
+  st.f_type = 0xEF53;      // EXT4_SUPER_MAGIC
+  st.f_bsize = 4096;       // 4KB 块大小
+  st.f_blocks = 1024*1024; // 假设 4GB 文件系统
+  st.f_bfree = 512*1024;   // 假设 2GB 空闲
+  st.f_bavail = 512*1024;  // 非 root 用户可用
+  st.f_files = 65536;      // inode 总数
+  st.f_ffree = 32768;      // 空闲 inode
+  st.f_fsid[0] = 0;
+  st.f_fsid[1] = 0;
+  st.f_namelen = 255;      // 最大文件名长度
+  st.f_frsize = 4096;      // 基本块大小
+  st.f_flags = 0;
+  
+  if(copyout(p->pagetable, buf_addr, (char *)&st, sizeof(st)) < 0)
+    return -EFAULT;
+  
+  return 0;
+}

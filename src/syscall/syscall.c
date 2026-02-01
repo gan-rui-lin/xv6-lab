@@ -61,15 +61,15 @@ should_trace(struct proc *p)
   if (syscall_trace_all)
     return 1;
 
-  return 1;
-  // // 默认只跟踪 busybox 进程，帮助定位其系统调用实现问题。
-  // return (p->name[0] == 'b' &&
-  //         p->name[1] == 'u' &&
-  //         p->name[2] == 's' &&
-  //         p->name[3] == 'y' &&
-  //         p->name[4] == 'b' &&
-  //         p->name[5] == 'o' &&
-  //         p->name[6] == 'x');
+  //return 1;
+  // 默认只跟踪 busybox 进程，帮助定位其系统调用实现问题。
+  return (p->name[0] == 'b' &&
+          p->name[1] == 'u' &&
+          p->name[2] == 's' &&
+          p->name[3] == 'y' &&
+          p->name[4] == 'b' &&
+          p->name[5] == 'o' &&
+          p->name[6] == 'x');
 }
 
 // 全局开关，默认关闭，便于 GDB 手动打开。
@@ -200,6 +200,8 @@ extern uint64 sys_shmget(void);
 extern uint64 sys_shmat(void);
 extern uint64 sys_shmdt(void);
 extern uint64 sys_shmctl(void);
+extern uint64 sys_syslog(void);
+extern uint64 sys_statfs(void);
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
 static uint64 (*syscalls[])(void) = {
@@ -295,6 +297,8 @@ static uint64 (*syscalls[])(void) = {
     [SYS_shmat] sys_shmat,
     [SYS_shmdt] sys_shmdt,
     [SYS_shmctl] sys_shmctl,
+    [SYS_syslog] sys_syslog,
+    [SYS_statfs] sys_statfs,
 
 };
 

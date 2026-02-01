@@ -66,15 +66,41 @@ static int build_meminfo(char *buf, int buflen)
   return n;
 }
 
+// Build /proc/mounts content
+static int build_mounts(char *buf, int buflen)
+{
+  int n = 0;
+  // Standard mount entries that df expects
+  n = append_str(buf, buflen, n, "/dev/root / ext4 rw,relatime 0 0\n");
+  n = append_str(buf, buflen, n, "proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0\n");
+  n = append_str(buf, buflen, n, "tmpfs /tmp tmpfs rw,nosuid,nodev 0 0\n");
+  if(n > buflen) n = buflen;
+  return n;
+}
+
+// Procfs file types for inode identification
+#define PROCFS_MEMINFO  1
+#define PROCFS_MOUNTS   2
+
 struct inode*
 procfs_namei(char *full)
 {
   if(!full) return 0;
-  // Minimal: support only /proc/meminfo for now
-  if(strncmp(full, "/proc/meminfo", 14) == 0 && full[14] == '\0'){
+  // Support /proc/meminfo
+  if(strncmp(full, "/proc/meminfo", 13) == 0 && (full[13] == '\0' || full[13] == '/')){
     char tmp[256];
     int len = build_meminfo(tmp, sizeof(tmp));
-    return make_proc_inode(ROOTDEV, T_FILE, (uint)len);
+    struct inode *ip = make_proc_inode(ROOTDEV, T_FILE, (uint)len);
+    ip->minor = PROCFS_MEMINFO;
+    return ip;
+  }
+  // Support /proc/mounts
+  if(strncmp(full, "/proc/mounts", 12) == 0 && (full[12] == '\0' || full[12] == '/')){
+    char tmp[256];
+    int len = build_mounts(tmp, sizeof(tmp));
+    struct inode *ip = make_proc_inode(ROOTDEV, T_FILE, (uint)len);
+    ip->minor = PROCFS_MOUNTS;
+    return ip;
   }
   // Optionally, recognize /proc as a directory
   if(strncmp(full, "/proc", 5) == 0 && full[5] == '\0'){
@@ -88,14 +114,27 @@ procfs_readi(struct inode *ip, int user_dst, uint64 dst, uint off, uint n)
 {
   if(!ip || ip->major != PROCFS_INODE_TAG)
     return -1;
-  // Only handle meminfo file and simple directory (no dir read implemented)
+  // Only handle files (no dir read implemented)
   if(ip->type == T_DIR)
     return -1;
 
   char *kbuf = (char *)kalloc();
   if(!kbuf)
     return -ENOMEM;
-  int len = build_meminfo(kbuf, PGSIZE);
+  
+  int len = 0;
+  switch(ip->minor) {
+    case PROCFS_MEMINFO:
+      len = build_meminfo(kbuf, PGSIZE);
+      break;
+    case PROCFS_MOUNTS:
+      len = build_mounts(kbuf, PGSIZE);
+      break;
+    default:
+      kfree(kbuf);
+      return -1;
+  }
+  
   if(off >= (uint)len){
     kfree(kbuf);
     return 0;

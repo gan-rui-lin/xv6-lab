@@ -92,10 +92,10 @@ usertrap(void)
       uint64 va = r_stval();
       if (va < p->sz && zero_page_alloc(p->pagetable, va) == 0) {
         // handled zero page write fault
-        log_info("handled zero page write fault\n");
+        log_debug("handled zero page write fault\n");
       } else if (va < p->sz && cow_alloc(p->pagetable, va) == 0) {
-        // handled COW fault
-        log_info("handled COW fault\n");
+        // handled COW fault - this is normal behavior after fork
+        log_debug("handled COW fault at va=%p pid=%d\n", PGROUNDDOWN(va), p->pid);
       } else if (va < p->sz && vma_handle_fault(p, va, VM_FAULT_WRITE) == 0) {
         // handled mmap lazy fault
         log_info("handled mmap lazy fault\n");

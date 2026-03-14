@@ -11,10 +11,11 @@ void test_basic();
 // static void test_cow(void);
 
 #define TEST_UDP_HOST_ECHO 0
-#define TEST_UDP_BRIDGE_HOST_ECHO 1
-#define TEST_TCP_LOOPBACK 1
-#define TEST_TCP_HOST_ECHO 1
+#define TEST_UDP_BRIDGE_HOST_ECHO 0
+#define TEST_TCP_LOOPBACK 0
+#define TEST_TCP_HOST_ECHO 0
 
+void test_ltp(char *name);
 
 int main()
 {
@@ -25,72 +26,107 @@ int main()
     }
     dup(0); // stdout
     dup(0); // stderr
- #if TEST_UDP_HOST_ECHO
-    udp_host_echo_test();
- #endif
- #if TEST_UDP_BRIDGE_HOST_ECHO
-   udp_bridge_host_echo_test();
- #endif
- #if TEST_TCP_LOOPBACK
-    tcp_loopback_test();
- #endif
- #if TEST_TCP_HOST_ECHO
-    tcp_host_echo_test();
- #endif
-    printf("All network tests done!\n");
-    shutdown();
-    // Provide /bin/sh for script fallback.
-    // mkdir("/bin");
-    // printf("r1 = %d\n", r1);
-    // syscall(SYS_symlink, "/musl/busybox", "/bin/sh");
-    // printf("r2 = %d\n", r2)
 
-    // test_cow();
-    // test_basic();
-    // test_busybox_musl();
-    // printf("Hello, xv6 world!\n");
+    // 确保 /tmp 存在（LTP 框架需要）
+    mkdir("/tmp");
+    chdir("/musl");
 
-    test_("getppid");
+    printf("=== LTP Test Start ===\n");
 
-    test_("chdir");
-    test_("times");
-    test_("sleep");
-    test_("fork");
-    test_("gettimeofday");
+    test_ltp("getpid01");
+    test_ltp("getpid02");
+    test_ltp("getppid01");
+    test_ltp("getppid02");
+    test_ltp("fork01");
+    test_ltp("fork02");
+    test_ltp("fork03");
+    test_ltp("fork04");
+    test_ltp("wait01");
+    test_ltp("wait02");
+    test_ltp("wait401");
+    test_ltp("wait402");
+    test_ltp("waitpid01");
+    test_ltp("waitpid02");
+    test_ltp("waitpid03");
+    test_ltp("exit01");
+    test_ltp("exit02");
+    test_ltp("execve01");
+    test_ltp("execve02");
+    test_ltp("execve03");
+    test_ltp("execve05");
+    test_ltp("clone01");
+    test_ltp("clone02");
+    test_ltp("clone03");
+    test_ltp("brk01");
+    test_ltp("brk02");
+    test_ltp("mmap01");
+    test_ltp("mmap02");
+    test_ltp("mmap03");
+    test_ltp("mmap04");
+    test_ltp("mmap05");
+    test_ltp("munmap01");
+    test_ltp("munmap02");
+    test_ltp("open01");
+    test_ltp("open02");
+    test_ltp("open03");
+    test_ltp("openat01");
+    test_ltp("openat02");
+    test_ltp("openat03");
+    test_ltp("close01");
+    test_ltp("close02");
+    test_ltp("read01");
+    test_ltp("read02");
+    test_ltp("read03");
+    test_ltp("read04");
+    test_ltp("write01");
+    test_ltp("write02");
+    test_ltp("write03");
+    test_ltp("write05");
+    test_ltp("dup01");
+    test_ltp("dup02");
+    test_ltp("dup201");
+    test_ltp("dup202");
+    test_ltp("dup203");
+    test_ltp("pipe01");
+    test_ltp("pipe02");
+    test_ltp("mkdir01");
+    test_ltp("mkdir02");
+    test_ltp("mkdir03");
+    test_ltp("chdir01");
+    test_ltp("chdir02");
+    test_ltp("chdir03");
+    test_ltp("getcwd01");
+    test_ltp("getcwd02");
+    test_ltp("getcwd03");
+    test_ltp("fstat01");
+    test_ltp("fstat02");
+    test_ltp("stat01");
+    test_ltp("stat02");
+    test_ltp("unlink01");
+    test_ltp("unlink02");
+    test_ltp("uname01");
+    test_ltp("uname02");
+    test_ltp("gettimeofday01");
+    test_ltp("gettimeofday02");
+    test_ltp("times01");
+    test_ltp("times03");
+    test_ltp("getdents01");
+    test_ltp("getdents02");
+    test_ltp("fchdir01");
+    test_ltp("fchdir02");
+    test_ltp("kill01");
+    test_ltp("kill02");
+    test_ltp("pipe2_01");
+    test_ltp("pipe2_02");
+    test_ltp("lseek01");
+    test_ltp("lseek02");
+    test_ltp("nanosleep01");
+    test_ltp("nanosleep02");
+    test_ltp("clock_gettime01");
+    test_ltp("clock_nanosleep01");
+    test_ltp("sched_yield01");
 
-    test_("open");
-    test_("read");
-    test_("brk");
-
-    test_("getcwd");
-
-    test_("openat");
-    test_("getpid");
-    test_("exit");
-    test_("wait");
-    test_("execve");
-    test_("clone");
-    test_("yield");
-    test_("waitpid");
-
-    test_("getcwd");
-    test_("dup");
-    test_("close");
-    test_("mkdir_");
-
-    test_("getdents");
-    test_("pipe");
-    test_("fstat");
-    test_("write");
-    test_("uname");
-    test_("mmap");
-    test_("munmap");
-
-    test_("unlink");
-    test_("fstat");
-    test_("dup2");
-
-    // test_busybox();
+    printf("=== LTP Test End ===\n");
     shutdown();
     return 0;
 }
@@ -98,9 +134,7 @@ int main()
 
 void test_(char *name)
 {
-
     char *argv[] = {name, 0};
-
     int pid = fork();
     if (pid < 0)
     {
@@ -109,19 +143,51 @@ void test_(char *name)
     }
     else if (pid == 0)
     {
-        // Child process
-        // exec("wait", argv);
-        // exec("fork", argv);
         exec(name, argv);
-        // exec("waitpid", argv);
         printf("Exec failed!\n");
         syscall(SYS_exit, -1);
     }
     else
     {
-        // Parent process
         int status;
         wait(&status);
+    }
+}
+
+void test_ltp(char *name)
+{
+    char path[256];
+    // 拼路径: /musl/ltp/testcases/bin/<name>
+    char *prefix = "/musl/ltp/testcases/bin/";
+    char *p = path;
+    while (*prefix) *p++ = *prefix++;
+    char *n = name;
+    while (*n) *p++ = *n++;
+    *p = 0;
+
+    printf("[LTP] RUN  %s\n", name);
+
+    int pid = fork();
+    if (pid == 0)
+    {
+        char *argv[] = {name, 0};
+        char *envp[] = {"PATH=/musl:/bin:/usr/bin", "TMPDIR=/tmp", "HOME=/tmp", "LTPROOT=/musl/ltp", 0};
+        execve(path, argv, envp);
+        printf("[LTP] EXEC_FAIL %s\n", name);
+        syscall(SYS_exit, -1);
+    }
+    else if (pid > 0)
+    {
+        int status;
+        wait(&status);
+        if (status == 0)
+            printf("[LTP] PASS %s\n", name);
+        else
+            printf("[LTP] FAIL %s (status=0x%x)\n", name, status);
+    }
+    else
+    {
+        printf("[LTP] FORK_FAIL %s\n", name);
     }
 }
 

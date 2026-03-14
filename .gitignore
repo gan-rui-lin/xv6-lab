@@ -39,3 +39,6 @@ sbi-qemu
 sdcard.img-backup
 *.gz
 *.xz
+
+ltp-full-20240524
+*.txt
